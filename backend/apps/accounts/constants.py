@@ -1,0 +1,5 @@
+class Roles:
+    ADMIN = "ADMIN"
+    HR = "HR"
+    DEPARTMENT_MANAGER = "DEPARTMENT_MANAGER"
+    EMPLOYEE = "EMPLOYEE"
