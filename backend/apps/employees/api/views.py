@@ -2,11 +2,24 @@ from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 # from django.shortcuts import get_object_or_404
 
-from employees.models import Employee
-from .serializers import EmployeeSerializer, EmployeeCreateSerializer, EmployeeUpdateSerializer
+from employees.models import Employee, Company, Department
+from .serializers import EmployeeSerializer, EmployeeUpdateSerializer, CompanySerializer, DepartmentSerializer
 from employees.services.employee_service import update_employee, get_employees_for_user
-from accounts.permissions import IsAdmin
+from accounts.permissions import IsAdmin, IsHRorManager
 
+class CompanyViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAdmin]
+    queryset = Company.objects.all()
+    serializer_class = CompanySerializer
+
+class DepartmentViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAdmin, IsHRorManager]
+    queryset = (
+        Department.objects
+        .select_related("company", "manager")
+        .all()
+    )
+    serializer_class = DepartmentSerializer
 
 class EmployeeViewSet(viewsets.ModelViewSet):
     queryset = Employee.objects.all()
@@ -18,14 +31,12 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         return get_employees_for_user(self.request.user)
 
     def get_serializer_class(self):
-        if self.action == 'create':
-            return EmployeeCreateSerializer
-        elif self.action in ['update', 'partial_update']:
+        if self.action in ['update', 'partial_update']:
             return EmployeeUpdateSerializer
         return EmployeeSerializer
 
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+        if self.action in ['update', 'partial_update', 'destroy']:
             self.permission_classes = [IsAdmin]
         return super().get_permissions()
 
