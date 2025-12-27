@@ -57,14 +57,13 @@ class UserViewSet(viewsets.ModelViewSet):
         
         employee_data = None
         if any(role in role_names for role in employee_roles):
-            required_fields = ['full_name', 'employee_code', 'company']
+            required_fields = ['full_name', 'employee_code']
             for field in required_fields:
                 if field not in data or not data[field]:
                     raise serializers.ValidationError({field: 'This field is required for employee roles.'})
             employee_data = {
                 'full_name': data['full_name'],
                 'employee_code': data['employee_code'],
-                'company': data['company'],
                 'department': data.get('department')
             }
         

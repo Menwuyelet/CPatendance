@@ -4,22 +4,17 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 # from django.shortcuts import get_object_or_404
 
-from employees.models import Employee, Company, Department
-from .serializers import EmployeeSerializer, EmployeeUpdateSerializer, CompanySerializer, DepartmentSerializer
+from employees.models import Employee, Department
+from .serializers import EmployeeSerializer, EmployeeUpdateSerializer, DepartmentSerializer
 from employees.services.employee_service import update_employee, get_employees_for_user
 from accounts.permissions import IsAdmin, IsHRorManager
 
-
-class CompanyViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAdmin]
-    queryset = Company.objects.all()
-    serializer_class = CompanySerializer
 
 class DepartmentViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdmin, IsHRorManager]
     queryset = (
         Department.objects
-        .select_related("company", "manager")
+        .select_related("manager")
         .all()
     )
     serializer_class = DepartmentSerializer
@@ -56,7 +51,7 @@ class ManagerTeamView(APIView):
         GET /api/manager/team/
 
     It reuses the same scoping rules as ``get_employees_for_user`` so that:
-    - HR users see all employees in their company.
+    - HR users see all employees.
     - Department managers see only employees in their department.
     """
 

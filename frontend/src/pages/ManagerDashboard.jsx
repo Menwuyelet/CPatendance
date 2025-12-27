@@ -61,6 +61,27 @@ const getStatusColor = (status) => {
   return 'default';
 };
 
+// Map EmployeeSerializer payload from /api/employees/employees/ to the shape
+// this dashboard expects for team members.
+const mapEmployeeToTeamMember = (emp) => {
+  const email = emp.user?.email || '';
+  const primaryRole =
+    emp.user?.roles?.[0]?.name ||
+    (typeof emp.user?.roles?.[0] === 'string' ? emp.user.roles[0] : 'EMPLOYEE');
+
+  return {
+    id: emp.id,
+    name: emp.full_name || email.split('@')[0] || 'Unknown',
+    email,
+    department: emp.department?.name || '',
+    role: primaryRole,
+    status: emp.is_active ? 'Active' : 'Inactive',
+    // Attendance rate per-employee can be added later by aggregating
+    // /api/attendance/attendance/; for now default to 0%.
+    attendance_rate: 0,
+  };
+};
+
 // ====================== LAYOUT WRAPPER ======================
 const DashboardLayout = ({ children, title, breadcrumbs = [] }) => {
   const navigate = useNavigate();
@@ -144,30 +165,43 @@ const ManagerDashboardHome = () => {
       setLoading(true);
       setError('');
 
-      const [teamRes, todayRes, approvalsRes, weeklyRes] = await Promise.allSettled([
-        api.get('/manager/team'),
-        api.get('/attendance/', { params: { date: format(new Date(), 'yyyy-MM-dd') } }),
-        api.get('/manager/approvals'),
-        api.get('/attendance/', {
-          params: {
-            start_date: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
-            end_date: format(new Date(), 'yyyy-MM-dd'),
-          },
-        }),
+      // Use real Django endpoints:
+      // - /api/employees/employees/ (scoped team for this manager/HR)
+      // - /api/attendance/attendance/ (scoped attendance records)
+      const [employeesRes, attendanceRes] = await Promise.all([
+        api.get('/employees/employees/'),
+        api.get('/attendance/attendance/'),
       ]);
 
-      let teamCount = 0, presentToday = 0, pendingApprovals = 0, attendanceRate = 0;
+      const employees = Array.isArray(employeesRes) ? employeesRes : [];
+      const attendance = Array.isArray(attendanceRes) ? attendanceRes : [];
 
-      if (teamRes.status === 'fulfilled' && Array.isArray(teamRes.value)) teamCount = teamRes.value.length;
-      if (todayRes.status === 'fulfilled' && Array.isArray(todayRes.value))
-        presentToday = todayRes.value.filter(a => a.status === 'PRESENT').length;
-      if (approvalsRes.status === 'fulfilled' && Array.isArray(approvalsRes.value))
-        pendingApprovals = approvalsRes.value.filter(a => a.status === 'PENDING').length;
-      if (weeklyRes.status === 'fulfilled' && Array.isArray(weeklyRes.value)) {
-        const present = weeklyRes.value.filter(a => a.status === 'PRESENT').length;
-        const total = weeklyRes.value.length;
-        attendanceRate = total > 0 ? Math.round((present / total) * 100) : 0;
-      }
+      const teamCount = employees.length;
+
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayRecords = attendance.filter((a) => a.date === todayStr);
+      const presentToday = todayRecords.filter((a) => {
+        const status = (a.status || '').toUpperCase();
+        return status === 'PRESENT' || status === 'LATE';
+      }).length;
+
+      const pendingApprovals = todayRecords.filter(
+        (a) => (a.status || '').toUpperCase() === 'ON_LEAVE',
+      ).length;
+
+      const now = new Date();
+      const sevenDaysAgo = subDays(now, 7);
+      const weeklyRecords = attendance.filter((a) => {
+        if (!a.date) return false;
+        const d = new Date(a.date);
+        return d >= sevenDaysAgo && d <= now;
+      });
+      const weeklyPresent = weeklyRecords.filter(
+        (a) => (a.status || '').toUpperCase() === 'PRESENT',
+      ).length;
+      const attendanceRate = weeklyRecords.length > 0
+        ? Math.round((weeklyPresent / weeklyRecords.length) * 100)
+        : 0;
 
       setStats({ teamCount, presentToday, pendingApprovals, attendanceRate });
     } catch (err) {
@@ -318,8 +352,10 @@ const TeamOverviewPage = () => {
   const fetchTeam = async () => {
     try {
       setLoading(true);
-      const data = await api.get('/manager/team');
-      setTeam(Array.isArray(data) ? data : []);
+      // Use the real employees endpoint scoped by the current manager/HR user.
+      const data = await api.get('/employees/employees/');
+      const employees = Array.isArray(data) ? data : [];
+      setTeam(employees.map(mapEmployeeToTeamMember));
     } catch (err) {
       alert('Failed to load team members. Check permissions.');
       setTeam([]);
@@ -489,14 +525,10 @@ const ProfileSettingsPage = () => {
   };
 
   const handleSave = async () => {
-    try {
-      await api.patch('/accounts/users/me/', formData);
-      setProfile(formData);
-      setEditing(false);
-      alert('Profile updated successfully!');
-    } catch (err) {
-      alert('Failed to save changes.');
-    }
+    // The backend currently exposes only GET /api/accounts/users/me/.
+    // Persisting profile changes would require a dedicated endpoint.
+    alert('Profile editing via API is not implemented on the backend yet.');
+    setEditing(false);
   };
 
   if (loading) return <DashboardLayout title="Settings"><CircularProgress /></DashboardLayout>;

@@ -35,7 +35,7 @@ const Attendance = ({ role, onNotify }) => {
     : isManager
     ? 'Team Attendance View'
     : isHR || isAdmin
-    ? 'Company Attendance Overview'
+    ? 'Attendance Overview'
     : 'Attendance Records';
 
   const [isClockedIn, setIsClockedIn] = useState(false);

@@ -102,7 +102,7 @@ const PolicyConfig = () => {
   const [holidays, setHolidays] = useState([
     { id: 1, name: "New Year's Day", date: '2025-01-01' },
     { id: 2, name: 'Independence Day', date: '2025-07-04' },
-    { id: 3, name: 'Company Foundation Day', date: '2025-09-01' },
+    { id: 3, name: 'Foundation Day', date: '2025-09-01' },
   ]);
   const [holidayForm, setHolidayForm] = useState({
     id: null,
@@ -149,7 +149,7 @@ const PolicyConfig = () => {
         Policies &amp; System Configuration
       </Typography>
       <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-        Define company-wide rules such as working hours, shifts, leave types,
+        Define organization-wide rules such as working hours, shifts, leave types,
         holidays, and approval workflows. All data here is mock and stored only
         in browser state.
       </Typography>
@@ -295,7 +295,7 @@ const PolicyConfig = () => {
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Company Holidays
+                Organization Holidays
               </Typography>
               <Box component="form" onSubmit={handleHolidaySubmit} sx={{ mb: 2 }}>
                 <Stack direction="row" spacing={1} sx={{ mb: 1 }}>

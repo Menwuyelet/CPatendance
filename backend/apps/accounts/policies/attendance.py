@@ -7,12 +7,8 @@ class AttendancePolicy(BasePolicy):
     def can_take_attendance(cls, user, employee):
         """
         HR and Managers can take attendance
-        Must be same company
-        Managers only for their department
+        HR can take for anyone, Managers only for their department
         """
-        if not cls.same_company(user, employee):
-            return False
-
         if cls.is_hr(user):
             return True
 
@@ -31,12 +27,12 @@ class AttendancePolicy(BasePolicy):
     @classmethod
     def can_view_attendance(cls, user, employee):
         """
-        - HR: company-wide
+        - HR: all employees
         - Manager: department
         - Worker: self only
         """
         if cls.is_hr(user):
-            return cls.same_company(user, employee)
+            return True
 
         if cls.is_manager(user):
             return cls.same_department(user, employee)

@@ -16,7 +16,6 @@ def create_user(email, password, roles=None, employee_data=None):
             user=user,
             full_name=employee_data['full_name'],
             employee_code=employee_data['employee_code'],
-            company=employee_data['company'],
             department=employee_data.get('department')
         )
     
@@ -39,17 +38,17 @@ def update_user(user, **kwargs):
 def get_users_for_user(request_user):
     """
     Returns queryset of users that the request_user can view.
-    HR can view all in company, managers their department, employees only self.
+    HR can view all, managers their department, employees only self.
     """
     from accounts.policies.common import BasePolicy
 
     if BasePolicy.is_hr(request_user):
-        # Assuming HR can view all, but need company filter
-        # For now, return all
+        # HR can view all users
         return User.objects.all()
     elif BasePolicy.is_manager(request_user):
         # Department users
-        # Need to implement based on employee relation
-        return User.objects.filter(employee__department=request_user.employee.department)
+        if hasattr(request_user, 'employee') and request_user.employee.department:
+            return User.objects.filter(employee__department=request_user.employee.department)
+        return User.objects.none()
     else:
         return User.objects.filter(id=request_user.id)

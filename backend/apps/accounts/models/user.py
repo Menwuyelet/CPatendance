@@ -40,7 +40,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.has_role(Roles.HR)
 
     def is_department_manager(self):
-        return self.has_role(Roles.DEPARTMENT_MANAGER)
+        return self.has_role(Roles.MANAGER)
 
     def is_employee(self):
         return self.has_role(Roles.EMPLOYEE)

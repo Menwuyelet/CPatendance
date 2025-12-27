@@ -17,7 +17,6 @@ import Sidebar from './components/Sidebar.jsx';
 import Header from './components/Header.jsx';
 import Toast from './components/Toast.jsx';
 import { api } from './services/api.service.js';
-import CompanySetup from './pages/CompanySetup.jsx';
 
 function App() {
   const navigate = useNavigate();
@@ -54,7 +53,7 @@ function App() {
         console.log(' Role detected from backend: HR');
         return 'HR';
       }
-      if (roleNames.includes('DEPARTMENT_MANAGER')) {
+      if (roleNames.includes('MANAGER')) {
         console.log(' Role detected from backend: Manager');
         return 'Manager';
       }
@@ -168,7 +167,6 @@ function App() {
               <>
                 <Route path="/dashboard" element={<AdminPanel onNotify={notify} />} />
                 <Route path="/users" element={<UserManagement scope="admin" onNotify={notify} />} />
-                <Route path="/companies" element={<CompanySetup onNotify={notify} />} />
                 <Route path="/config" element={<PolicyConfig />} />
                 <Route path="/attendance" element={<Attendance role="Admin" onNotify={notify} />} />
                 <Route path="/biometrics" element={<Biometrics />} />

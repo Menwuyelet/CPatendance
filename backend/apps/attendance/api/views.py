@@ -71,9 +71,20 @@ class AttendanceViewSet(ViewSet):
 
         # HR / Manager / Employee
         else:
-            qs = qs.filter(
-                employee__company=request.user.employee.company
-        )
+            # HR sees all, Manager sees their department, Employee sees only self
+            if request.user.is_hr():
+                pass  # HR sees all
+            elif request.user.is_department_manager():
+                if hasattr(request.user, 'employee') and request.user.employee.department:
+                    qs = qs.filter(employee__department=request.user.employee.department)
+                else:
+                    qs = qs.none()
+            else:
+                # Employee sees only self
+                if hasattr(request.user, 'employee'):
+                    qs = qs.filter(employee=request.user.employee)
+                else:
+                    qs = qs.none()
 
 
         # Optional filters
