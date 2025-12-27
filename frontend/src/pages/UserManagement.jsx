@@ -49,11 +49,10 @@ const emptyForm = {
   status: 'Active',
   password: '',
   employeeCode: '',
-  companyId: '1', // Default to 1
   departmentId: '',
 };
 
-const EMPLOYEE_ROLE_NAMES = ['EMPLOYEE', 'HR', 'DEPARTMENT_MANAGER'];
+const EMPLOYEE_ROLE_NAMES = ['EMPLOYEE', 'HR', 'MANAGER'];
 
 const UserManagement = ({ scope = 'admin', onNotify }) => {
   const title = scope === 'hr' ? 'Employee Directory' : 'User & Access Management';
@@ -64,6 +63,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
 
   const [users, setUsers] = useState([]);
   const [roleOptions, setRoleOptions] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const hasLoadedRef = useRef(false);
 
@@ -97,23 +97,32 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
         if (Array.isArray(usersRes)) {
           const mapped = usersRes.map(u => {
             const primaryRole =
-              u.roles?.[0]?.name || 
+              u.roles?.[0]?.name ||
               (typeof u.roles?.[0] === 'string' ? u.roles[0] : 'EMPLOYEE');
 
             return {
               id: u.id,
-              name: u.full_name || u.email?.split('@')[0] || 'Unknown',
+              name: u.email?.split('@')[0] || 'User',
               email: u.email,
               role: primaryRole,
-              department: u.department?.name || '',
+              // UserSerializer does not currently expose department; this will
+              // be populated once the backend adds it.
+              department: '',
               status: u.is_active ? 'Active' : 'Inactive',
-              companyId: u.company?.id || '1',
             };
           });
           setUsers(mapped);
         }
 
-        onNotify?.('Users and roles loaded successfully', 'success');
+        // Load departments for employee assignment
+        const departmentsRes = await api.get('/employees/departments/');
+        if (Array.isArray(departmentsRes)) {
+          setDepartments(
+            departmentsRes.map((d) => ({ id: d.id, name: d.name })),
+          );
+        }
+
+        onNotify?.('Users, roles, and departments loaded successfully', 'success');
       } catch (err) {
         console.error('Failed to load data:', err);
         onNotify?.('Failed to load users or roles. Check server connection.', 'error');
@@ -177,7 +186,6 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           email: form.email.trim().toLowerCase(),
           password: form.password,
           roles: [roleOption.id],
-          company: Number(form.companyId) || 1, // Always include company
           ...(isEmployeeRole && {
             full_name: form.name.trim(),
             employee_code: form.employeeCode || undefined,
@@ -194,7 +202,6 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           role: form.role,
           department: created.department?.name || form.department || '',
           status: 'Active',
-          companyId: created.company?.id || form.companyId,
         };
 
         // Add to list immediately
@@ -213,7 +220,6 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
   const handleEdit = (user) => {
     setForm({
       ...user,
-      companyId: user.companyId || '1',
       password: '', // Never show password
     });
     setIsEditing(true);
@@ -258,7 +264,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
     const map = {
       ADMIN: 'Admin',
       HR: 'HR',
-      DEPARTMENT_MANAGER: 'Manager',
+      MANAGER: 'Manager',
       EMPLOYEE: 'Employee',
     };
     return map[role] || role;
@@ -268,7 +274,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
     switch (role) {
       case 'ADMIN': return 'error';
       case 'HR': return 'secondary';
-      case 'DEPARTMENT_MANAGER': return 'primary';
+      case 'MANAGER': return 'primary';
       default: return 'default';
     }
   };
@@ -311,7 +317,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
             <CardContent>
               {roleOptions.length === 0 && (
                 <Alert severity="warning" sx={{ mb: 2 }}>
-                  No roles found. Create roles (ADMIN, HR, DEPARTMENT_MANAGER, EMPLOYEE) in Django Admin first.
+                  No roles found. Create roles (ADMIN, HR, MANAGER, EMPLOYEE) in Django Admin first.
                 </Alert>
               )}
 
@@ -323,13 +329,30 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                   <InputLabel>Role</InputLabel>
                   <Select name="role" value={form.role} onChange={handleChange} label="Role">
                     <MenuItem value="EMPLOYEE">Employee</MenuItem>
-                    <MenuItem value="DEPARTMENT_MANAGER">Manager</MenuItem>
+                    <MenuItem value="MANAGER">Manager</MenuItem>
                     <MenuItem value="HR">HR</MenuItem>
                     {scope === 'admin' && <MenuItem value="ADMIN">Admin</MenuItem>}
                   </Select>
                 </FormControl>
 
-                <TextField label="Department" name="department" value={form.department} onChange={handleChange} placeholder="e.g. Engineering" fullWidth />
+                {isEmployeeRole && (
+                  <FormControl fullWidth>
+                    <InputLabel>Department</InputLabel>
+                    <Select
+                      name="departmentId"
+                      value={form.departmentId}
+                      onChange={handleChange}
+                      label="Department"
+                    >
+                      <MenuItem value="">No department</MenuItem>
+                      {departments.map((d) => (
+                        <MenuItem key={d.id} value={String(d.id)}>
+                          {d.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                )}
 
                 {!isEditing && (
                   <>
@@ -339,18 +362,13 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                         <Typography variant="subtitle2" color="text.secondary">
                           Employee Details (link to existing records)
                         </Typography>
-                        <TextField label="Employee Code" name="employeeCode" value={form.employeeCode} onChange={handleChange} fullWidth />
-                        <TextField 
-                          label="Company ID" 
-                          name="companyId" 
-                          value={form.companyId} 
-                          onChange={handleChange} 
-                          placeholder="e.g. 1" 
-                          fullWidth 
-                          required
-                          helperText="Required field for all users"
+                        <TextField
+                          label="Employee Code"
+                          name="employeeCode"
+                          value={form.employeeCode}
+                          onChange={handleChange}
+                          fullWidth
                         />
-                        <TextField label="Department ID (optional)" name="departmentId" value={form.departmentId} onChange={handleChange} fullWidth />
                       </>
                     )}
                   </>

@@ -13,13 +13,10 @@ class LeavePolicy(BasePolicy):
     @classmethod
     def can_approve_leave(cls, user, leave_request):
         """
-        - HR: any leave in company
+        - HR: any leave
         - Manager: only department employees
         """
         employee = leave_request.employee
-
-        if not cls.same_company(user, employee):
-            return False
 
         if cls.is_hr(user):
             return True

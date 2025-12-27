@@ -10,12 +10,12 @@ def can_take_attendance(user, employee) -> bool:
     if user.has_role(Roles.ADMIN):
         return True
 
-    # HR can take attendance for anyone in the same company
+    # HR can take attendance for anyone
     if user.has_role(Roles.HR):
-        return user.employee.company_id == employee.company_id
+        return True
 
     # Department manager can take attendance only for their department
-    if user.has_role(Roles.DEPARTMENT_MANAGER):
+    if user.has_role(Roles.MANAGER):
         manager = user.employee
         return (
             employee.department_id == manager.department_id

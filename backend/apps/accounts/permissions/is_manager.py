@@ -4,4 +4,4 @@ from .utils import user_has_role
 
 class IsDepartmentManager(BasePermission):
     def has_permission(self, request, view):
-        return user_has_role(request.user, "DEPARTMENT_MANAGER")
+        return user_has_role(request.user, "MANAGER")

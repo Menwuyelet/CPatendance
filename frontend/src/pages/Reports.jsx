@@ -31,12 +31,12 @@ const scopeConfig = {
   hr: {
     title: 'Payroll & Compliance Reports',
     description:
-      'Company-wide reports for payroll export and working hours compliance.',
+      'Organization-wide reports for payroll export and working hours compliance.',
   },
   system: {
     title: 'Global System Reports',
     description:
-      'System-wide attendance, leave, and compliance analytics for the entire company.',
+      'System-wide attendance, leave, and compliance analytics.',
   },
 };
 

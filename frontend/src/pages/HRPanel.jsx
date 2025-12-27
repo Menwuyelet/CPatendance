@@ -62,42 +62,36 @@ const HRDashboard = () => {
         setLoading(true);
         setError('');
 
-        // Parallel API calls - adjust endpoints to match your backend
-        const [
-          employeesRes,
-          todayAttendanceRes,
-          pendingLeavesRes,
-          recentActivityRes,
-          upcomingEventsRes,
-        ] = await Promise.allSettled([
-          api.get('/hr/employees'),                    // All employees
-          api.get('/attendance/today-summary'),        // { present: 128, total: 142 }
-          api.get('/leaves/pending'),                  // Pending leave requests
-          api.get('/hr/activity/recent?limit=8'),      // Recent actions log
-          api.get('/hr/upcoming-events'),              // Birthdays & anniversaries
+        // Use real Django endpoints only:
+        // - /api/employees/employees/
+        // - /api/attendance/attendance/
+        const [employeesRes, attendanceRes] = await Promise.all([
+          api.get('/employees/employees/'),
+          api.get('/attendance/attendance/'),
         ]);
 
-        // Extract data safely
-        const employees = employeesRes.status === 'fulfilled' ? employeesRes.value : [];
-        const todaySummary = todayAttendanceRes.status === 'fulfilled' ? todayAttendanceRes.value : null;
-        const pendingLeaves = pendingLeavesRes.status === 'fulfilled' ? pendingLeavesRes.value : [];
-        const activity = recentActivityRes.status === 'fulfilled' ? recentActivityRes.value : [];
-        const events = upcomingEventsRes.status === 'fulfilled' ? upcomingEventsRes.value : [];
+        const employees = Array.isArray(employeesRes) ? employeesRes : [];
+        const attendance = Array.isArray(attendanceRes) ? attendanceRes : [];
 
-        // Calculate stats from real data
-        const totalEmployees = Array.isArray(employees) ? employees.length : 0;
-        const activeToday = todaySummary?.present || 0;
-        const pendingLeavesCount = Array.isArray(pendingLeaves) ? pendingLeaves.length : 0;
+        const totalEmployees = employees.length;
 
-        // New hires this month (example filter - adjust field name as needed)
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const todayRecords = attendance.filter((r) => r.date === todayStr);
+        const activeToday = todayRecords.filter((r) => {
+          const status = (r.status || '').toUpperCase();
+          return status === 'PRESENT' || status === 'LATE';
+        }).length;
+
+        const pendingLeavesCount = todayRecords.filter(
+          (r) => (r.status || '').toUpperCase() === 'ON_LEAVE',
+        ).length;
+
         const thisMonthStart = startOfMonth(new Date());
         const thisMonthEnd = endOfMonth(new Date());
-        const newThisMonth = Array.isArray(employees)
-          ? employees.filter(emp => {
-              const joinDate = emp.join_date ? new Date(emp.join_date) : null;
-              return joinDate && joinDate >= thisMonthStart && joinDate <= thisMonthEnd;
-            }).length
-          : 0;
+        const newThisMonth = employees.filter((emp) => {
+          const createdAt = emp.created_at ? new Date(emp.created_at) : null;
+          return createdAt && createdAt >= thisMonthStart && createdAt <= thisMonthEnd;
+        }).length;
 
         setStats({
           totalEmployees,
@@ -106,9 +100,9 @@ const HRDashboard = () => {
           newThisMonth,
         });
 
-        setRecentActivity(Array.isArray(activity) ? activity : []);
-        setUpcomingEvents(Array.isArray(events) ? events : []);
-
+        // These can later be derived from attendance & employees; for now keep empty.
+        setRecentActivity([]);
+        setUpcomingEvents([]);
       } catch (err) {
         console.error('Failed to load HR dashboard data:', err);
         setError('Unable to load dashboard data. Please try again later.');
@@ -125,7 +119,7 @@ const HRDashboard = () => {
       title: 'Overview',
       description: 'Central hub for HR metrics and system status',
       icon: <Dashboard />,
-      action: () => navigate('/hr/dashboard'),
+      action: () => navigate('/dashboard'),
       buttonText: 'View Overview',
       gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     },
@@ -133,7 +127,7 @@ const HRDashboard = () => {
       title: 'Employees',
       description: 'Onboarding, profiles, roles, departments & access control',
       icon: <People />,
-      action: () => navigate('/hr/employees'),
+      action: () => navigate('/employees'),
       buttonText: 'Manage Employees',
       gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
       badge: stats.newThisMonth > 0 ? stats.newThisMonth : null,
@@ -143,7 +137,7 @@ const HRDashboard = () => {
       title: 'Attendance',
       description: 'Real-time tracking, shifts, overtime, and compliance',
       icon: <EventNote />,
-      action: () => navigate('/hr/attendance'),
+      action: () => navigate('/attendance'),
       buttonText: 'View Attendance',
       gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
       progress: stats.totalEmployees > 0 
@@ -154,7 +148,7 @@ const HRDashboard = () => {
       title: 'Leaves',
       description: 'Approve requests, track balances, and manage policies',
       icon: <CalendarToday />,
-      action: () => navigate('/hr/leaves'),
+      action: () => navigate('/leaves'),
       buttonText: 'Review Requests',
       gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
       badge: stats.pendingLeaves > 0 ? stats.pendingLeaves : null,
@@ -164,7 +158,7 @@ const HRDashboard = () => {
       title: 'Reports & Analytics',
       description: 'Turnover, diversity, performance, and compliance insights',
       icon: <Assessment />,
-      action: () => navigate('/hr/reports'),
+      action: () => navigate('/reports'),
       buttonText: 'Generate Reports',
       gradient: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
     },

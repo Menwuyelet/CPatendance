@@ -17,7 +17,7 @@ const Header = ({ user, onLogout }) => {
     <AppBar position="static" color="default" elevation={1}>
       <Toolbar>
         <Typography variant="h6" sx={{ flexGrow: 1 }}>
-          Company Attendance Management System
+          Attendance Management System
         </Typography>
         <Typography variant="body2" sx={{ mr: 2 }}>
           {dateLabel} {timeLabel}

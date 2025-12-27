@@ -8,7 +8,7 @@ const Navbar = ({ role, onLogout, theme = 'dark', onToggleTheme }) => {
     <header className="navbar">
       <div className="navbar-left">
         <span className="navbar-logo">CAMS</span>
-        <span className="navbar-title">Company Attendance Management System</span>
+        <span className="navbar-title">Attendance Management System</span>
       </div>
       <div className="navbar-right">
         <button

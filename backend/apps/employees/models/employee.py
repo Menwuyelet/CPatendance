@@ -12,12 +12,6 @@ class Employee(models.Model):
         related_name="employee"
     )
 
-    company = models.ForeignKey(
-        "employees.Company",
-        on_delete=models.CASCADE,
-        related_name="employees"
-    )
-
     department = models.ForeignKey(
         "employees.Department",
         on_delete=models.SET_NULL,
@@ -51,6 +45,6 @@ class Employee(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=["company", "employee_code"]),
+            models.Index(fields=["employee_code"]),
             models.Index(fields=["department"]),
         ]

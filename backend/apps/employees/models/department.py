@@ -4,7 +4,7 @@ import uuid
 
 class Department(models.Model):
     """
-    Logical working unit inside a company.
+    Logical working unit.
     """
 
     id = models.UUIDField(
@@ -13,17 +13,12 @@ class Department(models.Model):
         editable=False
     )
 
-    company = models.ForeignKey(
-        "employees.Company",
-        on_delete=models.CASCADE,
-        related_name="departments"
-    )
-
     name = models.CharField(max_length=255)
 
     code = models.CharField(
         max_length=20,
-        help_text="Unique department code per company"
+        unique=True,
+        help_text="Unique department code"
     )
 
     manager = models.ForeignKey(
@@ -37,10 +32,9 @@ class Department(models.Model):
     is_active = models.BooleanField(default=True)
 
     class Meta:
-        unique_together = ("company", "code")
         indexes = [
-            models.Index(fields=["company", "code"]),
+            models.Index(fields=["code"]),
         ]
 
     def __str__(self):
-        return f"{self.name} ({self.company.name})"
+        return self.name
