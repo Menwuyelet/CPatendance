@@ -1,4 +1,24 @@
 import React, { useState } from 'react';
+import {
+  Box,
+  Grid,
+  Card,
+  CardContent,
+  Typography,
+  TextField,
+  Button,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  Chip,
+  MenuItem,
+  Select,
+  InputLabel,
+  FormControl,
+  Stack,
+} from '@mui/material';
 
 const LeaveRequest = ({ role, onNotify }) => {
   const isEmployee = role === 'Employee';
@@ -81,129 +101,165 @@ const LeaveRequest = ({ role, onNotify }) => {
   };
 
   return (
-    <div className="page-container">
-      <h1 className="page-title">{heading}</h1>
-      <p className="page-description">
-        This page now includes a basic leave request form (for employees) and a
-        simple approval-style table (for managers/HR/Admin). All data is local
-        state only.
-      </p>
+    <Box sx={{ p: 2 }}>
+      <Typography variant="h4" gutterBottom>
+        {heading}
+      </Typography>
+      <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+        This page lets employees submit leave requests and lets managers / HR /
+        Admin review and update them. All data is in local state only.
+      </Typography>
 
-      <div className="grid grid-2">
-        <section className="card">
-          <h2 className="card-title">Leave Requests</h2>
-          <table className="table">
-            <thead>
-              <tr>
-                {!isEmployee && <th>Employee</th>}
-                <th>Type</th>
-                <th>Dates</th>
-                <th>Status</th>
-                {canApprove && <th>Actions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {requests.map((request) => (
-                <tr key={request.id}>
-                  {!isEmployee && <td>{request.employee}</td>}
-                  <td>{request.type}</td>
-                  <td>{request.dates}</td>
-                  <td>{request.status}</td>
-                  {canApprove && (
-                    <td>
-                      <button
-                        className="btn btn-secondary"
-                        style={{ marginRight: '0.25rem' }}
-                        onClick={() => handleApprove(request.id, 'Approved')}
-                      >
-                        Approve
-                      </button>
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => handleApprove(request.id, 'Rejected')}
-                      >
-                        Reject
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
+      <Grid container spacing={3}>
+        <Grid item xs={12} md={7}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Leave Requests
+              </Typography>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    {!isEmployee && <TableCell>Employee</TableCell>}
+                    <TableCell>Type</TableCell>
+                    <TableCell>Dates</TableCell>
+                    <TableCell>Status</TableCell>
+                    {canApprove && <TableCell align="right">Actions</TableCell>}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {requests.map((request) => (
+                    <TableRow key={request.id}>
+                      {!isEmployee && <TableCell>{request.employee}</TableCell>}
+                      <TableCell>{request.type}</TableCell>
+                      <TableCell>{request.dates}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={request.status}
+                          size="small"
+                          color={
+                            request.status === 'Approved'
+                              ? 'success'
+                              : request.status === 'Rejected'
+                              ? 'error'
+                              : 'warning'
+                          }
+                        />
+                      </TableCell>
+                      {canApprove && (
+                        <TableCell align="right">
+                          <Stack direction="row" spacing={1} justifyContent="flex-end">
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              color="success"
+                              onClick={() => handleApprove(request.id, 'Approved')}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              color="error"
+                              onClick={() => handleApprove(request.id, 'Rejected')}
+                            >
+                              Reject
+                            </Button>
+                          </Stack>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        <section className="card">
-          <h2 className="card-title">
-            {isEmployee ? 'Submit New Leave Request' : 'Review &amp; Actions'}
-          </h2>
-          {isEmployee ? (
-            <form className="form" onSubmit={handleSubmit}>
-              <label className="form-label" htmlFor="type">
-                Type
-              </label>
-              <select
-                id="type"
-                name="type"
-                className="form-select"
-                value={form.type}
-                onChange={handleChange}
-              >
-                <option value="Vacation">Vacation</option>
-                <option value="Sick">Sick</option>
-                <option value="Paternity">Paternity</option>
-                <option value="Other">Other</option>
-              </select>
+        <Grid item xs={12} md={5}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                {isEmployee ? 'Submit New Leave Request' : 'Review & Actions'}
+              </Typography>
 
-              <label className="form-label" htmlFor="startDate">
-                Start date
-              </label>
-              <input
-                id="startDate"
-                name="startDate"
-                type="date"
-                className="form-select"
-                value={form.startDate}
-                onChange={handleChange}
-              />
+              {isEmployee ? (
+                <Box
+                  component="form"
+                  onSubmit={handleSubmit}
+                  sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}
+                >
+                  <FormControl size="small" fullWidth>
+                    <InputLabel id="leave-type-label">Type</InputLabel>
+                    <Select
+                      labelId="leave-type-label"
+                      label="Type"
+                      name="type"
+                      value={form.type}
+                      onChange={handleChange}
+                    >
+                      <MenuItem value="Vacation">Vacation</MenuItem>
+                      <MenuItem value="Sick">Sick</MenuItem>
+                      <MenuItem value="Paternity">Paternity</MenuItem>
+                      <MenuItem value="Other">Other</MenuItem>
+                    </Select>
+                  </FormControl>
 
-              <label className="form-label" htmlFor="endDate">
-                End date
-              </label>
-              <input
-                id="endDate"
-                name="endDate"
-                type="date"
-                className="form-select"
-                value={form.endDate}
-                onChange={handleChange}
-              />
+                  <TextField
+                    label="Start date"
+                    type="date"
+                    name="startDate"
+                    size="small"
+                    value={form.startDate}
+                    onChange={handleChange}
+                    InputLabelProps={{ shrink: true }}
+                    fullWidth
+                  />
 
-              <label className="form-label" htmlFor="reason">
-                Reason
-              </label>
-              <textarea
-                id="reason"
-                name="reason"
-                rows={3}
-                className="form-select"
-                value={form.reason}
-                onChange={handleChange}
-              />
+                  <TextField
+                    label="End date"
+                    type="date"
+                    name="endDate"
+                    size="small"
+                    value={form.endDate}
+                    onChange={handleChange}
+                    InputLabelProps={{ shrink: true }}
+                    fullWidth
+                  />
 
-              <button type="submit" className="btn btn-primary form-submit">
-                Submit request
-              </button>
-            </form>
-          ) : (
-            <ul className="list">
-              <li>Review pending requests in the table.</li>
-              <li>Use Approve / Reject buttons to update status.</li>
-              <li>Later, this will write back to the backend LeaveRequests API.</li>
-            </ul>
-          )}
-        </section>
-      </div>
-    </div>
+                  <TextField
+                    label="Reason"
+                    name="reason"
+                    size="small"
+                    value={form.reason}
+                    onChange={handleChange}
+                    multiline
+                    minRows={3}
+                    fullWidth
+                  />
+
+                  <Button type="submit" variant="contained" size="small">
+                    Submit request
+                  </Button>
+                </Box>
+              ) : (
+                <>
+                  <Typography variant="body2" color="textSecondary">
+                    • Review pending requests in the table on the left.
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary">
+                    • Use Approve / Reject buttons to update status.
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary">
+                    • Later, this will call a backend LeaveRequests API.
+                  </Typography>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Box>
   );
 };
 
