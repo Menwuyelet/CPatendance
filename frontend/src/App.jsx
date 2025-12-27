@@ -1,5 +1,7 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { useState } from 'react';
+// src/App.jsx
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+
 import Login from './pages/Login.jsx';
 import AdminPanel from './pages/AdminPanel.jsx';
 import HRDashboard from './pages/HRPanel.jsx';
@@ -13,94 +15,194 @@ import Attendance from './pages/Attendance.jsx';
 import LeaveRequest from './pages/LeaveRequest.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import Header from './components/Header.jsx';
+import Toast from './components/Toast.jsx';
+import { api } from './services/api.service.js';
+import CompanySetup from './pages/CompanySetup.jsx';
 
 function App() {
-  const [user, setUser] = useState({ role: null }); // null = not logged in
+  const navigate = useNavigate();
 
-  // Simple login simulation (replace with real auth later)
-  const login = (role) => setUser({ role });
+  const [user, setUser] = useState({ role: null, name: '' });
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState({ message: '', type: 'success' });
+
+  const notify = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast({ message: '', type: 'success' }), 3000);
+  };
+
+  // Role detection based on `roles` coming from backend (accounts.Role)
+  const getRoleFromUserData = (userData) => {
+    console.log('User data from backend:', userData);
+
+    // `roles` may be an array of strings (['ADMIN', 'HR', ...])
+    // or an array of objects ([{ id, name: 'ADMIN' }, ...])
+    // and it can be at root (/accounts/users/me/) or nested under `user` (login response)
+    const rawRoles = userData.roles || userData.user?.roles || [];
+
+    const roleNames = rawRoles
+      .map((r) => (typeof r === 'string' ? r : r.name))
+      .filter(Boolean)
+      .map((r) => r.toUpperCase());
+
+    if (roleNames.length > 0) {
+      if (roleNames.includes('ADMIN')) {
+        console.log(' Role detected from backend: Admin');
+        return 'Admin';
+      }
+      if (roleNames.includes('HR')) {
+        console.log(' Role detected from backend: HR');
+        return 'HR';
+      }
+      if (roleNames.includes('DEPARTMENT_MANAGER')) {
+        console.log(' Role detected from backend: Manager');
+        return 'Manager';
+      }
+      if (roleNames.includes('EMPLOYEE')) {
+        console.log(' Role detected from backend: Employee');
+        return 'Employee';
+      }
+    }
+
+    // Fallback: single `role` string field if backend ever sends it
+    if (userData.role) {
+      const role = String(userData.role).trim();
+      if (['Admin', 'HR', 'Manager', 'Employee'].includes(role)) {
+        console.log(' Role detected from single role field:', role);
+        return role;
+      }
+    }
+
+    console.log(' Default role: Employee');
+    return 'Employee';
+  };
+
+  // Check auth on load/refresh
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (!api.isAuthenticated()) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const userData = await api.get('/accounts/users/me/');
+
+        const role = getRoleFromUserData(userData);
+        const name = userData.name || 
+                     (userData.first_name && userData.last_name 
+                       ? `${userData.first_name} ${userData.last_name}` 
+                       : userData.email?.split('@')[0] || 'User');
+
+        setUser({ role, name });
+        navigate('/dashboard', { replace: true });
+      } catch (err) {
+        console.error('Auth failed:', err);
+        api.logout();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  // After login
+  const handleLogin = async () => {
+    try {
+      const userData = await api.get('/accounts/users/me/');
+
+      const role = getRoleFromUserData(userData);
+      const name = userData.name || 
+                   (userData.first_name && userData.last_name 
+                     ? `${userData.first_name} ${userData.last_name}` 
+                     : userData.email?.split('@')[0] || 'User');
+
+      setUser({ role, name });
+      navigate('/dashboard', { replace: true });
+    } catch (err) {
+      console.error('Profile load failed:', err);
+      notify('Login successful but profile failed to load', 'error');
+      api.logout();
+    }
+  };
+
+  const handleLogout = () => {
+    api.logout();
+    setUser({ role: null, name: '' });
+    navigate('/');
+  };
+
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        backgroundColor: '#f0f2f5',
+        fontSize: '28px',
+        color: '#333'
+      }}>
+        Loading CAMS...
+      </div>
+    );
+  }
 
   if (!user.role) {
-    return <Login onLogin={login} />;
+    return <Login onLogin={handleLogin} onNotify={notify} />;
   }
 
   return (
     <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f5f5f5' }}>
-      <Sidebar role={user.role} />
+      <Sidebar role={user.role} userName={user.name} onLogout={handleLogout} />
+
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <Header user={user} onLogout={() => setUser({ role: null })} />
+        <Header user={{ role: user.role, name: user.name }} onLogout={handleLogout} />
+        <Toast message={toast.message} type={toast.type} />
+
         <main style={{ flex: 1, padding: '24px', overflow: 'auto' }}>
           <Routes>
-            {/* Admin routes */}
+            {/* ADMIN */}
             {user.role === 'Admin' && (
               <>
-                <Route path="/dashboard" element={<AdminPanel />} />
-                <Route
-                  path="/users"
-                  element={<UserManagement scope="admin" />}
-                />
+                <Route path="/dashboard" element={<AdminPanel onNotify={notify} />} />
+                <Route path="/users" element={<UserManagement scope="admin" onNotify={notify} />} />
+                <Route path="/companies" element={<CompanySetup onNotify={notify} />} />
                 <Route path="/config" element={<PolicyConfig />} />
-                <Route
-                  path="/attendance"
-                  element={<Attendance role="Admin" />}
-                />
+                <Route path="/attendance" element={<Attendance role="Admin" onNotify={notify} />} />
                 <Route path="/biometrics" element={<Biometrics />} />
-                <Route
-                  path="/reports"
-                  element={<Reports scope="system" />}
-                />
+                <Route path="/reports" element={<Reports scope="system" />} />
               </>
             )}
 
-            {/* HR routes */}
+            {/* HR */}
             {user.role === 'HR' && (
               <>
                 <Route path="/dashboard" element={<HRDashboard />} />
-                <Route
-                  path="/employees"
-                  element={<UserManagement scope="hr" />}
-                />
-                <Route
-                  path="/attendance"
-                  element={<Attendance role="HR" />}
-                />
-                <Route
-                  path="/leaves"
-                  element={<LeaveRequest role="HR" />}
-                />
-                <Route
-                  path="/reports"
-                  element={<Reports scope="hr" />}
-                />
+                <Route path="/employees" element={<UserManagement scope="hr" onNotify={notify} />} />
+                <Route path="/attendance" element={<Attendance role="HR" onNotify={notify} />} />
+                <Route path="/leaves" element={<LeaveRequest role="HR" onNotify={notify} />} />
+                <Route path="/reports" element={<Reports scope="hr" />} />
               </>
             )}
 
-            {/* Manager routes (keep nested) */}
+            {/* MANAGER */}
             {user.role === 'Manager' && (
               <Route path="/*" element={<ManagerDashboard />} />
             )}
 
-            {/* Employee routes */}
+            {/* EMPLOYEE */}
             {user.role === 'Employee' && (
               <>
                 <Route path="/dashboard" element={<EmployeeDashboard />} />
-                <Route
-                  path="/attendance"
-                  element={<Attendance role="Employee" />}
-                />
-                <Route
-                  path="/leaves"
-                  element={<LeaveRequest role="Employee" />}
-                />
-                <Route
-                  path="/reports"
-                  element={<Reports scope="personal" />}
-                />
+                <Route path="/attendance" element={<Attendance role="Employee" onNotify={notify} />} />
+                <Route path="/leaves" element={<LeaveRequest role="Employee" onNotify={notify} />} />
+                <Route path="/reports" element={<Reports scope="personal" />} />
               </>
             )}
 
-            {/* Fallback: redirect to dashboard */}
-            <Route path="*" element={<Navigate to="/dashboard" />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </main>
       </div>

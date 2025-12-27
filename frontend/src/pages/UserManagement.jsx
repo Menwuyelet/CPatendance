@@ -1,9 +1,11 @@
-import React, { useMemo, useState } from 'react';
+// src/pages/UserManagement.jsx
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Grid,
   Card,
   CardContent,
+  CardHeader,
   Typography,
   TextField,
   Button,
@@ -19,33 +21,52 @@ import {
   Select,
   MenuItem,
   Stack,
+  Avatar,
+  Divider,
+  InputAdornment,
+  Tooltip,
+  Alert,
+  CircularProgress,
+  TableContainer,
 } from '@mui/material';
-import { Edit, Delete, Search } from '@mui/icons-material';
-
-const initialUsers = [
-  { id: 1, name: 'John Doe',   email: 'john@example.com',       role: 'Employee', department: 'Sales',       status: 'Active' },
-  { id: 2, name: 'Jane Smith', email: 'jane@example.com',       role: 'Manager',  department: 'Engineering', status: 'Active' },
-  { id: 3, name: 'Alice HR',   email: 'alice.hr@example.com',   role: 'HR',       department: 'HR',          status: 'Active' },
-];
+import {
+  Edit,
+  Delete,
+  Search,
+  PersonAdd,
+  Clear,
+  CheckCircle,
+  Cancel,
+} from '@mui/icons-material';
+import { api } from '../services/api.service.js';
 
 const emptyForm = {
   id: null,
   name: '',
   email: '',
-  role: 'Employee',
+  role: 'EMPLOYEE',
   department: '',
   status: 'Active',
+  password: '',
+  employeeCode: '',
+  companyId: '1', // Default to 1
+  departmentId: '',
 };
 
+const EMPLOYEE_ROLE_NAMES = ['EMPLOYEE', 'HR', 'DEPARTMENT_MANAGER'];
+
 const UserManagement = ({ scope = 'admin', onNotify }) => {
-  const title =
-    scope === 'hr' ? 'Employee Directory' : 'User & Access Management';
+  const title = scope === 'hr' ? 'Employee Directory' : 'User & Access Management';
   const description =
     scope === 'hr'
-      ? 'View and maintain employee profiles, roles, departments, and status.'
-      : 'System-wide management of user accounts, roles, departments, and access.';
+      ? 'View and manage employee profiles, roles, and account status.'
+      : 'Full control over user accounts, roles, and system access.';
 
-  const [users, setUsers] = useState(initialUsers);
+  const [users, setUsers] = useState([]);
+  const [roleOptions, setRoleOptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const hasLoadedRef = useRef(false);
+
   const [form, setForm] = useState(emptyForm);
   const [isEditing, setIsEditing] = useState(false);
 
@@ -54,23 +75,135 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
   const [filterStatus, setFilterStatus] = useState('ALL');
 
   const canDelete = scope === 'admin';
+  const isEmployeeRole = EMPLOYEE_ROLE_NAMES.includes(form.role);
 
-  const handleChange = (event) => {
-    const { name, value } = event.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+  // Load roles and users from backend
+  useEffect(() => {
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+
+    const loadData = async () => {
+      try {
+        setLoading(true);
+
+        // Load roles first
+        const rolesRes = await api.get('/accounts/roles/');
+        if (Array.isArray(rolesRes)) {
+          setRoleOptions(rolesRes.map(r => ({ name: r.name, id: r.id })));
+        }
+
+        // Load users
+        const usersRes = await api.get('/accounts/users/');
+        if (Array.isArray(usersRes)) {
+          const mapped = usersRes.map(u => {
+            const primaryRole =
+              u.roles?.[0]?.name || 
+              (typeof u.roles?.[0] === 'string' ? u.roles[0] : 'EMPLOYEE');
+
+            return {
+              id: u.id,
+              name: u.full_name || u.email?.split('@')[0] || 'Unknown',
+              email: u.email,
+              role: primaryRole,
+              department: u.department?.name || '',
+              status: u.is_active ? 'Active' : 'Inactive',
+              companyId: u.company?.id || '1',
+            };
+          });
+          setUsers(mapped);
+        }
+
+        onNotify?.('Users and roles loaded successfully', 'success');
+      } catch (err) {
+        console.error('Failed to load data:', err);
+        onNotify?.('Failed to load users or roles. Check server connection.', 'error');
+        setUsers([]);
+        setRoleOptions([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [onNotify]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    if (!form.name.trim() || !form.email.trim() || !form.department.trim()) return;
+  const handleSubmit = async (e) => {
+    e.preventDefault();
 
-    if (isEditing) {
-      setUsers((prev) => prev.map((u) => (u.id === form.id ? { ...u, ...form } : u)));
-      if (onNotify) onNotify('User updated (mock).');
-    } else {
-      const nextId = users.length ? Math.max(...users.map((u) => u.id)) + 1 : 1;
-      setUsers((prev) => [...prev, { ...form, id: nextId }]);
-      if (onNotify) onNotify('User created (mock).');
+    if (!form.name.trim() || !form.email.trim()) {
+      onNotify?.('Name and email are required', 'error');
+      return;
+    }
+
+    if (!isEditing && !form.password.trim()) {
+      onNotify?.('Password is required for new users', 'error');
+      return;
+    }
+
+    try {
+      if (isEditing) {
+        // Update user
+        const payload = {
+          is_active: form.status === 'Active',
+        };
+
+        const roleOption = roleOptions.find(r => r.name === form.role);
+        if (roleOption) payload.roles = [roleOption.id];
+
+        await api.patch(`/accounts/users/${form.id}/`, payload);
+
+        // Update local list
+        setUsers(prev => prev.map(u => 
+          u.id === form.id 
+            ? { ...u, role: form.role, status: form.status }
+            : u
+        ));
+
+        onNotify?.('User updated successfully', 'success');
+      } else {
+        // Create new user
+        const roleOption = roleOptions.find(r => r.name === form.role);
+        if (!roleOption) {
+          onNotify?.('Selected role not available', 'error');
+          return;
+        }
+
+        const payload = {
+          email: form.email.trim().toLowerCase(),
+          password: form.password,
+          roles: [roleOption.id],
+          company: Number(form.companyId) || 1, // Always include company
+          ...(isEmployeeRole && {
+            full_name: form.name.trim(),
+            employee_code: form.employeeCode || undefined,
+            department: form.departmentId ? Number(form.departmentId) : undefined,
+          }),
+        };
+
+        const created = await api.post('/accounts/users/', payload);
+
+        const newUser = {
+          id: created.id,
+          name: created.full_name || created.email.split('@')[0],
+          email: created.email,
+          role: form.role,
+          department: created.department?.name || form.department || '',
+          status: 'Active',
+          companyId: created.company?.id || form.companyId,
+        };
+
+        // Add to list immediately
+        setUsers(prev => [newUser, ...prev]);
+        onNotify?.('User created successfully', 'success');
+      }
+    } catch (err) {
+      console.error('User operation failed:', err);
+      onNotify?.('Failed to save user. Check fields and server.', 'error');
     }
 
     setForm(emptyForm);
@@ -78,150 +211,174 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
   };
 
   const handleEdit = (user) => {
-    setForm(user);
+    setForm({
+      ...user,
+      companyId: user.companyId || '1',
+      password: '', // Never show password
+    });
     setIsEditing(true);
   };
 
-  const handleDelete = (id) => {
-    if (!canDelete) return;
-    setUsers((prev) => prev.filter((u) => u.id !== id));
-    if (onNotify) onNotify('User removed (mock).', 'success');
-    if (form.id === id) {
-      setForm(emptyForm);
-      setIsEditing(false);
+  const handleDelete = async (id) => {
+    if (!window.confirm('Permanently delete this user? This cannot be undone.')) return;
+
+    try {
+      await api.delete(`/accounts/users/${id}/`);
+      setUsers(prev => prev.filter(u => u.id !== id));
+      onNotify?.('User deleted permanently', 'info');
+    } catch (err) {
+      onNotify?.('Failed to delete user', 'error');
     }
   };
 
-  const handleResetForm = () => {
+  const handleReset = () => {
     setForm(emptyForm);
     setIsEditing(false);
   };
 
   const filteredUsers = useMemo(() => {
-    return users.filter((u) => {
+    return users.filter(u => {
       const q = search.toLowerCase();
       const matchesSearch =
         !q ||
         u.name.toLowerCase().includes(q) ||
         u.email.toLowerCase().includes(q) ||
         u.department.toLowerCase().includes(q);
-      const matchesRole =
-        filterRole === 'ALL' || u.role.toLowerCase() === filterRole.toLowerCase();
-      const matchesStatus =
-        filterStatus === 'ALL' ||
-        u.status.toLowerCase() === filterStatus.toLowerCase();
+
+      const matchesRole = filterRole === 'ALL' || u.role === filterRole.replace('_', ' ');
+      const matchesStatus = filterStatus === 'ALL' || u.status === filterStatus;
+
       return matchesSearch && matchesRole && matchesStatus;
     });
   }, [users, search, filterRole, filterStatus]);
 
-  const activeCount = users.filter((u) => u.status === 'Active').length;
-  const inactiveCount = users.filter((u) => u.status === 'Inactive').length;
+  const activeCount = users.filter(u => u.status === 'Active').length;
 
-  const roleColor = (role) => {
+  const getRoleLabel = (role) => {
+    const map = {
+      ADMIN: 'Admin',
+      HR: 'HR',
+      DEPARTMENT_MANAGER: 'Manager',
+      EMPLOYEE: 'Employee',
+    };
+    return map[role] || role;
+  };
+
+  const getRoleColor = (role) => {
     switch (role) {
-      case 'Admin':
-        return 'error';
-      case 'Manager':
-        return 'primary';
-      case 'HR':
-        return 'secondary';
-      default:
-        return 'default';
+      case 'ADMIN': return 'error';
+      case 'HR': return 'secondary';
+      case 'DEPARTMENT_MANAGER': return 'primary';
+      default: return 'default';
     }
   };
 
-  const statusColor = (status) =>
-    status === 'Active' ? 'success' : 'default';
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 3 }}>
+        <CircularProgress size={60} />
+        <Typography variant="h6" color="text.secondary">
+          Loading users and roles...
+        </Typography>
+      </Box>
+    );
+  }
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Typography variant="h4" gutterBottom>
-        {title}
-      </Typography>
-      <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-        {description}
-      </Typography>
+    <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: '1600px', mx: 'auto' }}>
+      <Box sx={{ mb: 5 }}>
+        <Typography variant="h3" fontWeight="bold" gutterBottom>
+          {title}
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          {description}
+        </Typography>
+      </Box>
 
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={4}>
-          <Card>
+      <Grid container spacing={4}>
+        {/* Left: Form */}
+        <Grid size={{ xs: 12, lg: 4 }}>
+          <Card sx={{ height: '100%', borderRadius: 3, boxShadow: 4 }}>
+            <CardHeader
+              title={
+                <Typography variant="h6" fontWeight="medium">
+                  {isEditing ? 'Edit User' : 'Add New User'}
+                </Typography>
+              }
+              avatar={<PersonAdd color="primary" />}
+            />
+            <Divider />
             <CardContent>
-              <Typography variant="h6" gutterBottom>
-                {isEditing ? 'Edit user' : 'Add new user'}
-              </Typography>
-              <Box
-                component="form"
-                onSubmit={handleSubmit}
-                sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}
-              >
-                <TextField
-                  label="Full name"
-                  name="name"
-                  size="small"
-                  value={form.name}
-                  onChange={handleChange}
-                  fullWidth
-                />
-                <TextField
-                  label="Work email"
-                  name="email"
-                  type="email"
-                  size="small"
-                  value={form.email}
-                  onChange={handleChange}
-                  fullWidth
-                />
-                <FormControl size="small" fullWidth>
-                  <InputLabel id="role-label">Role</InputLabel>
-                  <Select
-                    labelId="role-label"
-                    label="Role"
-                    name="role"
-                    value={form.role}
-                    onChange={handleChange}
-                  >
-                    <MenuItem value="Employee">Employee</MenuItem>
-                    <MenuItem value="Manager">Manager</MenuItem>
+              {roleOptions.length === 0 && (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  No roles found. Create roles (ADMIN, HR, DEPARTMENT_MANAGER, EMPLOYEE) in Django Admin first.
+                </Alert>
+              )}
+
+              <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                <TextField label="Full Name" name="name" value={form.name} onChange={handleChange} fullWidth required />
+                <TextField label="Email Address" name="email" type="email" value={form.email} onChange={handleChange} fullWidth required />
+
+                <FormControl fullWidth>
+                  <InputLabel>Role</InputLabel>
+                  <Select name="role" value={form.role} onChange={handleChange} label="Role">
+                    <MenuItem value="EMPLOYEE">Employee</MenuItem>
+                    <MenuItem value="DEPARTMENT_MANAGER">Manager</MenuItem>
                     <MenuItem value="HR">HR</MenuItem>
-                    <MenuItem value="Admin">Admin</MenuItem>
+                    {scope === 'admin' && <MenuItem value="ADMIN">Admin</MenuItem>}
                   </Select>
                 </FormControl>
-                <TextField
-                  label="Department"
-                  name="department"
-                  size="small"
-                  value={form.department}
-                  onChange={handleChange}
-                  placeholder="e.g. Sales, Engineering"
-                  fullWidth
-                />
-                <FormControl size="small" fullWidth>
-                  <InputLabel id="status-label">Status</InputLabel>
-                  <Select
-                    labelId="status-label"
-                    label="Status"
-                    name="status"
-                    value={form.status}
-                    onChange={handleChange}
-                  >
+
+                <TextField label="Department" name="department" value={form.department} onChange={handleChange} placeholder="e.g. Engineering" fullWidth />
+
+                {!isEditing && (
+                  <>
+                    <TextField label="Password" name="password" type="password" value={form.password} onChange={handleChange} fullWidth required />
+                    {isEmployeeRole && (
+                      <>
+                        <Typography variant="subtitle2" color="text.secondary">
+                          Employee Details (link to existing records)
+                        </Typography>
+                        <TextField label="Employee Code" name="employeeCode" value={form.employeeCode} onChange={handleChange} fullWidth />
+                        <TextField 
+                          label="Company ID" 
+                          name="companyId" 
+                          value={form.companyId} 
+                          onChange={handleChange} 
+                          placeholder="e.g. 1" 
+                          fullWidth 
+                          required
+                          helperText="Required field for all users"
+                        />
+                        <TextField label="Department ID (optional)" name="departmentId" value={form.departmentId} onChange={handleChange} fullWidth />
+                      </>
+                    )}
+                  </>
+                )}
+
+                <FormControl fullWidth>
+                  <InputLabel>Status</InputLabel>
+                  <Select name="status" value={form.status} onChange={handleChange}>
                     <MenuItem value="Active">Active</MenuItem>
                     <MenuItem value="Inactive">Inactive</MenuItem>
                   </Select>
                 </FormControl>
 
-                <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ mt: 1 }}>
+                <Stack direction="row" spacing={2} sx={{ mt: 3 }}>
                   {isEditing && (
-                    <Button
-                      type="button"
-                      variant="outlined"
-                      size="small"
-                      onClick={handleResetForm}
-                    >
+                    <Button variant="outlined" startIcon={<Clear />} onClick={handleReset}>
                       Cancel
                     </Button>
                   )}
-                  <Button type="submit" variant="contained" size="small">
-                    {isEditing ? 'Save changes' : 'Add user'}
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    fullWidth
+                    size="large"
+                    startIcon={isEditing ? <CheckCircle /> : <PersonAdd />}
+                    disabled={roleOptions.length === 0}
+                  >
+                    {isEditing ? 'Save Changes' : 'Create User'}
                   </Button>
                 </Stack>
               </Box>
@@ -229,83 +386,63 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={8}>
-          <Card sx={{ mb: 2 }}>
+        {/* Right: Users Table */}
+        <Grid size={{ xs: 12, lg: 8 }}>
+          <Card sx={{ mb: 3, borderRadius: 3, boxShadow: 3 }}>
             <CardContent>
-              <Stack
-                direction={{ xs: 'column', md: 'row' }}
-                spacing={1}
-                alignItems={{ xs: 'stretch', md: 'center' }}
-                justifyContent="space-between"
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
-                  <Search sx={{ color: 'action.active' }} />
-                  <TextField
-                    variant="standard"
-                    placeholder="Search by name, email, department"
-                    fullWidth
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </Box>
-                <Stack direction="row" spacing={1}>
-                  <FormControl size="small" sx={{ minWidth: 120 }}>
-                    <InputLabel id="filter-role-label">Role</InputLabel>
-                    <Select
-                      labelId="filter-role-label"
-                      label="Role"
-                      value={filterRole}
-                      onChange={(e) => setFilterRole(e.target.value)}
-                    >
-                      <MenuItem value="ALL">All</MenuItem>
-                      <MenuItem value="Employee">Employee</MenuItem>
-                      <MenuItem value="Manager">Manager</MenuItem>
-                      <MenuItem value="HR">HR</MenuItem>
-                      <MenuItem value="Admin">Admin</MenuItem>
-                    </Select>
-                  </FormControl>
-                  <FormControl size="small" sx={{ minWidth: 120 }}>
-                    <InputLabel id="filter-status-label">Status</InputLabel>
-                    <Select
-                      labelId="filter-status-label"
-                      label="Status"
-                      value={filterStatus}
-                      onChange={(e) => setFilterStatus(e.target.value)}
-                    >
-                      <MenuItem value="ALL">All</MenuItem>
-                      <MenuItem value="Active">Active</MenuItem>
-                      <MenuItem value="Inactive">Inactive</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Stack>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
+                <TextField
+                  fullWidth
+                  placeholder="Search by name, email, department..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
+                    endAdornment: search && (
+                      <InputAdornment position="end">
+                        <IconButton size="small" onClick={() => setSearch('')}><Clear /></IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+                <FormControl sx={{ minWidth: 140 }}>
+                  <InputLabel>Role</InputLabel>
+                  <Select value={filterRole} onChange={(e) => setFilterRole(e.target.value)} label="Role">
+                    <MenuItem value="ALL">All Roles</MenuItem>
+                    <MenuItem value="Employee">Employee</MenuItem>
+                    <MenuItem value="Manager">Manager</MenuItem>
+                    <MenuItem value="HR">HR</MenuItem>
+                    <MenuItem value="Admin">Admin</MenuItem>
+                  </Select>
+                </FormControl>
+                <FormControl sx={{ minWidth: 140 }}>
+                  <InputLabel>Status</InputLabel>
+                  <Select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} label="Status">
+                    <MenuItem value="ALL">All Status</MenuItem>
+                    <MenuItem value="Active">Active</MenuItem>
+                    <MenuItem value="Inactive">Inactive</MenuItem>
+                  </Select>
+                </FormControl>
               </Stack>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent>
-              <Stack
-                direction="row"
-                spacing={1}
-                alignItems="center"
-                justifyContent="space-between"
-                sx={{ mb: 1 }}
-              >
-                <Typography variant="h6">Users</Typography>
-                <Stack direction="row" spacing={1}>
-                  <Chip label={`Active: ${activeCount}`} color="success" size="small" />
-                  <Chip
-                    label={`Inactive: ${inactiveCount}`}
-                    variant="outlined"
-                    size="small"
-                  />
+          <Card sx={{ borderRadius: 3, boxShadow: 4 }}>
+            <CardHeader
+              title={<Typography variant="h6">All Users ({filteredUsers.length})</Typography>}
+              subheader={
+                <Stack direction="row" spacing={2} mt={1}>
+                  <Chip label={`${activeCount} Active`} color="success" />
+                  <Chip label={`${users.length - activeCount} Inactive`} variant="outlined" />
                 </Stack>
-              </Stack>
-
-              <Table size="small">
+              }
+            />
+            <Divider />
+            <TableContainer>
+              <Table sx={{ minWidth: 800 }}>
                 <TableHead>
-                  <TableRow>
-                    <TableCell>Name</TableCell>
+                  <TableRow sx={{ bgcolor: 'grey.50' }}>
+                    <TableCell>User</TableCell>
                     <TableCell>Email</TableCell>
                     <TableCell>Role</TableCell>
                     <TableCell>Department</TableCell>
@@ -314,59 +451,62 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredUsers.map((user) => (
-                    <TableRow key={user.id} hover>
-                      <TableCell>{user.name}</TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={user.role}
-                          size="small"
-                          color={roleColor(user.role)}
-                          variant={user.role === 'Employee' ? 'outlined' : 'filled'}
-                        />
-                      </TableCell>
-                      <TableCell>{user.department}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={user.status}
-                          size="small"
-                          color={statusColor(user.status)}
-                          variant={user.status === 'Active' ? 'filled' : 'outlined'}
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleEdit(user)}
-                          sx={{ mr: 0.5 }}
-                        >
-                          <Edit fontSize="small" />
-                        </IconButton>
-                        {canDelete && (
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => handleDelete(user.id)}
-                          >
-                            <Delete fontSize="small" />
-                          </IconButton>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {filteredUsers.length === 0 && (
+                  {filteredUsers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6}>
-                        <Typography variant="body2" color="textSecondary">
-                          No users match the current filters.
+                      <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                        <Typography color="text.secondary">
+                          {search || filterRole !== 'ALL' || filterStatus !== 'ALL'
+                            ? 'No users match your filters'
+                            : 'No users yet. Create your first user using the form.'}
                         </Typography>
                       </TableCell>
                     </TableRow>
+                  ) : (
+                    filteredUsers.map((user) => (
+                      <TableRow key={user.id} hover>
+                        <TableCell>
+                          <Stack direction="row" spacing={2} alignItems="center">
+                            <Avatar sx={{ bgcolor: 'primary.main' }}>
+                              {user.name.charAt(0).toUpperCase()}
+                            </Avatar>
+                            <Typography variant="body2" fontWeight="medium">
+                              {user.name}
+                            </Typography>
+                          </Stack>
+                        </TableCell>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell>
+                          <Chip label={getRoleLabel(user.role)} size="small" color={getRoleColor(user.role)} />
+                        </TableCell>
+                        <TableCell>{user.department || '—'}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={user.status}
+                            size="small"
+                            color={user.status === 'Active' ? 'success' : 'default'}
+                            variant={user.status === 'Active' ? 'filled' : 'outlined'}
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Tooltip title="Edit">
+                            <IconButton size="small" onClick={() => handleEdit(user)}>
+                              <Edit fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          {canDelete && (
+                            <Tooltip title="Delete">
+                              <IconButton size="small" color="error" onClick={() => handleDelete(user.id)}>
+                                <Delete fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
                   )}
                 </TableBody>
               </Table>
-            </CardContent>
+            </TableContainer>
           </Card>
         </Grid>
       </Grid>

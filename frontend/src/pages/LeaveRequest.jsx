@@ -1,34 +1,38 @@
-import React, { useState } from 'react';
+// src/pages/LeaveRequest.jsx
+import React, { useEffect, useState } from 'react';
 import {
   Box,
   Grid,
   Card,
   CardContent,
   Typography,
-  TextField,
-  Button,
   Table,
   TableHead,
   TableBody,
   TableRow,
   TableCell,
-  Chip,
-  MenuItem,
-  Select,
-  InputLabel,
-  FormControl,
+  TextField,
+  Button,
   Stack,
+  Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Alert,
+  CircularProgress,
 } from '@mui/material';
+import { api } from '../services/api.service.js';
 
 const LeaveRequest = ({ role, onNotify }) => {
   const isEmployee = role === 'Employee';
+  const isApprover = ['Manager', 'HR', 'Admin'].includes(role);
+
   const heading = isEmployee
     ? 'My Leave Requests'
-    : role === 'Manager'
-    ? 'Department Leave Approval Center'
-    : role === 'HR'
-    ? 'Company-wide Leave Management'
-    : 'System Leave Oversight';
+    : isApprover
+    ? 'Leave Approval Center'
+    : 'Leave Management';
 
   const [form, setForm] = useState({
     type: 'Vacation',
@@ -37,223 +41,231 @@ const LeaveRequest = ({ role, onNotify }) => {
     reason: '',
   });
 
-  const [requests, setRequests] = useState([
-    {
-      id: 1,
-      employee: 'John Doe',
-      type: 'Vacation',
-      dates: '2025-12-28 → 2025-12-30',
-      status: 'Pending',
-    },
-    {
-      id: 2,
-      employee: 'Jane Smith',
-      type: 'Sick',
-      dates: '2025-12-20 → 2025-12-21',
-      status: 'Approved',
-    },
-  ]);
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const handleChange = (event) => {
-    const { name, value } = event.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+  // Load leave requests once when this page mounts. Including `onNotify` in
+  // the dependency array makes this refetch every time the parent updates the
+  // toast callback, which can spam the API.
+  useEffect(() => {
+    const loadRequests = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const data = await api.get('/leave/requests/');
+        setRequests(Array.isArray(data) ? data : []);
+      } catch (err) {
+        setError('Unable to load leave requests.');
+        setRequests([]);
+        onNotify?.('Failed to fetch leave data.', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadRequests();
+  }, []);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    if (!form.startDate || !form.endDate || !form.reason) {
-      alert('Please fill all fields');
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.startDate || !form.endDate || !form.reason.trim()) {
+      onNotify?.('Please fill all fields.', 'warning');
       return;
     }
 
     const newRequest = {
-      id: requests.length + 1,
-      employee: 'You',
       type: form.type,
-      dates: `${form.startDate} → ${form.endDate}`,
+      start_date: form.startDate,
+      end_date: form.endDate,
+      reason: form.reason,
       status: 'Pending',
+      employee: 'Current User', // Will come from backend later
     };
 
-    setRequests((prev) => [newRequest, ...prev]);
-    setForm({ type: 'Vacation', startDate: '', endDate: '', reason: '' });
-    if (onNotify) {
-      onNotify('Leave request submitted (mock).');
+    try {
+      const saved = await api.post('/leave/requests/', newRequest);
+      setRequests(prev => [saved || { ...newRequest, id: Date.now() }, ...prev]);
+      onNotify?.('Leave request submitted successfully.', 'success');
+    } catch (err) {
+      setRequests(prev => [{ ...newRequest, id: Date.now() }, ...prev]);
+      onNotify?.('Request saved locally (backend offline).', 'warning');
     }
+
+    setForm({ type: 'Vacation', startDate: '', endDate: '', reason: '' });
   };
 
-  const canApprove = role === 'Manager' || role === 'HR' || role === 'Admin';
-
-  const handleApprove = (id, status) => {
-    if (!canApprove) return;
-    setRequests((prev) =>
-      prev.map((req) =>
-        req.id === id
-          ? {
-              ...req,
-              status,
-            }
-          : req
-      )
-    );
-    if (onNotify) {
-      onNotify(`Request ${status.toLowerCase()} (mock).`);
+  const handleStatusUpdate = async (id, status) => {
+    try {
+      await api.patch(`/leave/requests/${id}/`, { status });
+      setRequests(prev =>
+        prev.map(r => r.id === id ? { ...r, status } : r)
+      );
+      onNotify?.(`Leave request ${status.toLowerCase()}.`, 'success');
+    } catch (err) {
+      setRequests(prev =>
+        prev.map(r => r.id === id ? { ...r, status } : r)
+      );
+      onNotify?.('Status updated locally.', 'warning');
     }
   };
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Typography variant="h4" gutterBottom>
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" gutterBottom fontWeight="600">
         {heading}
       </Typography>
-      <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-        This page lets employees submit leave requests and lets managers / HR /
-        Admin review and update them. All data is in local state only.
-      </Typography>
 
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={7}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Leave Requests
-              </Typography>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    {!isEmployee && <TableCell>Employee</TableCell>}
-                    <TableCell>Type</TableCell>
-                    <TableCell>Dates</TableCell>
-                    <TableCell>Status</TableCell>
-                    {canApprove && <TableCell align="right">Actions</TableCell>}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {requests.map((request) => (
-                    <TableRow key={request.id}>
-                      {!isEmployee && <TableCell>{request.employee}</TableCell>}
-                      <TableCell>{request.type}</TableCell>
-                      <TableCell>{request.dates}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={request.status}
-                          size="small"
-                          color={
-                            request.status === 'Approved'
-                              ? 'success'
-                              : request.status === 'Rejected'
-                              ? 'error'
-                              : 'warning'
-                          }
-                        />
-                      </TableCell>
-                      {canApprove && (
-                        <TableCell align="right">
-                          <Stack direction="row" spacing={1} justifyContent="flex-end">
-                            <Button
-                              variant="outlined"
-                              size="small"
-                              color="success"
-                              onClick={() => handleApprove(request.id, 'Approved')}
-                            >
-                              Approve
-                            </Button>
-                            <Button
-                              variant="outlined"
-                              size="small"
-                              color="error"
-                              onClick={() => handleApprove(request.id, 'Rejected')}
-                            >
-                              Reject
-                            </Button>
-                          </Stack>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={5}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                {isEmployee ? 'Submit New Leave Request' : 'Review & Actions'}
-              </Typography>
-
-              {isEmployee ? (
-                <Box
-                  component="form"
-                  onSubmit={handleSubmit}
-                  sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}
-                >
-                  <FormControl size="small" fullWidth>
-                    <InputLabel id="leave-type-label">Type</InputLabel>
+      <Grid container spacing={4}>
+        {/* Leave Request Form - Only Employees */}
+        {isEmployee && (
+          <Grid item xs={12} md={5}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Submit New Leave Request
+                </Typography>
+                <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
+                  <FormControl fullWidth sx={{ mb: 2 }}>
+                    <InputLabel>Type</InputLabel>
                     <Select
-                      labelId="leave-type-label"
-                      label="Type"
                       name="type"
                       value={form.type}
+                      label="Type"
                       onChange={handleChange}
                     >
                       <MenuItem value="Vacation">Vacation</MenuItem>
-                      <MenuItem value="Sick">Sick</MenuItem>
-                      <MenuItem value="Paternity">Paternity</MenuItem>
+                      <MenuItem value="Sick">Sick Leave</MenuItem>
+                      <MenuItem value="Personal">Personal</MenuItem>
+                      <MenuItem value="Bereavement">Bereavement</MenuItem>
                       <MenuItem value="Other">Other</MenuItem>
                     </Select>
                   </FormControl>
 
                   <TextField
-                    label="Start date"
+                    label="Start Date"
                     type="date"
                     name="startDate"
-                    size="small"
+                    fullWidth
+                    sx={{ mb: 2 }}
                     value={form.startDate}
                     onChange={handleChange}
                     InputLabelProps={{ shrink: true }}
-                    fullWidth
+                    required
                   />
 
                   <TextField
-                    label="End date"
+                    label="End Date"
                     type="date"
                     name="endDate"
-                    size="small"
+                    fullWidth
+                    sx={{ mb: 2 }}
                     value={form.endDate}
                     onChange={handleChange}
                     InputLabelProps={{ shrink: true }}
-                    fullWidth
+                    required
                   />
 
                   <TextField
                     label="Reason"
                     name="reason"
-                    size="small"
+                    multiline
+                    rows={4}
+                    fullWidth
+                    sx={{ mb: 3 }}
                     value={form.reason}
                     onChange={handleChange}
-                    multiline
-                    minRows={3}
-                    fullWidth
+                    required
                   />
 
-                  <Button type="submit" variant="contained" size="small">
-                    Submit request
+                  <Button type="submit" variant="contained" size="large" fullWidth>
+                    Submit Request
                   </Button>
                 </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
+
+        {/* Leave Requests Table */}
+        <Grid item xs={12} md={isEmployee ? 7 : 12}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Leave Requests
+              </Typography>
+
+              {loading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+                  <CircularProgress />
+                </Box>
+              ) : error ? (
+                <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
+              ) : requests.length === 0 ? (
+                <Alert severity="info">No leave requests found.</Alert>
               ) : (
-                <>
-                  <Typography variant="body2" color="textSecondary">
-                    • Review pending requests in the table on the left.
-                  </Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    • Use Approve / Reject buttons to update status.
-                  </Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    • Later, this will call a backend LeaveRequests API.
-                  </Typography>
-                </>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      {!isEmployee && <TableCell><strong>Employee</strong></TableCell>}
+                      <TableCell><strong>Type</strong></TableCell>
+                      <TableCell><strong>Dates</strong></TableCell>
+                      <TableCell><strong>Status</strong></TableCell>
+                      {isApprover && <TableCell align="right"><strong>Actions</strong></TableCell>}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {requests.map((req) => (
+                      <TableRow key={req.id}>
+                        {!isEmployee && <TableCell>{req.employee || req.user?.name || 'Unknown'}</TableCell>}
+                        <TableCell>{req.type}</TableCell>
+                        <TableCell>{req.dates || `${req.start_date} → ${req.end_date}`}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={req.status}
+                            color={
+                              req.status === 'Approved' ? 'success' :
+                              req.status === 'Rejected' ? 'error' :
+                              'warning'
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                        {isApprover && (
+                          <TableCell align="right">
+                            <Stack direction="row" spacing={1} justifyContent="flex-end">
+                              {req.status === 'Pending' && (
+                                <>
+                                  <Button
+                                    size="small"
+                                    color="success"
+                                    variant="outlined"
+                                    onClick={() => handleStatusUpdate(req.id, 'Approved')}
+                                  >
+                                    Approve
+                                  </Button>
+                                  <Button
+                                    size="small"
+                                    color="error"
+                                    variant="outlined"
+                                    onClick={() => handleStatusUpdate(req.id, 'Rejected')}
+                                  >
+                                    Reject
+                                  </Button>
+                                </>
+                              )}
+                            </Stack>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               )}
             </CardContent>
           </Card>

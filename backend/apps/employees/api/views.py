@@ -1,11 +1,14 @@
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
+from rest_framework.response import Response
 # from django.shortcuts import get_object_or_404
 
 from employees.models import Employee, Company, Department
 from .serializers import EmployeeSerializer, EmployeeUpdateSerializer, CompanySerializer, DepartmentSerializer
 from employees.services.employee_service import update_employee, get_employees_for_user
 from accounts.permissions import IsAdmin, IsHRorManager
+
 
 class CompanyViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdmin]
@@ -44,3 +47,22 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         data = serializer.validated_data
         employee = update_employee(self.get_object(), **data)
         serializer.instance = employee
+
+
+class ManagerTeamView(APIView):
+    """Return team employees for the current manager/HR user.
+
+    This endpoint powers the frontend Manager team view at:
+        GET /api/manager/team/
+
+    It reuses the same scoping rules as ``get_employees_for_user`` so that:
+    - HR users see all employees in their company.
+    - Department managers see only employees in their department.
+    """
+
+    permission_classes = [IsAuthenticated, IsHRorManager]
+
+    def get(self, request):
+        employees_qs = get_employees_for_user(request.user)
+        serializer = EmployeeSerializer(employees_qs, many=True)
+        return Response(serializer.data)

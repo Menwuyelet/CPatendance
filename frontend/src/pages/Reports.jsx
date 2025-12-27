@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Box,
   Card,
@@ -46,6 +46,54 @@ const Reports = ({ scope = 'personal' }) => {
   const [from, setFrom] = useState('2025-12-01');
   const [to, setTo] = useState('2025-12-31');
   const [type, setType] = useState('summary');
+  const [rows, setRows] = useState([
+    { period: '2025-12-01 → 2025-12-31', present: 20, absent: 1, overtime: 5 },
+  ]);
+
+  const handleGenerate = () => {
+    const period = `${from} → ${to}`;
+
+    // Very simple mocked logic just to show different shapes per report type
+    if (type === 'summary') {
+      setRows([
+        { period, present: 20, absent: 1, overtime: 5 },
+      ]);
+    } else if (type === 'overtime') {
+      setRows([
+        { period, present: 0, absent: 0, overtime: 12 },
+      ]);
+    } else if (type === 'leave') {
+      setRows([
+        { period, present: 18, absent: 3, overtime: 0 },
+      ]);
+    } else if (type === 'payroll') {
+      setRows([
+        { period, present: 20, absent: 1, overtime: 0 },
+      ]);
+    }
+  };
+
+  const csvData = useMemo(() => {
+    if (!rows.length) return '';
+    const header = 'Period,Present days,Absent days,Overtime hours';
+    const body = rows
+      .map((r) => `${r.period},${r.present},${r.absent},${r.overtime}`)
+      .join('\n');
+    return `${header}\n${body}`;
+  }, [rows]);
+
+  const handleDownloadCsv = () => {
+    if (!csvData) return;
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `reports-${scope}-${from}-to-${to}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <Box sx={{ p: 2 }}>
@@ -105,9 +153,19 @@ const Reports = ({ scope = 'personal' }) => {
           <Button
             variant="contained"
             size="small"
-            sx={{ mt: 2 }}
+            sx={{ mt: 2, mr: 1 }}
+            onClick={handleGenerate}
           >
             Generate report
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
+            sx={{ mt: 2 }}
+            onClick={handleDownloadCsv}
+            disabled={!rows.length}
+          >
+            Download CSV
           </Button>
         </CardContent>
       </Card>
@@ -127,12 +185,14 @@ const Reports = ({ scope = 'personal' }) => {
               </TableRow>
             </TableHead>
             <TableBody>
-              <TableRow>
-                <TableCell>{`${from} → ${to}`}</TableCell>
-                <TableCell>20</TableCell>
-                <TableCell>1</TableCell>
-                <TableCell>5</TableCell>
-              </TableRow>
+              {rows.map((row, index) => (
+                <TableRow key={index}>
+                  <TableCell>{row.period}</TableCell>
+                  <TableCell>{row.present}</TableCell>
+                  <TableCell>{row.absent}</TableCell>
+                  <TableCell>{row.overtime}</TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </CardContent>
