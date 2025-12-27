@@ -1,15 +1,30 @@
 import { Grid, Card, CardContent, Typography, Button, Box, Chip, Stack } from '@mui/material';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../services/api.service.js';
 
 const EmployeeDashboard = () => {
   const [clockedIn, setClockedIn] = useState(false);
   const [lastActionTime, setLastActionTime] = useState(null);
   const navigate = useNavigate();
 
-  const handleClockToggle = () => {
+  const handleClockToggle = async () => {
     const now = new Date().toLocaleTimeString();
-    setClockedIn((prev) => !prev);
+    const nextStatus = !clockedIn;
+    try {
+      const action = nextStatus ? 'in' : 'out';
+      // CHECK-IN: POST /api/attendance/attendance/
+      // CHECK-OUT: PUT /api/attendance/attendance/{id}/ (id not actually used)
+      if (nextStatus) {
+        await api.post('/attendance/attendance/', {});
+      } else {
+        await api.put('/attendance/attendance/self/', {});
+      }
+    } catch (error) {
+      // Fallback: local-only update if backend is not ready
+      console.warn('Clock API failed, keeping local state only:', error);
+    }
+    setClockedIn(nextStatus);
     setLastActionTime(now);
   };
 

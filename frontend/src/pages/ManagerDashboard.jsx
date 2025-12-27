@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Routes, Route, Link } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   Grid,
   Card,
@@ -15,269 +15,574 @@ import {
   Chip,
   TextField,
   Stack,
+  Avatar,
+  IconButton,
+  Tooltip,
+  Paper,
+  LinearProgress,
+  CircularProgress,
+  Alert,
+  TableContainer,
+  InputAdornment,
+  TablePagination,
+  Divider,
+  Breadcrumbs,
+  AppBar,
+  Toolbar,
 } from '@mui/material';
-import { People, EventNote, CheckCircle, Report } from '@mui/icons-material';
+import {
+  People,
+  EventNote,
+  CheckCircle,
+  Report,
+  ArrowBack,
+  Search,
+  Refresh,
+  Visibility,
+  TrendingUp,
+  Group,
+  Settings,
+  Person,
+  Edit,
+  Save,
+  Cancel,
+  Home,
+  ChevronRight,
+} from '@mui/icons-material';
+import { api } from '../services/api.service.js';
+import { format, subDays } from 'date-fns';
 
-// Simple mock data for UI behaviour only (no real database)
-const MOCK_TEAM = [
-  { id: 1, name: 'John Doe', role: 'Sales Executive', status: 'Present' },
-  { id: 2, name: 'Jane Smith', role: 'Account Manager', status: 'On Leave' },
-  { id: 3, name: 'Alex Lee', role: 'Sales Lead', status: 'Present' },
-];
+const getStatusColor = (status) => {
+  if (!status) return 'default';
+  const s = status.toLowerCase();
+  if (['present', 'approved', 'active', 'completed'].includes(s)) return 'success';
+  if (['absent', 'rejected', 'inactive', 'declined'].includes(s)) return 'error';
+  if (['remote', 'on leave', 'pending', 'in review'].includes(s)) return 'warning';
+  return 'default';
+};
 
-const MOCK_APPROVALS = [
-  { id: 101, employee: 'Jane Smith', type: 'Annual Leave', days: 3, status: 'Pending' },
-  { id: 102, employee: 'Alex Lee', type: 'Work From Home', days: 1, status: 'Pending' },
-];
+// ====================== LAYOUT WRAPPER ======================
+const DashboardLayout = ({ children, title, breadcrumbs = [] }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
 
-const ManagerDashboardHome = () => (
-  <>
-    <Typography variant="h4" gutterBottom>
-      Manager Dashboard
-    </Typography>
-    <Grid container spacing={4}>
-      <Grid item xs={12} md={4}>
-        <Card>
-          <CardContent>
-            <Box display="flex" alignItems="center" mb={1}>
-              <People sx={{ fontSize: 40, color: '#1976d2', mr: 2 }} />
-              <Typography variant="h6">My Team</Typography>
-            </Box>
-            <Typography variant="body2" color="textSecondary" gutterBottom>
-              View your team list and high‑level status.
-            </Typography>
-            <Button size="small" variant="contained" component={Link} to="/team">
-              Open team view
-            </Button>
-          </CardContent>
-        </Card>
-      </Grid>
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: 'background.default' }}>
+      {/* Top App Bar */}
+      <AppBar position="static" elevation={0} sx={{ bgcolor: 'var(--bg-sidebar)', borderBottom: '1px solid', borderColor: 'divider' }}>
+        <Toolbar>
+          <Typography variant="h6" fontWeight="bold" sx={{ flexGrow: 1 }}>
+            Attendance System
+          </Typography>
+          <Stack direction="row" spacing={2} alignItems="center">
+            <IconButton component={Link} to="/manager/settings">
+              <Settings />
+            </IconButton>
+            <Avatar sx={{ bgcolor: 'primary.main', width: 36, height: 36 }}>
+              <Person />
+            </Avatar>
+          </Stack>
+        </Toolbar>
+      </AppBar>
 
-      <Grid item xs={12} md={4}>
-        <Card>
-          <CardContent>
-            <Box display="flex" alignItems="center" mb={1}>
-              <CheckCircle sx={{ fontSize: 40, color: '#4caf50', mr: 2 }} />
-              <Typography variant="h6">Approvals</Typography>
-            </Box>
-            <Typography variant="body2" color="textSecondary" gutterBottom>
-              Handle leave and attendance approvals for your team.
+      {/* Main Content */}
+      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: '1400px', mx: 'auto', width: '100%' }}>
+          {/* Breadcrumbs */}
+          <Breadcrumbs separator={<ChevronRight fontSize="small" />} sx={{ mb: 3 }}>
+            <Link to="/manager/dashboard" style={{ textDecoration: 'none', color: 'text.secondary' }}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Home fontSize="small" />
+                <Typography variant="body2">Dashboard</Typography>
+              </Stack>
+            </Link>
+            {breadcrumbs.map((crumb, i) => (
+              <Typography key={i} variant="body2" color={i === breadcrumbs.length - 1 ? 'text.primary' : 'text.secondary'}>
+                {crumb}
+              </Typography>
+            ))}
+          </Breadcrumbs>
+
+          {/* Page Title */}
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+            <Typography variant="h4" fontWeight="bold">
+              {title}
             </Typography>
             <Button
-              size="small"
-              variant="contained"
-              component={Link}
-              to="/approvals"
+              variant="outlined"
+              startIcon={<Refresh />}
+              onClick={() => window.location.reload()}
             >
-              Go to approvals
+              Refresh
             </Button>
-          </CardContent>
-        </Card>
-      </Grid>
+          </Box>
 
-      <Grid item xs={12} md={4}>
-        <Card>
-          <CardContent>
-            <Box display="flex" alignItems="center" mb={1}>
-              <Report sx={{ fontSize: 40, color: '#3f51b5', mr: 2 }} />
-              <Typography variant="h6">Reports</Typography>
-            </Box>
-            <Typography variant="body2" color="textSecondary" gutterBottom>
-              Download basic team‑level reports once APIs are ready.
-            </Typography>
-            <Button size="small" variant="contained" component={Link} to="/reports">
-              Go to reports
-            </Button>
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
-  </>
-);
-
-const TeamOverviewPage = () => {
-  const [search, setSearch] = useState('');
-
-  const filteredTeam = MOCK_TEAM.filter((member) =>
-    member.name.toLowerCase().includes(search.toLowerCase())
-  );
-
-  return (
-    <>
-      <Typography variant="h4" gutterBottom>
-        Team Overview
-      </Typography>
-      <Card sx={{ mb: 2 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Search team
-          </Typography>
-          <TextField
-            label="Search by name"
-            size="small"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Team members (mock UI only)
-          </Typography>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Role</TableCell>
-                <TableCell>Status</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredTeam.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={3}>No team members match this search.</TableCell>
-                </TableRow>
-              ) : (
-                filteredTeam.map((member) => (
-                  <TableRow key={member.id}>
-                    <TableCell>{member.name}</TableCell>
-                    <TableCell>{member.role}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={member.status}
-                        size="small"
-                        color={member.status === 'Present' ? 'success' : 'warning'}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-          <Typography variant="body2" color="textSecondary" sx={{ mt: 2 }}>
-            Replace MOCK_TEAM with a real response from /api/manager/team when your
-            backend is ready.
-          </Typography>
-        </CardContent>
-      </Card>
-    </>
+          {children}
+        </Box>
+      </Box>
+    </Box>
   );
 };
 
-const ApprovalCenterPage = () => {
-  const [items, setItems] = useState(MOCK_APPROVALS);
+// ====================== DASHBOARD HOME ======================
+const ManagerDashboardHome = () => {
+  const [stats, setStats] = useState({
+    teamCount: 0,
+    presentToday: 0,
+    pendingApprovals: 0,
+    attendanceRate: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const handleUpdateStatus = (id, status) => {
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, status } : item)));
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      const [teamRes, todayRes, approvalsRes, weeklyRes] = await Promise.allSettled([
+        api.get('/manager/team'),
+        api.get('/attendance/', { params: { date: format(new Date(), 'yyyy-MM-dd') } }),
+        api.get('/manager/approvals'),
+        api.get('/attendance/', {
+          params: {
+            start_date: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
+            end_date: format(new Date(), 'yyyy-MM-dd'),
+          },
+        }),
+      ]);
+
+      let teamCount = 0, presentToday = 0, pendingApprovals = 0, attendanceRate = 0;
+
+      if (teamRes.status === 'fulfilled' && Array.isArray(teamRes.value)) teamCount = teamRes.value.length;
+      if (todayRes.status === 'fulfilled' && Array.isArray(todayRes.value))
+        presentToday = todayRes.value.filter(a => a.status === 'PRESENT').length;
+      if (approvalsRes.status === 'fulfilled' && Array.isArray(approvalsRes.value))
+        pendingApprovals = approvalsRes.value.filter(a => a.status === 'PENDING').length;
+      if (weeklyRes.status === 'fulfilled' && Array.isArray(weeklyRes.value)) {
+        const present = weeklyRes.value.filter(a => a.status === 'PRESENT').length;
+        const total = weeklyRes.value.length;
+        attendanceRate = total > 0 ? Math.round((present / total) * 100) : 0;
+      }
+
+      setStats({ teamCount, presentToday, pendingApprovals, attendanceRate });
+    } catch (err) {
+      setError('Unable to load dashboard data. Please check your manager permissions.');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  if (loading) {
+    return (
+      <DashboardLayout title="Manager Dashboard">
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+          <CircularProgress size={60} />
+        </Box>
+      </DashboardLayout>
+    );
+  }
+
   return (
-    <>
-      <Typography variant="h4" gutterBottom>
-        Approval Center
-      </Typography>
-      <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Pending items (mock data)
-          </Typography>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Employee</TableCell>
-                <TableCell>Type</TableCell>
-                <TableCell>Days</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell align="right">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {items.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5}>No pending items.</TableCell>
-                </TableRow>
-              ) : (
-                items.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>{item.employee}</TableCell>
-                    <TableCell>{item.type}</TableCell>
-                    <TableCell>{item.days}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={item.status}
-                        size="small"
-                        color={
-                          item.status === 'Approved'
-                            ? 'success'
-                            : item.status === 'Rejected'
-                            ? 'error'
-                            : 'warning'
-                        }
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      <Stack direction="row" spacing={1} justifyContent="flex-end">
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          color="success"
-                          onClick={() => handleUpdateStatus(item.id, 'Approved')}
-                        >
-                          Approve
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          color="error"
-                          onClick={() => handleUpdateStatus(item.id, 'Rejected')}
-                        >
-                          Reject
-                        </Button>
-                      </Stack>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-          <Typography variant="body2" color="textSecondary" sx={{ mt: 2 }}>
-            When you have an API (e.g. /api/manager/approvals), load items from
-            there and send status updates back to the server.
-          </Typography>
-        </CardContent>
-      </Card>
-    </>
+    <DashboardLayout title="Manager Dashboard">
+      {error && <Alert severity="warning" sx={{ mb: 4 }}>{error}</Alert>}
+
+      {/* Stats Grid */}
+      <Grid container spacing={4} sx={{ mb: 6 }}>
+        {[
+          { label: 'Team Size', value: stats.teamCount, icon: <Group />, color: 'primary', desc: 'Total members' },
+          { label: 'Present Today', value: stats.presentToday, icon: <CheckCircle />, color: 'success', desc: 'Clocked in' },
+          { label: 'Pending Approvals', value: stats.pendingApprovals, icon: <EventNote />, color: 'warning', desc: 'Awaiting review' },
+          { label: 'Weekly Attendance', value: `${stats.attendanceRate}%`, icon: <TrendingUp />, color: 'info', desc: 'Last 7 days' },
+        ].map((item, i) => (
+          <Grid size={{ xs: 12, sm: 6, lg: 3 }} key={i}>
+            <Card
+              sx={{
+                height: '100%',
+                transition: 'transform 0.2s, box-shadow 0.2s',
+                '&:hover': { transform: 'translateY(-4px)', boxShadow: 6 },
+              }}
+            >
+              <CardContent>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Box>
+                    <Typography color="text.secondary" variant="body2" gutterBottom>
+                      {item.desc}
+                    </Typography>
+                    <Typography variant="h3" fontWeight="bold" color={`${item.color}.main`}>
+                      {item.value}
+                    </Typography>
+                    <Typography variant="h6" fontWeight="medium" mt={1}>
+                      {item.label}
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: `${item.color}.light`, width: 64, height: 64 }}>
+                    {React.cloneElement(item.icon, { sx: { fontSize: 36, color: `${item.color}.main` } })}
+                  </Avatar>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      {/* Action Cards */}
+      <Grid container spacing={4}>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Card sx={{ height: '100%', boxShadow: 4, '&:hover': { boxShadow: 8 } }}>
+            <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <Box display="flex" alignItems="center" mb={3}>
+                <People sx={{ fontSize: 48, color: 'primary.main', mr: 2 }} />
+                <Box>
+                  <Typography variant="h5" fontWeight="bold">Team Management</Typography>
+                  <Typography color="text.secondary">Monitor attendance & performance</Typography>
+                </Box>
+              </Box>
+              <Box mt="auto">
+                <Stack spacing={2}>
+                  <Button
+                    variant="contained"
+                    size="large"
+                    component={Link}
+                    to="/manager/team"
+                    startIcon={<People />}
+                    fullWidth
+                  >
+                    View Team Members
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="large"
+                    component={Link}
+                    to="/manager/reports"
+                    startIcon={<Report />}
+                    fullWidth
+                  >
+                    Generate Reports
+                  </Button>
+                </Stack>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Card sx={{ height: '100%', boxShadow: 4, '&:hover': { boxShadow: 8 } }}>
+            <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <Box display="flex" alignItems="center" mb={3}>
+                <CheckCircle sx={{ fontSize: 48, color: 'success.main', mr: 2 }} />
+                <Box>
+                  <Typography variant="h5" fontWeight="bold">Approval Center</Typography>
+                  <Typography color="text.secondary">Review pending requests</Typography>
+                </Box>
+              </Box>
+              <Box mt="auto">
+                <Button
+                  variant="contained"
+                  color="success"
+                  size="large"
+                  component={Link}
+                  to="/manager/approvals"
+                  startIcon={<CheckCircle />}
+                  fullWidth
+                >
+                  Review {stats.pendingApprovals} Pending Request{stats.pendingApprovals !== 1 ? 's' : ''}
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </DashboardLayout>
   );
 };
 
-const TeamReportsPage = () => (
-  <>
-    <Typography variant="h4" gutterBottom>
-      Team Reports
-    </Typography>
-    <Card>
-      <CardContent>
-        <Typography variant="h6" gutterBottom>
-          Quick exports
-        </Typography>
-        <Typography variant="body2" color="textSecondary" gutterBottom>
-          These buttons are disabled until you plug in your reporting service.
-        </Typography>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mt: 1 }}>
-          <Button variant="contained" size="small" disabled>
-            Export attendance (CSV)
-          </Button>
-          <Button variant="contained" size="small" disabled>
-            Export leave summary (CSV)
-          </Button>
-        </Stack>
-      </CardContent>
-    </Card>
-  </>
+// ====================== TEAM OVERVIEW ======================
+const TeamOverviewPage = () => {
+  const [team, setTeam] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [deptFilter, setDeptFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const navigate = useNavigate();
+
+  useEffect(() => { fetchTeam(); }, []);
+
+  const fetchTeam = async () => {
+    try {
+      setLoading(true);
+      const data = await api.get('/manager/team');
+      setTeam(Array.isArray(data) ? data : []);
+    } catch (err) {
+      alert('Failed to load team members. Check permissions.');
+      setTeam([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filtered = team.filter(m => {
+    const q = search.toLowerCase();
+    return (
+      (!search || 
+        m.name?.toLowerCase().includes(q) ||
+        m.email?.toLowerCase().includes(q) ||
+        m.department?.toLowerCase().includes(q)
+      ) &&
+      (deptFilter === 'all' || m.department === deptFilter) &&
+      (statusFilter === 'all' || m.status?.toLowerCase() === statusFilter.toLowerCase())
+    );
+  });
+
+  const paginated = filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  const departments = ['all', ...new Set(team.map(m => m.department).filter(Boolean))];
+
+  return (
+    <DashboardLayout title="Team Overview" breadcrumbs={['Team Overview']}>
+      <Card sx={{ mb: 4, boxShadow: 3 }}>
+        <CardContent>
+          <Grid container spacing={3} alignItems="center">
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                fullWidth
+                placeholder="Search by name, email, or department..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
+                  endAdornment: search && (
+                    <InputAdornment position="end">
+                      <IconButton size="small" onClick={() => setSearch('')}><Cancel /></IconButton>
+                    </InputAdornment>
+                  )
+                }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <FormControl fullWidth>
+                <InputLabel>Department</InputLabel>
+                <Select value={deptFilter} onChange={e => setDeptFilter(e.target.value)} label="Department">
+                  {departments.map(d => (
+                    <MenuItem key={d} value={d}>
+                      {d === 'all' ? 'All Departments' : d}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <FormControl fullWidth>
+                <InputLabel>Status</InputLabel>
+                <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} label="Status">
+                  <MenuItem value="all">All Status</MenuItem>
+                  <MenuItem value="active">Active</MenuItem>
+                  <MenuItem value="inactive">Inactive</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
+      <Card sx={{ boxShadow: 4 }}>
+        <CardContent>
+          {loading ? (
+            <Box textAlign="center" py={10}><CircularProgress /></Box>
+          ) : team.length === 0 ? (
+            <Alert severity="info">No team members found. You may not have manager access.</Alert>
+          ) : filtered.length === 0 ? (
+            <Alert severity="info">No members match your search criteria.</Alert>
+          ) : (
+            <>
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: 'grey.100' }}>
+                      <TableCell><strong>Employee</strong></TableCell>
+                      <TableCell><strong>Department</strong></TableCell>
+                      <TableCell><strong>Role</strong></TableCell>
+                      <TableCell><strong>Status</strong></TableCell>
+                      <TableCell align="center"><strong>Attendance Rate</strong></TableCell>
+                      <TableCell align="right"><strong>Actions</strong></TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {paginated.map(member => (
+                      <TableRow key={member.id} hover sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
+                        <TableCell>
+                          <Stack direction="row" spacing={2} alignItems="center">
+                            <Avatar sx={{ bgcolor: 'primary.main' }}>{member.name?.[0] || '?'}</Avatar>
+                            <Box>
+                              <Typography fontWeight="medium">{member.name || 'Unknown'}</Typography>
+                              <Typography variant="caption" color="text.secondary">{member.email}</Typography>
+                            </Box>
+                          </Stack>
+                        </TableCell>
+                        <TableCell>{member.department || '—'}</TableCell>
+                        <TableCell>{member.role || '—'}</TableCell>
+                        <TableCell>
+                          <Chip label={member.status || '—'} size="small" color={getStatusColor(member.status)} />
+                        </TableCell>
+                        <TableCell align="center">
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <LinearProgress variant="determinate" value={member.attendance_rate || 0} sx={{ flexGrow: 1, height: 8, borderRadius: 4 }} />
+                            <Typography variant="body2" fontWeight="medium">{member.attendance_rate || 0}%</Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Tooltip title="View Attendance History">
+                            <IconButton onClick={() => navigate(`/manager/attendance/${member.id}`)}>
+                              <Visibility />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              <TablePagination
+                component="div"
+                count={filtered.length}
+                page={page}
+                onPageChange={(_, p) => setPage(p)}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={e => { setRowsPerPage(parseInt(e.target.value)); setPage(0); }}
+                rowsPerPageOptions={[10, 25, 50]}
+              />
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </DashboardLayout>
+  );
+};
+
+// ====================== PROFILE SETTINGS ======================
+const ProfileSettingsPage = () => {
+  const [profile, setProfile] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [formData, setFormData] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const fetchProfile = async () => {
+    try {
+      const data = await api.get('/accounts/users/me/');
+      setProfile(data);
+      setFormData(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      await api.patch('/accounts/users/me/', formData);
+      setProfile(formData);
+      setEditing(false);
+      alert('Profile updated successfully!');
+    } catch (err) {
+      alert('Failed to save changes.');
+    }
+  };
+
+  if (loading) return <DashboardLayout title="Settings"><CircularProgress /></DashboardLayout>;
+
+  return (
+    <DashboardLayout title="My Profile & Settings" breadcrumbs={['Settings']}>
+      <Grid container spacing={4}>
+        <Grid size={{ xs: 12, md: 8 }}>
+          <Card sx={{ boxShadow: 4 }}>
+            <CardContent>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+                <Typography variant="h5" fontWeight="bold">Personal Information</Typography>
+                <Button
+                  variant={editing ? "outlined" : "contained"}
+                  color={editing ? "error" : "primary"}
+                  startIcon={editing ? <Cancel /> : <Edit />}
+                  onClick={() => setEditing(!editing)}
+                >
+                  {editing ? 'Cancel' : 'Edit Profile'}
+                </Button>
+              </Box>
+
+              <Grid container spacing={3}>
+                <Grid size={12} textAlign="center" mb={2}>
+                  <Avatar sx={{ width: 120, height: 120, mx: 'auto', fontSize: 48, bgcolor: 'primary.main' }}>
+                    {profile?.name?.[0] || 'U'}
+                  </Avatar>
+                </Grid>
+
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField label="Full Name" fullWidth value={editing ? formData.name || '' : profile?.name || '—'}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })} disabled={!editing} />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField label="Email Address" fullWidth value={profile?.email || '—'} disabled />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField label="Department" fullWidth value={editing ? formData.department || '' : profile?.department || '—'}
+                    onChange={e => setFormData({ ...formData, department: e.target.value })} disabled={!editing} />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField label="Role" fullWidth value={profile?.role || 'Manager'} disabled />
+                </Grid>
+              </Grid>
+
+              {editing && (
+                <Box mt={5} textAlign="right">
+                  <Button variant="contained" size="large" startIcon={<Save />} onClick={handleSave}>
+                    Save Changes
+                  </Button>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid size={{ xs: 12, md: 4 }}>
+          <Card sx={{ boxShadow: 4, height: 'fit-content' }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>Account Settings</Typography>
+              <Divider sx={{ my: 2 }} />
+              <Typography color="text.secondary" paragraph>
+                Advanced settings like password change, notifications, and theme preferences coming soon.
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </DashboardLayout>
+  );
+};
+
+// Placeholder Pages
+const ApprovalCenterPage = () => (
+  <DashboardLayout title="Approval Center" breadcrumbs={['Approvals']}>
+    <Alert severity="info">Approval center implementation coming soon.</Alert>
+  </DashboardLayout>
 );
 
+const TeamReportsPage = () => (
+  <DashboardLayout title="Team Reports" breadcrumbs={['Reports']}>
+    <Alert severity="info">Report generation features coming soon.</Alert>
+  </DashboardLayout>
+);
+
+// ====================== MAIN ROUTER ======================
 const ManagerDashboard = () => {
   return (
     <Routes>
@@ -285,7 +590,8 @@ const ManagerDashboard = () => {
       <Route path="/team" element={<TeamOverviewPage />} />
       <Route path="/approvals" element={<ApprovalCenterPage />} />
       <Route path="/reports" element={<TeamReportsPage />} />
-      <Route path="*" element={<Typography>Page coming soon...</Typography>} />
+      <Route path="/settings" element={<ProfileSettingsPage />} />
+      <Route path="*" element={<ManagerDashboardHome />} />
     </Routes>
   );
 };
