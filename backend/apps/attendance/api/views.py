@@ -1,8 +1,8 @@
+from urllib import request
 from rest_framework.viewsets import ViewSet
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
-
 from employees.models import Employee
 from attendance.api.serializers import (
     AttendanceCheckInSerializer,
@@ -63,9 +63,18 @@ class AttendanceViewSet(ViewSet):
         """
         LIST ATTENDANCE (Scoped)
         """
-        qs = AttendanceRecord.objects.filter(
-            employee__company=request.user.employee.company
+        qs = AttendanceRecord.objects.all()
+
+        # Admin sees everything
+        if request.user.is_admin():
+            pass
+
+        # HR / Manager / Employee
+        else:
+            qs = qs.filter(
+                employee__company=request.user.employee.company
         )
+
 
         # Optional filters
         date = request.query_params.get("date")
