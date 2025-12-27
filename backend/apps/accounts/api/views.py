@@ -5,10 +5,10 @@ from rest_framework.permissions import IsAuthenticated
 # from django.shortcuts import get_object_or_404
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework import serializers
-from accounts.models import User
+from accounts.models import User, Role
 from accounts.constants import Roles
 # from employees.models import Employee
-from .serializers import UserSerializer, UserCreateSerializer, UserUpdateSerializer
+from .serializers import UserSerializer, UserCreateSerializer, UserUpdateSerializer, RoleSerializer
 from accounts.services.user_service import create_user, update_user, get_users_for_user
 from accounts.permissions import IsAdmin
 from .serializers import CustomTokenObtainPairSerializer
@@ -17,6 +17,11 @@ from .serializers import CustomTokenObtainPairSerializer
 class CustomTokenObtainPairView(TokenObtainPairView):
     """Custom login view that returns user data"""
     serializer_class = CustomTokenObtainPairSerializer
+
+class RoleViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAdmin]  
+    queryset = Role.objects.all()
+    serializer_class = RoleSerializer
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
