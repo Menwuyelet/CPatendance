@@ -3,24 +3,33 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 
-from accounts.models import User
+from employees.models import Employee
 from attendance.api.serializers import (
-    AttendanceCreateSerializer,
+    AttendanceCheckInSerializer,
+    AttendanceCheckOutSerializer,
     AttendanceSerializer
 )
-from attendance.services.attendance_service import mark_attendance, check_out
+from attendance.services.attendance_service import (
+    mark_attendance,
+)
+from attendance.services.check_out import (check_out)
 
 
 class AttendanceViewSet(ViewSet):
+    """
+    Handles:
+    - Self check-in/out
+    - HR / Manager taking attendance
+    """
 
     def create(self, request):
-        serializer = AttendanceCreateSerializer(data=request.data)
+        """
+        CHECK-IN
+        """
+        serializer = AttendanceCheckInSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        employee = get_object_or_404(
-            User,
-            id=serializer.validated_data["employee_id"]
-        )
+        employee = self._resolve_employee(request, serializer)
 
         record = mark_attendance(
             employee=employee,
@@ -35,12 +44,48 @@ class AttendanceViewSet(ViewSet):
 
     def update(self, request, pk=None):
         """
-        Used for check-out
+        CHECK-OUT
         """
-        employee = get_object_or_404(User, id=pk)
+        serializer = AttendanceCheckOutSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        employee = self._resolve_employee(request, serializer)
+
         record = check_out(employee)
 
         return Response(
             AttendanceSerializer(record).data,
             status=status.HTTP_200_OK
         )
+
+    def list(self, request):
+        """
+        LIST ATTENDANCE (Scoped)
+        """
+        qs = AttendanceRecord.objects.filter(
+            employee__company=request.user.employee.company
+        )
+
+        # Optional filters
+        date = request.query_params.get("date")
+        if date:
+            qs = qs.filter(date=date)
+
+        return Response(
+            AttendanceSerializer(qs, many=True).data,
+            status=status.HTTP_200_OK
+        )
+
+    def _resolve_employee(self, request, serializer):
+        """
+        Determines whether:
+        - Self attendance
+        - Attendance taken by HR / Manager
+        """
+        employee_id = serializer.validated_data.get("employee_id")
+
+        if employee_id:
+            return get_object_or_404(Employee, id=employee_id)
+
+        # Self check-in/out
+        return request.user.employee

@@ -1,5 +1,5 @@
 from django.utils import timezone
-from backend.apps.attendance import AttendanceRecord, EmployeeShift
+from attendance.models import AttendanceRecord, EmployeeShift
 
 
 def mark_absentees():

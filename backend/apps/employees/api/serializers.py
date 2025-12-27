@@ -7,7 +7,7 @@ from accounts.api.serializers import UserSerializer
 class CompanySerializer(serializers.ModelSerializer):
     class Meta:
         model = Company
-        fields = ['id', 'name', 'timezone', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'timezone', 'created_at']
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -15,7 +15,7 @@ class DepartmentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Department
-        fields = ['id', 'name', 'company', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'company']
 
 
 class EmployeeSerializer(serializers.ModelSerializer):
