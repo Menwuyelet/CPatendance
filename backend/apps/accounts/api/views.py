@@ -47,7 +47,7 @@ class UserViewSet(viewsets.ModelViewSet):
         data = serializer.validated_data
         roles = data.get('roles', [])
         role_names = [role.name for role in roles]
-        employee_roles = [Roles.EMPLOYEE, Roles.HR, Roles.DEPARTMENT_MANAGER]
+        employee_roles = [Roles.EMPLOYEE, Roles.HR, Roles.MANAGER]
         
         employee_data = None
         if any(role in role_names for role in employee_roles):
