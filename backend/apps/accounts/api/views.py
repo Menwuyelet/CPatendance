@@ -40,7 +40,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            self.permission_classes = [IsAdmin]
+            self.permission_classes = [IsAuthenticated, IsAdmin]
         return super().get_permissions()
 
     def perform_create(self, serializer):
