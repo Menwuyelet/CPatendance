@@ -13,6 +13,7 @@ from attendance.services.attendance_service import (
     mark_attendance,
 )
 from attendance.services.check_out import (check_out)
+from attendance.models import AttendanceRecord
 
 
 class AttendanceViewSet(ViewSet):
