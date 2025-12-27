@@ -43,13 +43,16 @@ INSTALLED_APPS = [
     ## generic
     'rest_framework',
     'rest_framework_simplejwt',
+    "drf_spectacular",
     
     ## custom
     'accounts',
     'attendance',
     'employees',
+    # 'biometrics',
     
 ]
+
 
 AUTH_USER_MODEL = 'accounts.User'
 
@@ -139,7 +142,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 ## Jwt Settings configuration
 from datetime import timedelta
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),       # Adjust as needed
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=500),       # Adjust as needed
     'REFRESH_TOKEN_LIFETIME': timedelta(minutes=30),
     'ROTATE_REFRESH_TOKENS': False,
     'BLACKLIST_AFTER_ROTATION': True,
@@ -160,7 +163,33 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 } 
 
 # Auth User Model
 AUTH_USER_MODEL = "accounts.User"
+
+## face engine
+# FACE_ENGINE = "biometrics.engines.simple_engine.SimpleFaceEngine"
+# FACE_ENGINE = "biometrics.engines.insightface_engine.InsightFaceEngine"
+# FACE_ENGINE = "biometrics.engines.custom_engine.CustomFaceEngine"
+
+
+# spectacular setting
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Attendance Management API",
+    "DESCRIPTION": """
+    Production-grade attendance system with:
+    - Facial recognition
+    - Shift-based attendance
+    - Leave management
+    - Role-based access
+    """,
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+
+    # Auth
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SECURITY": [{"bearerAuth": []}],
+    "AUTHENTICATION_WHITELIST": [],
+}

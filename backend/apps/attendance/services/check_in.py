@@ -1,6 +1,6 @@
 # attendance/services/check_in.py
 from django.utils import timezone
-from backend.apps.attendance import AttendanceRecord
+from attendance.models import AttendanceRecord
 from attendance.services.status import evaluate_status
 
 def check_in(employee, user):

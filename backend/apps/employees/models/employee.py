@@ -2,7 +2,7 @@
 import uuid
 from django.db import models
 from django.conf import settings
-
+from django.utils import timezone
 class Employee(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
@@ -39,6 +39,16 @@ class Employee(models.Model):
     def __str__(self):
         return f"{self.full_name} ({self.employee_code})"
     
+    def get_today_shift(self):
+        today = timezone.localdate()
+        assignment = (
+            self.shift_assignments
+            .select_related("shift")
+            .filter(date=today)
+            .first()
+        )
+        return assignment.shift if assignment else None
+
     class Meta:
         indexes = [
             models.Index(fields=["company", "employee_code"]),
