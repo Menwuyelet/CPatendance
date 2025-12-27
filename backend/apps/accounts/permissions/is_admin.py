@@ -1,0 +1,7 @@
+# accounts/permissions/is_admin.py
+from rest_framework.permissions import BasePermission
+from .utils import user_has_role
+
+class IsAdmin(BasePermission):
+    def has_permission(self, request, view):
+        return user_has_role(request.user, "ADMIN")
