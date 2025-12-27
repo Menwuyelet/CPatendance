@@ -1,13 +1,25 @@
 from accounts.models import User, Role
+from employees.models import Employee
 
 
-def create_user(email, password, roles=None):
+def create_user(email, password, roles=None, employee_data=None):
     """
     Creates a new user with the given email, password, and roles.
+    If employee_data is provided, creates an associated Employee.
     """
     user = User.objects.create_user(email=email, password=password)
     if roles:
         user.roles.set(roles)
+    
+    if employee_data:
+        Employee.objects.create(
+            user=user,
+            full_name=employee_data['full_name'],
+            employee_code=employee_data['employee_code'],
+            company=employee_data['company'],
+            department=employee_data.get('department')
+        )
+    
     return user
 
 

@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from accounts.models import User, Role
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from employees.models import Company, Department
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     """Custom serializer that includes user info in token response"""
@@ -44,10 +45,14 @@ class UserSerializer(serializers.ModelSerializer):
 class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     roles = serializers.PrimaryKeyRelatedField(queryset=Role.objects.all(), many=True)
+    full_name = serializers.CharField(required=False)
+    employee_code = serializers.CharField(required=False)
+    company = serializers.PrimaryKeyRelatedField(queryset=Company.objects.all(), required=False)
+    department = serializers.PrimaryKeyRelatedField(queryset=Department.objects.all(), required=False)
 
     class Meta:
         model = User
-        fields = ['email', 'password', 'roles']
+        fields = ['email', 'password', 'roles', 'full_name', 'employee_code', 'company', 'department']
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):

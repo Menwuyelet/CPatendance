@@ -6,6 +6,8 @@ from django.shortcuts import get_object_or_404
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from accounts.models import User
+from accounts.constants import Roles
+from employees.models import Employee
 from .serializers import UserSerializer, UserCreateSerializer, UserUpdateSerializer
 from accounts.services.user_service import create_user, update_user, get_users_for_user
 from accounts.permissions import IsAdmin
@@ -38,10 +40,28 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         data = serializer.validated_data
+        roles = data.get('roles', [])
+        role_names = [role.name for role in roles]
+        employee_roles = [Roles.EMPLOYEE, Roles.HR, Roles.DEPARTMENT_MANAGER]
+        
+        employee_data = None
+        if any(role in role_names for role in employee_roles):
+            required_fields = ['full_name', 'employee_code', 'company']
+            for field in required_fields:
+                if field not in data or not data[field]:
+                    raise serializers.ValidationError({field: 'This field is required for employee roles.'})
+            employee_data = {
+                'full_name': data['full_name'],
+                'employee_code': data['employee_code'],
+                'company': data['company'],
+                'department': data.get('department')
+            }
+        
         user = create_user(
             email=data['email'],
             password=data['password'],
-            roles=data.get('roles', [])
+            roles=roles,
+            employee_data=employee_data
         )
         serializer.instance = user
 
