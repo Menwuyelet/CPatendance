@@ -1,4 +1,4 @@
-from backend.apps.attendance import AttendanceRecord
+from attendance.models import AttendanceRecord
 
 
 def apply_leave(employee, date):

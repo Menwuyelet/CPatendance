@@ -1,5 +1,5 @@
 from django.utils import timezone
-from backend.apps.attendance import AttendanceRecord
+from backend.apps.attendance.models import AttendanceRecord
 from attendance.services.status import evaluate_status
 from attendance.services.permissions import can_take_attendance
 
