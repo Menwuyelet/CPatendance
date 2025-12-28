@@ -13,25 +13,10 @@ class DepartmentSerializer(serializers.ModelSerializer):
 class EmployeeSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     department = DepartmentSerializer(read_only=True)
-    is_biometric_enrolled = serializers.SerializerMethodField()
 
     class Meta:
         model = Employee
-        fields = ['id', 'user', 'department', 'employee_code', 'full_name', 'is_active', 'created_at', 'is_biometric_enrolled']
-
-    def get_is_biometric_enrolled(self, obj):
-        """Check if employee has active biometric profile"""
-        try:
-            # Check if biometrics app is installed and has BiometricProfile model
-            from biometrics.models import BiometricProfile
-            return BiometricProfile.objects.filter(
-                employee=obj,
-                biometric_type='FACE',
-                is_active=True
-            ).exists()
-        except (ImportError, Exception):
-            # If biometrics app is not installed, return False
-            return False
+        fields = ['id', 'user', 'department', 'employee_code', 'full_name', 'is_active', 'created_at']
 
 
 class EmployeeUpdateSerializer(serializers.ModelSerializer):

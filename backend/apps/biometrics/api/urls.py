@@ -1,11 +1,10 @@
 from rest_framework.routers import DefaultRouter
 from biometrics.api.views import (
     FaceEnrollmentViewSet,
-    FaceRecognitionViewSet
+    BiometricProfileViewSet
 )
 
 router = DefaultRouter()
 router.register("biometrics/face/enroll", FaceEnrollmentViewSet, basename="face-enroll")
-router.register("biometrics/face/recognize", FaceRecognitionViewSet, basename="face-recognize")
-
+router.register("biometrics/profiles", BiometricProfileViewSet, basename="biometric-profiles")  
 urlpatterns = router.urls
