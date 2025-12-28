@@ -42,7 +42,7 @@ def get_users_for_user(request_user):
     """
     from accounts.policies.common import BasePolicy
 
-    if BasePolicy.is_hr(request_user):
+    if BasePolicy.is_hr(request_user) or BasePolicy.is_admin(request_user):
         # HR can view all users
         return User.objects.all()
     elif BasePolicy.is_manager(request_user):

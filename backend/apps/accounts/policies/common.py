@@ -3,6 +3,9 @@ from accounts.constants import Roles
 
 class BasePolicy:
     @staticmethod
+    def is_admin(user):
+        return user.has_role(Roles.ADMIN)
+    @staticmethod
     def is_hr(user):
         return user.has_role(Roles.HR)
 
