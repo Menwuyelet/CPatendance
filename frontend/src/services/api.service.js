@@ -90,6 +90,58 @@ async function request(path, options = {}) {
 export const api = {
   get: (path) => request(path),
   post: (path, body) => request(path, { method: 'POST', body: JSON.stringify(body) }),
+  // Post a FormData (multipart/form-data). `form` must be a FormData instance.
+  postForm: async (path, form) => {
+    const url = `${API_BASE_URL}${path}`;
+    const config = {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        // Do NOT set Content-Type; browser will set the multipart boundary
+        ...authHeader(),
+      },
+      body: form,
+    };
+
+    let response = await fetch(url, config);
+
+    if (response.status === 401 && refreshToken && !path.includes('/auth/refresh/')) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        const retryConfig = {
+          ...config,
+          headers: {
+            ...config.headers,
+            ...authHeader(),
+          },
+        };
+        response = await fetch(url, retryConfig);
+      }
+    }
+
+    if (!response.ok) {
+      let errorMessage = `Request failed with status ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.detail) errorMessage = errorData.detail;
+        else if (typeof errorData === 'object') {
+          const fieldErrors = Object.entries(errorData)
+            .map(([field, errors]) => `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`)
+            .join('; ');
+          if (fieldErrors) errorMessage = fieldErrors;
+        }
+      } catch (e) {
+        const text = await safeReadText(response);
+        if (text) errorMessage = text;
+      }
+      const error = new Error(errorMessage);
+      error.status = response.status;
+      throw error;
+    }
+
+    if (response.status === 204) return null;
+    return response.json();
+  },
   put: (path, body) => request(path, { method: 'PUT', body: JSON.stringify(body) }),
   patch: (path, body) => request(path, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: (path) => request(path, { method: 'DELETE' }),
