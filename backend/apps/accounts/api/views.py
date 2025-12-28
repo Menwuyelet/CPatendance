@@ -9,7 +9,7 @@ from rest_framework import serializers
 from accounts.models import User, Role
 from accounts.constants import Roles
 # from employees.models import Employee
-from .serializers import UserSerializer, UserCreateSerializer, UserUpdateSerializer, RoleSerializer
+from .serializers import UserSerializer, UserCreateSerializer, UserUpdateSerializer, RoleSerializer, UserProfileUpdateSerializer
 from accounts.services.user_service import create_user, update_user, get_users_for_user
 from accounts.permissions import IsAdmin
 from .serializers import CustomTokenObtainPairSerializer
@@ -81,7 +81,19 @@ class UserViewSet(viewsets.ModelViewSet):
         user = update_user(self.get_object(), **data)
         serializer.instance = user
 
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    @action(detail=False, methods=['get', 'patch'], permission_classes=[IsAuthenticated])
     def me(self, request):
-        serializer = self.get_serializer(request.user)
-        return Response(serializer.data)
+        if request.method == 'PATCH':
+            serializer = UserProfileUpdateSerializer(request.user, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            # Refresh user from database to get updated related data
+            request.user.refresh_from_db()
+            if hasattr(request.user, 'employee'):
+                request.user.employee.refresh_from_db()
+            # Return updated user data
+            user_serializer = self.get_serializer(request.user)
+            return Response(user_serializer.data)
+        else:
+            serializer = self.get_serializer(request.user)
+            return Response(serializer.data)

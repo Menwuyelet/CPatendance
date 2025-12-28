@@ -372,9 +372,9 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
       const q = search.toLowerCase();
       const matchesSearch =
         !q ||
-        u.name.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q) ||
-        u.department.toLowerCase().includes(q);
+        u.name?.toLowerCase().includes(q) ||
+        u.email?.toLowerCase().includes(q) ||
+        (u.department || '').toLowerCase().includes(q);
 
       const matchesRole =
         filterRole === 'ALL' ||

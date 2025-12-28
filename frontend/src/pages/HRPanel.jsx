@@ -21,6 +21,12 @@ import {
   ListItemText,
   Tooltip,
   Alert,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from '@mui/material';
 import {
   Dashboard,
@@ -28,7 +34,6 @@ import {
   EventNote,
   CalendarToday,
   Assessment,
-  TipsAndUpdates,
   Cake,
   Work,
   NotificationImportant,
@@ -36,10 +41,14 @@ import {
   AccessTime,
   CheckCircle,
   PersonAdd,
+  Warning,
+  TrendingDown,
+  TrendingUp,
+  Download,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api.service.js';
-import { format, startOfMonth, endOfMonth, addDays } from 'date-fns';
+import { format, startOfMonth, endOfMonth, addDays, subDays, isWithinInterval } from 'date-fns';
 
 const HRDashboard = () => {
   const navigate = useNavigate();
@@ -47,12 +56,18 @@ const HRDashboard = () => {
   // Real data states
   const [stats, setStats] = useState({
     totalEmployees: 0,
+    activeEmployees: 0,
     activeToday: 0,
     pendingLeaves: 0,
     newThisMonth: 0,
+    absenteeismRate: 0,
+    lateArrivals: 0,
+    overtimeWarnings: 0,
   });
   const [recentActivity, setRecentActivity] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
+  const [complianceAlerts, setComplianceAlerts] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -65,15 +80,21 @@ const HRDashboard = () => {
         // Use real Django endpoints only:
         // - /api/employees/employees/
         // - /api/attendance/attendance/
-        const [employeesRes, attendanceRes] = await Promise.all([
-          api.get('/employees/employees/'),
-          api.get('/attendance/attendance/'),
+        // - /api/employees/departments/
+        const [employeesRes, attendanceRes, departmentsRes] = await Promise.all([
+          api.get('/employees/employees/').catch(() => []),
+          api.get('/attendance/attendance/').catch(() => []),
+          api.get('/employees/departments/').catch(() => []),
         ]);
 
-        const employees = Array.isArray(employeesRes) ? employeesRes : [];
-        const attendance = Array.isArray(attendanceRes) ? attendanceRes : [];
+        const employees = Array.isArray(employeesRes) ? employeesRes : employeesRes?.data || [];
+        const attendance = Array.isArray(attendanceRes) ? attendanceRes : attendanceRes?.data || [];
+        const departmentsList = Array.isArray(departmentsRes) ? departmentsRes : departmentsRes?.data || [];
+
+        setDepartments(departmentsList);
 
         const totalEmployees = employees.length;
+        const activeEmployees = employees.filter((emp) => emp.is_active !== false).length;
 
         const todayStr = new Date().toISOString().slice(0, 10);
         const todayRecords = attendance.filter((r) => r.date === todayStr);
@@ -82,9 +103,22 @@ const HRDashboard = () => {
           return status === 'PRESENT' || status === 'LATE';
         }).length;
 
+        const lateArrivals = todayRecords.filter((r) => {
+          return (r.status || '').toUpperCase() === 'LATE';
+        }).length;
+
         const pendingLeavesCount = todayRecords.filter(
           (r) => (r.status || '').toUpperCase() === 'ON_LEAVE',
         ).length;
+
+        // Calculate absenteeism rate (employees not present today / total employees)
+        const absentToday = totalEmployees - activeToday;
+        const absenteeismRate = totalEmployees > 0 
+          ? Math.round((absentToday / totalEmployees) * 100) 
+          : 0;
+
+        // Calculate overtime warnings (check if any employees have excessive hours)
+        const overtimeWarnings = 0; // Can be enhanced with actual overtime calculation
 
         const thisMonthStart = startOfMonth(new Date());
         const thisMonthEnd = endOfMonth(new Date());
@@ -95,13 +129,64 @@ const HRDashboard = () => {
 
         setStats({
           totalEmployees,
+          activeEmployees,
           activeToday,
           pendingLeaves: pendingLeavesCount,
           newThisMonth,
+          absenteeismRate,
+          lateArrivals,
+          overtimeWarnings,
         });
 
-        // These can later be derived from attendance & employees; for now keep empty.
-        setRecentActivity([]);
+        // Generate recent activity from actual data
+        const activity = [];
+        if (newThisMonth > 0) {
+          activity.push({
+            type: 'new_employee',
+            message: `${newThisMonth} new employee(s) joined this month`,
+            timestamp: format(new Date(), 'MMM dd, yyyy'),
+          });
+        }
+        if (lateArrivals > 0) {
+          activity.push({
+            type: 'late_clockin',
+            message: `${lateArrivals} late arrival(s) today`,
+            timestamp: format(new Date(), 'MMM dd, yyyy'),
+          });
+        }
+        if (pendingLeavesCount > 0) {
+          activity.push({
+            type: 'leave_approved',
+            message: `${pendingLeavesCount} pending leave request(s)`,
+            timestamp: format(new Date(), 'MMM dd, yyyy'),
+          });
+        }
+        setRecentActivity(activity.slice(0, 8));
+
+        // Generate compliance alerts
+        const alerts = [];
+        if (absenteeismRate > 20) {
+          alerts.push({
+            severity: 'warning',
+            message: `High absenteeism rate: ${absenteeismRate}% of employees absent today`,
+            icon: <Warning />,
+          });
+        }
+        if (lateArrivals > 5) {
+          alerts.push({
+            severity: 'warning',
+            message: `${lateArrivals} late arrivals detected today - Review attendance patterns`,
+            icon: <AccessTime />,
+          });
+        }
+        if (pendingLeavesCount > 10) {
+          alerts.push({
+            severity: 'info',
+            message: `${pendingLeavesCount} leave requests pending approval`,
+            icon: <CalendarToday />,
+          });
+        }
+        setComplianceAlerts(alerts);
         setUpcomingEvents([]);
       } catch (err) {
         console.error('Failed to load HR dashboard data:', err);
@@ -115,14 +200,6 @@ const HRDashboard = () => {
   }, []);
 
   const features = [
-    {
-      title: 'Overview',
-      description: 'Central hub for HR metrics and system status',
-      icon: <Dashboard />,
-      action: () => navigate('/dashboard'),
-      buttonText: 'View Overview',
-      gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    },
     {
       title: 'Employees',
       description: 'Onboarding, profiles, roles, departments & access control',
@@ -143,16 +220,6 @@ const HRDashboard = () => {
       progress: stats.totalEmployees > 0 
         ? Math.round((stats.activeToday / stats.totalEmployees) * 100) 
         : 0,
-    },
-    {
-      title: 'Leaves',
-      description: 'Approve requests, track balances, and manage policies',
-      icon: <CalendarToday />,
-      action: () => navigate('/leaves'),
-      buttonText: 'Review Requests',
-      gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-      badge: stats.pendingLeaves > 0 ? stats.pendingLeaves : null,
-      badgeColor: 'error',
     },
     {
       title: 'Reports & Analytics',
@@ -176,23 +243,14 @@ const HRDashboard = () => {
   };
 
   return (
-    <Box sx={{ p: { xs: 3, md: 5 }, maxWidth: '1600px', mx: 'auto' }}>
+    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: '1400px', mx: 'auto' }}>
       {/* Header */}
-      <Box sx={{ mb: 6, textAlign: { xs: 'center', md: 'left' } }}>
-        <Typography
-          variant="h3"
-          fontWeight="bold"
-          sx={{
-            background: 'linear-gradient(90deg, #1976d2 0%, #42a5f5 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            mb: 2,
-          }}
-        >
-          HR Command Center
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4" fontWeight="bold" sx={{ mb: 1 }}>
+          HR Dashboard
         </Typography>
-        <Typography variant="h6" color="text.secondary">
-          Manage your workforce efficiently with real-time insights and tools.
+        <Typography variant="body2" color="text.secondary">
+          Workforce management and insights
         </Typography>
       </Box>
 
@@ -202,26 +260,116 @@ const HRDashboard = () => {
         </Alert>
       )}
 
+      {/* Key Statistics Cards */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ bgcolor: 'primary.main', color: 'primary.contrastText', borderRadius: 2 }}>
+            <CardContent sx={{ py: 2 }}>
+              <Stack direction="row" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="h5" fontWeight="bold">
+                    {stats.totalEmployees}
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.9, fontSize: '0.85rem' }}>
+                    Total Employees
+                  </Typography>
+                </Box>
+                <People sx={{ fontSize: 36, opacity: 0.8 }} />
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ bgcolor: 'success.main', color: 'success.contrastText', borderRadius: 2 }}>
+            <CardContent sx={{ py: 2 }}>
+              <Stack direction="row" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="h5" fontWeight="bold">
+                    {stats.activeToday}
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.9, fontSize: '0.85rem' }}>
+                    Present Today
+                  </Typography>
+                </Box>
+                <CheckCircle sx={{ fontSize: 36, opacity: 0.8 }} />
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ bgcolor: 'warning.main', color: 'warning.contrastText', borderRadius: 2 }}>
+            <CardContent sx={{ py: 2 }}>
+              <Stack direction="row" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="h5" fontWeight="bold">
+                    {stats.absenteeismRate}%
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.9, fontSize: '0.85rem' }}>
+                    Absenteeism Rate
+                  </Typography>
+                </Box>
+                <TrendingDown sx={{ fontSize: 36, opacity: 0.8 }} />
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ bgcolor: 'error.main', color: 'error.contrastText', borderRadius: 2 }}>
+            <CardContent sx={{ py: 2 }}>
+              <Stack direction="row" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="h5" fontWeight="bold">
+                    {stats.pendingLeaves}
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.9, fontSize: '0.85rem' }}>
+                    Pending Leaves
+                  </Typography>
+                </Box>
+                <CalendarToday sx={{ fontSize: 36, opacity: 0.8 }} />
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Compliance Alerts */}
+      {complianceAlerts.length > 0 && (
+        <Box sx={{ mb: 2 }}>
+          <Stack spacing={1}>
+            {complianceAlerts.map((alert, index) => (
+              <Alert 
+                key={index}
+                severity={alert.severity}
+                icon={alert.icon}
+                sx={{ borderRadius: 1 }}
+              >
+                {alert.message}
+              </Alert>
+            ))}
+          </Stack>
+        </Box>
+      )}
+
       {/* Feature Cards */}
-      <Grid container spacing={4} sx={{ mb: 8 }}>
+      <Grid container spacing={2} sx={{ mb: 3 }}>
         {features.map((feature, index) => (
           <Grid item xs={12} sm={6} lg={4} key={index}>
             <Card
               sx={{
                 height: '100%',
-                borderRadius: 4,
-                boxShadow: 6,
+                borderRadius: 2,
+                boxShadow: 2,
                 overflow: 'hidden',
-                transition: 'all 0.4s ease',
+                transition: 'all 0.2s ease',
                 '&:hover': {
-                  transform: 'translateY(-12px) scale(1.02)',
-                  boxShadow: 12,
+                  boxShadow: 4,
+                  transform: 'translateY(-2px)',
                 },
               }}
             >
               <Box
                 sx={{
-                  height: 100,
+                  height: 60,
                   background: feature.gradient,
                   display: 'flex',
                   alignItems: 'center',
@@ -231,8 +379,8 @@ const HRDashboard = () => {
               >
                 <Box
                   sx={{
-                    width: 80,
-                    height: 80,
+                    width: 50,
+                    height: 50,
                     borderRadius: '50%',
                     backgroundColor: 'rgba(255,255,255,0.2)',
                     display: 'flex',
@@ -242,7 +390,7 @@ const HRDashboard = () => {
                   }}
                 >
                   {React.cloneElement(feature.icon, {
-                    sx: { fontSize: 48, color: 'white' },
+                    sx: { fontSize: 28, color: 'white' },
                   })}
                 </Box>
 
@@ -261,12 +409,12 @@ const HRDashboard = () => {
                 )}
               </Box>
 
-              <CardContent sx={{ pt: 4, pb: 4, textAlign: 'center' }}>
-                <Typography variant="h5" fontWeight="bold" gutterBottom>
+              <CardContent sx={{ pt: 2, pb: 2, textAlign: 'center' }}>
+                <Typography variant="h6" fontWeight="bold" gutterBottom>
                   {feature.title}
                 </Typography>
 
-                <Typography variant="body1" color="text.secondary" sx={{ mb: 4, minHeight: 80, px: 2 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2, minHeight: 50, px: 1, fontSize: '0.875rem' }}>
                   {feature.description}
                 </Typography>
 
@@ -293,12 +441,12 @@ const HRDashboard = () => {
 
                 <Button
                   variant="contained"
-                  size="large"
+                  size="medium"
                   fullWidth
                   onClick={feature.action}
                   sx={{
-                    borderRadius: 3,
-                    py: 1.5,
+                    borderRadius: 1,
+                    py: 1,
                     textTransform: 'none',
                     fontWeight: '600',
                   }}
@@ -311,16 +459,16 @@ const HRDashboard = () => {
         ))}
       </Grid>
 
-      {/* Bottom Section: Activity + Upcoming Events */}
-      <Grid container spacing={4}>
+      {/* Bottom Section: Activity + Department Overview */}
+      <Grid container spacing={2}>
         {/* Recent Activity */}
         <Grid item xs={12} md={7}>
-          <Card sx={{ borderRadius: 4, boxShadow: 6, height: '100%' }}>
-            <CardContent>
-              <Typography variant="h6" fontWeight="bold" gutterBottom>
+          <Card sx={{ borderRadius: 2, boxShadow: 2, height: '100%' }}>
+            <CardContent sx={{ p: 2 }}>
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                 Recent Activity
               </Typography>
-              <Divider sx={{ mb: 3 }} />
+              <Divider sx={{ mb: 2 }} />
 
               {loading ? (
                 <List>
@@ -340,7 +488,7 @@ const HRDashboard = () => {
                 <Alert severity="info">No recent activity</Alert>
               ) : (
                 <List>
-                  {recentActivity.slice(0, 8).map((item, i) => (
+                  {recentActivity.map((item, i) => (
                     <ListItem key={i} sx={{ py: 1.5 }}>
                       <ListItemAvatar>
                         <Avatar sx={{ bgcolor: 'background.paper' }}>
@@ -359,68 +507,168 @@ const HRDashboard = () => {
           </Card>
         </Grid>
 
-        {/* Upcoming Events */}
+        {/* Department Overview */}
         <Grid item xs={12} md={5}>
-          <Card sx={{ borderRadius: 4, boxShadow: 6, height: '100%' }}>
-            <CardContent>
-              <Typography variant="h6" fontWeight="bold" gutterBottom>
-                Upcoming Celebrations
-              </Typography>
-              <Divider sx={{ mb: 3 }} />
+          <Card sx={{ borderRadius: 2, boxShadow: 2, height: '100%' }}>
+            <CardContent sx={{ p: 2 }}>
+              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                <Typography variant="subtitle1" fontWeight="bold">
+                  Departments
+                </Typography>
+                <Button size="small" onClick={() => navigate('/companies')}>
+                  View All
+                </Button>
+              </Stack>
+              <Divider sx={{ mb: 2 }} />
 
               {loading ? (
-                <Stack spacing={3}>
+                <Stack spacing={2}>
                   {[...Array(3)].map((_, i) => (
                     <Skeleton key={i} variant="rectangular" height={60} />
                   ))}
                 </Stack>
-              ) : upcomingEvents.length === 0 ? (
-                <Alert severity="info">No upcoming birthdays or anniversaries</Alert>
+              ) : departments.length === 0 ? (
+                <Alert severity="info">No departments found</Alert>
               ) : (
-                <Stack spacing={3}>
-                  {upcomingEvents.map((event, i) => (
-                    <Paper
-                      key={i}
-                      sx={{
-                        p: 3,
-                        borderRadius: 3,
-                        bgcolor: 'background.paper',
-                        textAlign: 'center',
-                      }}
-                    >
-                      <Avatar sx={{ width: 56, height: 56, mx: 'auto', mb: 2, bgcolor: 'primary.main' }}>
-                        {event.type === 'birthday' ? <Cake /> : <Work />}
-                      </Avatar>
-                      <Typography variant="subtitle1" fontWeight="medium">
-                        {event.name}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {event.type === 'birthday' ? 'Birthday' : 'Work Anniversary'}<br />
-                        {format(new Date(event.date), 'MMM dd')}
-                      </Typography>
-                    </Paper>
-                  ))}
-                </Stack>
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell><strong>Department</strong></TableCell>
+                        <TableCell align="right"><strong>Status</strong></TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {departments.slice(0, 5).map((dept) => (
+                        <TableRow key={dept.id}>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight="medium">
+                              {dept.name}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {dept.code}
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Chip
+                              label={dept.is_active ? 'Active' : 'Inactive'}
+                              size="small"
+                              color={dept.is_active ? 'success' : 'default'}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               )}
             </CardContent>
           </Card>
         </Grid>
       </Grid>
 
-      {/* Pro Tip */}
-      <Paper elevation={3} sx={{ mt: 8, p: 4, borderRadius: 3, textAlign: 'center' }}>
-        <Stack direction="row" spacing={2} alignItems="center" justifyContent="center">
-          <TipsAndUpdates sx={{ fontSize: 32, color: 'primary.main' }} />
-          <div>
-            <Typography variant="h6" fontWeight="medium">
-              Quick Tip
-            </Typography>
-            <Typography variant="body1" color="text.secondary">
-              Use the sidebar for fast navigation, or bookmark this page for daily HR operations.
-            </Typography>
-          </div>
-        </Stack>
-      </Paper>
+      {/* Additional HR Metrics */}
+      <Grid container spacing={2} sx={{ mt: 2 }}>
+        <Grid item xs={12} md={6}>
+          <Card sx={{ borderRadius: 2, boxShadow: 2 }}>
+            <CardContent sx={{ p: 2 }}>
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                Attendance Summary
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              <Stack spacing={3}>
+                <Box>
+                  <Stack direction="row" justifyContent="space-between" sx={{ mb: 1 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Present Today
+                    </Typography>
+                    <Typography variant="body2" fontWeight="bold">
+                      {stats.activeToday} / {stats.totalEmployees}
+                    </Typography>
+                  </Stack>
+                  <LinearProgress
+                    variant="determinate"
+                    value={stats.totalEmployees > 0 ? (stats.activeToday / stats.totalEmployees) * 100 : 0}
+                    sx={{ height: 8, borderRadius: 4 }}
+                  />
+                </Box>
+                <Box>
+                  <Stack direction="row" justifyContent="space-between" sx={{ mb: 1 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Late Arrivals
+                    </Typography>
+                    <Typography variant="body2" fontWeight="bold" color="warning.main">
+                      {stats.lateArrivals}
+                    </Typography>
+                  </Stack>
+                  <LinearProgress
+                    variant="determinate"
+                    value={stats.totalEmployees > 0 ? (stats.lateArrivals / stats.totalEmployees) * 100 : 0}
+                    color="warning"
+                    sx={{ height: 8, borderRadius: 4 }}
+                  />
+                </Box>
+                <Box>
+                  <Stack direction="row" justifyContent="space-between" sx={{ mb: 1 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Absenteeism Rate
+                    </Typography>
+                    <Typography variant="body2" fontWeight="bold" color={stats.absenteeismRate > 20 ? 'error.main' : 'text.primary'}>
+                      {stats.absenteeismRate}%
+                    </Typography>
+                  </Stack>
+                  <LinearProgress
+                    variant="determinate"
+                    value={stats.absenteeismRate}
+                    color={stats.absenteeismRate > 20 ? 'error' : 'primary'}
+                    sx={{ height: 8, borderRadius: 4 }}
+                  />
+                </Box>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Card sx={{ borderRadius: 2, boxShadow: 2 }}>
+            <CardContent sx={{ p: 2 }}>
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                Quick Actions
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              <Stack spacing={1.5}>
+                <Button
+                  variant="contained"
+                  fullWidth
+                  size="small"
+                  startIcon={<People />}
+                  onClick={() => navigate('/employees')}
+                >
+                  Manage Employees
+                </Button>
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  size="small"
+                  startIcon={<Assessment />}
+                  onClick={() => navigate('/reports')}
+                >
+                  Generate Report
+                </Button>
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  size="small"
+                  startIcon={<Download />}
+                  onClick={() => navigate('/reports')}
+                >
+                  Export Data
+                </Button>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
     </Box>
   );
 };
