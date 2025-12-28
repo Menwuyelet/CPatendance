@@ -7,106 +7,315 @@ from employees.models import Employee
 from attendance.api.serializers import (
     AttendanceCheckInSerializer,
     AttendanceCheckOutSerializer,
-    AttendanceSerializer
+    AttendanceSerializer,
+    AttendanceSessionSerializer
 )
 from attendance.services.attendance_service import (
     mark_attendance,
 )
 from attendance.services.check_out import (check_out)
 from attendance.models import AttendanceRecord
+from attendance.models import AttendanceSession, Shift
+from attendance.services.attendance_session_service import AttendanceSessionService
+from attendance.services.process_session_service import process_attendance_session
+from django.utils import timezone
 
-
-class AttendanceViewSet(ViewSet):
+class AttendanceSessionCreateViewSet(ViewSet):
     """
-    Handles:
-    - Self check-in/out
-    - HR / Manager taking attendance
+    Manages attendance sessions (HR / Manager).
     """
 
     def create(self, request):
         """
-        CHECK-IN
+        START SESSION
         """
-        serializer = AttendanceCheckInSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        shift_id = request.data.get("shift_id")
+        if not shift_id:
+            return Response(
+                {"detail": "shift_id is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        employee = self._resolve_employee(request, serializer)
+        shift = get_object_or_404(Shift, id=shift_id)
 
-        record = mark_attendance(
-            employee=employee,
-            user=request.user,
-            check_in_time=serializer.validated_data.get("check_in_time")
+        service = AttendanceSessionService.start_session(
+            shift=shift,
+            user=request.user
         )
 
         return Response(
-            AttendanceSerializer(record).data,
+            {
+                "session_id": service.session.id,
+                "shift_id": shift.id
+            },
             status=status.HTTP_201_CREATED
         )
 
-    def update(self, request, pk=None):
+    def destroy(self, request, pk=None):
         """
-        CHECK-OUT
+        CLOSE SESSION + PROCESS ATTENDANCE
         """
-        serializer = AttendanceCheckOutSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        session = get_object_or_404(AttendanceSession, id=pk)
 
-        employee = self._resolve_employee(request, serializer)
+        service = AttendanceSessionService(session)
+        raw_data = service.close()
 
-        record = check_out(employee)
+        process_attendance_session(session, request.user)
 
         return Response(
-            AttendanceSerializer(record).data,
+            {
+                "session_id": session.id,
+                "processed": raw_data
+            },
             status=status.HTTP_200_OK
         )
 
-    def list(self, request):
-        """
-        LIST ATTENDANCE (Scoped)
-        """
-        qs = AttendanceRecord.objects.all()
 
-        # Admin sees everything
-        if request.user.is_admin():
+class AttendanceSessionViewSet(ViewSet):
+    """
+    Attendance session operations:
+    - list
+    - retrieve
+    - update (active state only)
+    """
+
+    # -------------------------
+    # LIST
+    # -------------------------
+    def list(self, request):
+        qs = AttendanceSession.objects.select_related(
+            "shift",
+            "started_by"
+        ).order_by("-started_at")
+
+        # ---- ROLE SCOPING ----
+        if request.user.is_admin() or request.user.is_hr():
             pass
 
-        # HR / Manager / Employee
-        else:
-            # HR sees all, Manager sees their department, Employee sees only self
-            if request.user.is_hr():
-                pass  # HR sees all
-            elif request.user.is_department_manager():
-                if hasattr(request.user, 'employee') and request.user.employee.department:
-                    qs = qs.filter(employee__department=request.user.employee.department)
-                else:
-                    qs = qs.none()
+        elif request.user.is_department_manager():
+            if hasattr(request.user, "employee"):
+                qs = qs.filter(
+                    shift__department=request.user.employee.department
+                )
             else:
-                # Employee sees only self
-                if hasattr(request.user, 'employee'):
-                    qs = qs.filter(employee=request.user.employee)
-                else:
-                    qs = qs.none()
+                qs = qs.none()
+
+        else:
+            # Employees see nothing
+            qs = qs.none()
+
+        # ---- FILTERS ----
+        active = request.query_params.get("active")
+        if active is not None:
+            qs = qs.filter(is_active=(active.lower() == "true"))
+
+        shift_id = request.query_params.get("shift_id")
+        if shift_id:
+            qs = qs.filter(shift_id=shift_id)
+
+        return Response(
+            AttendanceSessionSerializer(qs, many=True).data,
+            status=status.HTTP_200_OK
+        )
+
+    # -------------------------
+    # RETRIEVE
+    # -------------------------
+    def retrieve(self, request, pk=None):
+        session = get_object_or_404(AttendanceSession, id=pk)
+        self._check_permission(request, session)
+
+        return Response(
+            AttendanceSessionSerializer(session).data,
+            status=status.HTTP_200_OK
+        )
+
+    # -------------------------
+    # UPDATE
+    # -------------------------
+    def update(self, request, pk=None):
+        session = get_object_or_404(AttendanceSession, id=pk)
+        self._check_permission(request, session)
+
+        # Only HR / Admin can modify session state
+        if not (request.user.is_admin() or request.user.is_hr()):
+            return Response(
+                {"detail": "Not allowed to modify attendance sessions"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = AttendanceSessionSerializer(
+            session,
+            data=request.data,
+            partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+
+        # Handle manual close
+        if (
+            "is_active" in serializer.validated_data
+            and serializer.validated_data["is_active"] is False
+            and session.is_active
+        ):
+            session.closed_at = timezone.now()
+
+        serializer.save()
+
+        return Response(
+            AttendanceSessionSerializer(session).data,
+            status=status.HTTP_200_OK
+        )
+
+    # -------------------------
+    # INTERNAL PERMISSION CHECK
+    # -------------------------
+    def _check_permission(self, request, session):
+        if request.user.is_admin() or request.user.is_hr():
+            return
+
+        if request.user.is_department_manager():
+            if (
+                hasattr(request.user, "employee")
+                and session.shift.department == request.user.employee.department
+            ):
+                return
+
+        raise PermissionError("Not allowed to access this session")
 
 
-        # Optional filters
+class AttendanceTakingViewSet(ViewSet):
+    """
+    Camera-based worker check-in
+    """
+
+    def create(self, request):
+        session_id = request.data.get("session_id")
+        if not session_id:
+            return Response(
+                {"detail": "session_id required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        session = get_object_or_404(
+            AttendanceSession,
+            id=session_id,
+            is_active=True
+        )
+
+        service = AttendanceSessionService(session)
+        result = service.check_in_next_worker()
+
+        return Response(result, status=status.HTTP_200_OK)
+    
+class AttendanceRecordViewSet(ViewSet):
+    """
+    AttendanceRecord operations:
+    - list
+    - retrieve
+    - update (manual correction)
+    """
+
+    # -------------------------
+    # LIST
+    # -------------------------
+    def list(self, request):
+        qs = AttendanceRecord.objects.select_related(
+            "employee",
+            "employee_shift"
+        )
+
+        # ---- ROLE SCOPING ----
+        if request.user.is_admin() or request.user.is_hr():
+            pass
+
+        elif request.user.is_department_manager():
+            if hasattr(request.user, "employee") and request.user.employee.department:
+                qs = qs.filter(
+                    employee__department=request.user.employee.department
+                )
+            else:
+                qs = qs.none()
+
+        else:
+            # Employee → self only
+            if hasattr(request.user, "employee"):
+                qs = qs.filter(employee=request.user.employee)
+            else:
+                qs = qs.none()
+
+        # ---- FILTERS ----
         date = request.query_params.get("date")
         if date:
             qs = qs.filter(date=date)
+
+        employee_id = request.query_params.get("employee_id")
+        if employee_id:
+            qs = qs.filter(employee_id=employee_id)
+
+        shift_id = request.query_params.get("shift_id")
+        if shift_id:
+            qs = qs.filter(employee_shift__shift_id=shift_id)
 
         return Response(
             AttendanceSerializer(qs, many=True).data,
             status=status.HTTP_200_OK
         )
 
-    def _resolve_employee(self, request, serializer):
-        """
-        Determines whether:
-        - Self attendance
-        - Attendance taken by HR / Manager
-        """
-        employee_id = serializer.validated_data.get("employee_id")
+    # -------------------------
+    # RETRIEVE
+    # -------------------------
+    def retrieve(self, request, pk=None):
+        record = get_object_or_404(AttendanceRecord, id=pk)
 
-        if employee_id:
-            return get_object_or_404(Employee, id=employee_id)
+        self._check_object_permission(request, record)
 
-        # Self check-in/out
-        return request.user.employee
+        return Response(
+            AttendanceSerializer(record).data,
+            status=status.HTTP_200_OK
+        )
+
+    # -------------------------
+    # UPDATE (Manual correction)
+    # -------------------------
+    def update(self, request, pk=None):
+        record = get_object_or_404(AttendanceRecord, id=pk)
+
+        # Only HR / Admin can manually modify attendance
+        if not (request.user.is_admin() or request.user.is_hr()):
+            return Response(
+                {"detail": "Not allowed to modify attendance records"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = AttendanceSerializer(
+            record,
+            data=request.data,
+            partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save(taken_by=request.user)
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK
+        )
+
+    # -------------------------
+    # INTERNAL PERMISSION CHECK
+    # -------------------------
+    def _check_object_permission(self, request, record):
+        if request.user.is_admin() or request.user.is_hr():
+            return
+
+        if request.user.is_department_manager():
+            if (
+                hasattr(request.user, "employee")
+                and record.employee.department == request.user.employee.department
+            ):
+                return
+
+        if hasattr(request.user, "employee") and record.employee == request.user.employee:
+            return
+
+        raise PermissionError("Not allowed to view this attendance record")
+    
