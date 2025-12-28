@@ -1,0 +1,1 @@
+from .biometric_record import BiometricProfile

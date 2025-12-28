@@ -9,7 +9,7 @@ from rest_framework import serializers
 from accounts.models import User, Role
 from accounts.constants import Roles
 # from employees.models import Employee
-from .serializers import UserSerializer, UserCreateSerializer, UserUpdateSerializer, RoleSerializer, UserProfileUpdateSerializer
+from .serializers import UserSerializer, UserCreateSerializer, UserUpdateSerializer, RoleSerializer
 from accounts.services.user_service import create_user, update_user, get_users_for_user
 from accounts.permissions import IsAdmin
 from .serializers import CustomTokenObtainPairSerializer
@@ -18,17 +18,6 @@ from .serializers import CustomTokenObtainPairSerializer
 class CustomTokenObtainPairView(TokenObtainPairView):
     """Custom login view that returns user data"""
     serializer_class = CustomTokenObtainPairSerializer
-
-# class RoleViewSet(viewsets.ModelViewSet):
-#     permission_classes = [IsAdmin]  
-#     queryset = Role.objects.all()
-#     serializer_class = RoleSerializer
-    
-#     def perform_create(self, serializer):
-#         name = self.request.data.pop('name').upper()
-#         if Role.objects.filter(name=name).exists():
-#             raise serializers.ValidationError({'detail': 'Role with this name already exists.'})
-#         serializer.save(name=name)
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -81,19 +70,7 @@ class UserViewSet(viewsets.ModelViewSet):
         user = update_user(self.get_object(), **data)
         serializer.instance = user
 
-    @action(detail=False, methods=['get', 'patch'], permission_classes=[IsAuthenticated])
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def me(self, request):
-        if request.method == 'PATCH':
-            serializer = UserProfileUpdateSerializer(request.user, data=request.data, partial=True)
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-            # Refresh user from database to get updated related data
-            request.user.refresh_from_db()
-            if hasattr(request.user, 'employee'):
-                request.user.employee.refresh_from_db()
-            # Return updated user data
-            user_serializer = self.get_serializer(request.user)
-            return Response(user_serializer.data)
-        else:
-            serializer = self.get_serializer(request.user)
-            return Response(serializer.data)
+        serializer = self.get_serializer(request.user)
+        return Response(serializer.data)

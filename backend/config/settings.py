@@ -193,3 +193,8 @@ SPECTACULAR_SETTINGS = {
     "SECURITY": [{"bearerAuth": []}],
     "AUTHENTICATION_WHITELIST": [],
 }
+
+BIOMETRICS_ENCRYPTION_KEY = b'WF1tmV_B-fJfQZhmKp83AfyenUr8_kybvz-Fl7pxVN4='  # 32 bytes for AES-256
+
+from cryptography.fernet import Fernet
+BIOMETRIC_FERNET = Fernet(BIOMETRICS_ENCRYPTION_KEY)
