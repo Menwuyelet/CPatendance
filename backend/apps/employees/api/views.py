@@ -11,7 +11,21 @@ from accounts.permissions import IsAdmin, IsHRorManager
 
 
 class DepartmentViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAdmin, IsHRorManager]
+    """Department management.
+
+    Accessible to any user who is either ADMIN or HR/MANAGER. The backend
+    permissions already encode these roles; here we combine them with OR
+    semantics instead of the default AND behaviour for multiple permission
+    classes.
+    """
+    permission_classes = [IsAuthenticated, IsHRorManager | IsAdmin]
+    def get_permissions(self):
+        # Allow access if the user is admin OR HR/manager.
+        if self.action in ['update', 'partial_update', 'destroy']:
+            self.permission_classes = [IsAdmin]
+        return super().get_permissions()
+
+
     queryset = (
         Department.objects
         .select_related("manager")

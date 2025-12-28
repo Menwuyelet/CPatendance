@@ -13,6 +13,7 @@ import Reports from './pages/Reports.jsx';
 import UserManagement from './pages/UserManagement.jsx';
 import Attendance from './pages/Attendance.jsx';
 import LeaveRequest from './pages/LeaveRequest.jsx';
+import Departments from './pages/Departments.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import Header from './components/Header.jsx';
 import Toast from './components/Toast.jsx';
@@ -167,6 +168,7 @@ function App() {
               <>
                 <Route path="/dashboard" element={<AdminPanel onNotify={notify} />} />
                 <Route path="/users" element={<UserManagement scope="admin" onNotify={notify} />} />
+                <Route path="/companies" element={<Departments onNotify={notify} />} />
                 <Route path="/config" element={<PolicyConfig />} />
                 <Route path="/attendance" element={<Attendance role="Admin" onNotify={notify} />} />
                 <Route path="/biometrics" element={<Biometrics />} />
@@ -179,6 +181,7 @@ function App() {
               <>
                 <Route path="/dashboard" element={<HRDashboard />} />
                 <Route path="/employees" element={<UserManagement scope="hr" onNotify={notify} />} />
+                <Route path="/companies" element={<Departments onNotify={notify} />} />
                 <Route path="/attendance" element={<Attendance role="HR" onNotify={notify} />} />
                 <Route path="/leaves" element={<LeaveRequest role="HR" onNotify={notify} />} />
                 <Route path="/reports" element={<Reports scope="hr" />} />

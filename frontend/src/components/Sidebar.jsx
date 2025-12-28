@@ -23,7 +23,7 @@ const Sidebar = ({ role, userName, onLogout }) => {
     Admin: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
       { text: 'User Management', icon: <PeopleIcon />, path: '/users' },
-      { text: 'Companies', icon: <DomainIcon />, path: '/companies' },
+      { text: 'Departments', icon: <DomainIcon />, path: '/companies' },
       { text: 'Attendance', icon: <CalendarTodayIcon />, path: '/attendance' },
       { text: 'Biometric System', icon: <FingerprintIcon />, path: '/biometrics' },
       { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
@@ -32,7 +32,7 @@ const Sidebar = ({ role, userName, onLogout }) => {
     HR: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
       { text: 'Employees', icon: <PeopleIcon />, path: '/employees' },
-      { text: 'Companies', icon: <DomainIcon />, path: '/companies' },
+      { text: 'Departments', icon: <DomainIcon />, path: '/companies' },
       { text: 'Attendance', icon: <CalendarTodayIcon />, path: '/attendance' },
       { text: 'Leave Management', icon: <WorkIcon />, path: '/leaves' },
       { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
