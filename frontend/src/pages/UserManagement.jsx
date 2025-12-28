@@ -40,16 +40,27 @@ import {
 } from '@mui/icons-material';
 import { api } from '../services/api.service.js';
 
+// Base roles and their fixed ids (1-4). We merge these with any roles
+// discovered from existing users so the dropdown always offers all four.
+const BASE_ROLES = [
+  { id: 1, name: 'ADMIN' },
+  { id: 2, name: 'HR' },
+  { id: 3, name: 'MANAGER' },
+  { id: 4, name: 'EMPLOYEE' },
+];
+
 const emptyForm = {
   id: null,
   name: '',
   email: '',
-  role: 'EMPLOYEE',
-  department: '',
+  role: 'EMPLOYEE',      // normalized uppercase role name
+  roleId: '',            // numeric role id (1-4)
+  department: '',        // department name (for display/filter)
+  departmentId: '',      // department UUID (for API)
   status: 'Active',
   password: '',
   employeeCode: '',
-  departmentId: '',
+  employeeId: '',        // employee UUID (for employee API updates)
 };
 
 const EMPLOYEE_ROLE_NAMES = ['EMPLOYEE', 'HR', 'MANAGER'];
@@ -93,17 +104,45 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
         // Load users (each user includes its roles); derive both the user list
         // and available role options from this payload.
         const usersRes = await api.get('/accounts/users/');
-        if (Array.isArray(usersRes)) {
+        const usersList = Array.isArray(usersRes)
+          ? usersRes
+          : usersRes?.results || usersRes?.data || [];
+
+        // Load employees to enrich users with full_name and department.
+        const employeesRes = await api.get('/employees/employees/');
+        const employeesList = Array.isArray(employeesRes)
+          ? employeesRes
+          : employeesRes?.results || employeesRes?.data || [];
+
+        const employeeByUserId = new Map();
+        if (Array.isArray(employeesList)) {
+          employeesList.forEach((e) => {
+            const userId = e.user?.id;
+            if (!userId) return;
+            employeeByUserId.set(userId, {
+              id: e.id,
+              fullName: e.full_name,
+              departmentName: e.department?.name || '',
+              departmentId: e.department?.id || '',
+              employeeCode: e.employee_code || '',
+            });
+          });
+        }
+
+        if (Array.isArray(usersList)) {
           const roleMap = new Map();
 
-          const mapped = usersRes.map((u) => {
+          const mapped = usersList.map((u) => {
             const rawRoles = Array.isArray(u.roles) ? u.roles : [];
             const roleNames = rawRoles
               .map((r) => (typeof r === 'string' ? r : r.name))
               .filter(Boolean)
               .map((r) => r.toUpperCase());
 
-            const deptName = u.department?.name || '';
+            const emp = employeeByUserId.get(u.id);
+            const deptName = emp?.departmentName || u.department?.name || '';
+            const displayName =
+              emp?.fullName || u.full_name || u.email?.split('@')[0] || 'User';
 
             // Collect distinct role options with IDs (if available) for
             // create/update payloads.
@@ -120,26 +159,40 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
 
             return {
               id: u.id,
-              name: u.email?.split('@')[0] || 'User',
+              name: displayName,
               email: u.email,
               // Store a primary role (for display) and all role names for
               // filtering.
               role: primaryRole,
               rolesList: roleNames,
               department: deptName,
+              departmentId: emp?.departmentId || '',
+              employeeCode: emp?.employeeCode || '',
+              employeeId: emp?.id || '',
               status: u.is_active ? 'Active' : 'Inactive',
             };
           });
 
           setUsers(mapped);
-          setRoleOptions(Array.from(roleMap.values()));
+
+          // Merge base roles (ids 1-4) with roles discovered from users. Base
+          // roles ensure ADMIN, HR, MANAGER, EMPLOYEE are always available,
+          // while roles from the backend can override them if needed.
+          const merged = new Map();
+          BASE_ROLES.forEach((r) => merged.set(r.name, r));
+          roleMap.forEach((val, key) => merged.set(key, val));
+
+          setRoleOptions(Array.from(merged.values()));
         }
 
         // Load departments for employee assignment
         const departmentsRes = await api.get('/employees/departments/');
-        if (Array.isArray(departmentsRes)) {
+        const departmentsList = Array.isArray(departmentsRes)
+          ? departmentsRes
+          : departmentsRes?.results || departmentsRes?.data || [];
+        if (Array.isArray(departmentsList)) {
           setDepartments(
-            departmentsRes.map((d) => ({ id: d.id, name: d.name })),
+            departmentsList.map((d) => ({ id: d.id, name: d.name })),
           );
         }
 
@@ -159,7 +212,21 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+
+    // Always store role in uppercase so it aligns with backend role names
+    // (e.g. ADMIN, HR, MANAGER, EMPLOYEE). Existence of the role is validated
+    // at submit time against roleOptions.
+    if (name === 'roleId') {
+      // value is the numeric role id selected from dropdown (1-4). Find the
+      // matching role option and store both its id and uppercase name.
+      const selectedId = value;
+      const selected = roleOptions.find((r) => String(r.id) === String(selectedId));
+      const upperName = selected?.name || form.role;
+      setForm((prev) => ({ ...prev, roleId: selectedId, role: upperName }));
+      return;
+    }
+
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -177,27 +244,57 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
 
     try {
       if (isEditing) {
-        // Update user
+        // Update user (status + roles)
         const payload = {
           is_active: form.status === 'Active',
         };
 
-        const roleOption = roleOptions.find((r) => r.name === form.role.toUpperCase());
+        const roleOption =
+          roleOptions.find((r) => String(r.id) === String(form.roleId)) ||
+          roleOptions.find((r) => r.name === form.role.toUpperCase());
         if (roleOption) payload.roles = [roleOption.id];
 
         await api.patch(`/accounts/users/${form.id}/`, payload);
 
+        // If this is an employee/HR/manager and we have an employeeId, also
+        // update the related Employee record (name, code, department, status).
+        if (isEmployeeRole && form.employeeId) {
+          const empPayload = {
+            full_name: form.name.trim(),
+            employee_code: form.employeeCode || undefined,
+            department: form.departmentId || undefined,
+            is_active: form.status === 'Active',
+          };
+
+          await api.patch(`/employees/employees/${form.employeeId}/`, empPayload);
+        }
+
         // Update local list
-        setUsers(prev => prev.map(u => 
-          u.id === form.id 
-            ? { ...u, role: form.role, status: form.status }
-            : u
-        ));
+        setUsers((prev) =>
+          prev.map((u) =>
+            u.id === form.id
+              ? {
+                  ...u,
+                  name: form.name,
+                  role: roleOption?.name || form.role,
+                  rolesList: [roleOption?.name || form.role],
+                  department:
+                    departments.find((d) => d.id === form.departmentId)?.name || u.department,
+                  status: form.status,
+                  employeeCode: form.employeeCode,
+                  departmentId: form.departmentId,
+                  employeeId: form.employeeId,
+                }
+              : u,
+          ),
+        );
 
         onNotify?.('User updated successfully', 'success');
       } else {
         // Create new user
-        const roleOption = roleOptions.find((r) => r.name === form.role.toUpperCase());
+        const roleOption =
+          roleOptions.find((r) => String(r.id) === String(form.roleId)) ||
+          roleOptions.find((r) => r.name === form.role.toUpperCase());
         if (!roleOption) {
           onNotify?.('Selected role not available', 'error');
           return;
@@ -210,7 +307,8 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           ...(isEmployeeRole && {
             full_name: form.name.trim(),
             employee_code: form.employeeCode || undefined,
-            department: form.departmentId ? Number(form.departmentId) : undefined,
+            // Department primary key is a UUID string; send it as-is.
+            department: form.departmentId || undefined,
           }),
         };
 
@@ -220,7 +318,8 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           id: created.id,
           name: created.full_name || created.email.split('@')[0],
           email: created.email,
-          role: form.role,
+          role: roleOption.name || form.role,
+          rolesList: [roleOption.name],
           department: created.department?.name || form.department || '',
           status: 'Active',
         };
@@ -240,7 +339,12 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
 
   const handleEdit = (user) => {
     setForm({
+      ...emptyForm,
       ...user,
+      // Try to infer roleId from current role using roleOptions, so the
+      // dropdown stays in sync when editing.
+      role: user.role,
+      roleId: roleOptions.find((r) => r.name === user.role)?.id ?? '',
       password: '', // Never show password
     });
     setIsEditing(true);
@@ -353,11 +457,17 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
 
                 <FormControl fullWidth>
                   <InputLabel>Role</InputLabel>
-                  <Select name="role" value={form.role} onChange={handleChange} label="Role">
-                    <MenuItem value="EMPLOYEE">Employee</MenuItem>
-                    <MenuItem value="MANAGER">Manager</MenuItem>
-                    <MenuItem value="HR">HR</MenuItem>
-                    {scope === 'admin' && <MenuItem value="ADMIN">Admin</MenuItem>}
+                  <Select
+                    name="roleId"
+                    value={form.roleId}
+                    onChange={handleChange}
+                    label="Role"
+                  >
+                    {roleOptions.map((r) => (
+                      <MenuItem key={r.id} value={r.id}>
+                        {`${r.id} - ${r.name}`}
+                      </MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
 

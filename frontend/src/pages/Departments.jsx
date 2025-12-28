@@ -39,21 +39,32 @@ const Departments = ({ onNotify }) => {
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', code: '', is_active: true, managerId: '' });
   const [createForm, setCreateForm] = useState({ name: '', code: '', is_active: true, managerId: '' });
-
+ 
   const loadDepartments = async () => {
     try {
       setLoading(true);
       setError('');
+  
       const data = await api.get('/employees/departments/');
-      setDepartments(Array.isArray(data) ? data : []);
-
-      // Load employees as potential managers. We currently allow any employee
-      // to be selected as a department manager; backend validation will
-      // enforce any additional constraints.
       const employeesRes = await api.get('/employees/employees/');
+  
+      const employeeMap = new Map();
       if (Array.isArray(employeesRes)) {
-        // Only employees whose linked user has MANAGER role should be eligible
-        // as department managers.
+        employeesRes.forEach((e) => {
+          employeeMap.set(e.id, e);
+        });
+      }
+  
+      const normalizedDepartments = Array.isArray(data)
+        ? data.map((d) => ({
+            ...d,
+            manager: employeeMap.get(d.manager) || d.manager,
+          }))
+        : [];
+  
+      setDepartments(normalizedDepartments);
+  
+      if (Array.isArray(employeesRes)) {
         const managerEmployees = employeesRes.filter((e) => {
           const roles = e.user?.roles || [];
           const roleNames = roles
@@ -73,6 +84,7 @@ const Departments = ({ onNotify }) => {
       setLoading(false);
     }
   };
+  
 
   useEffect(() => {
     loadDepartments();
