@@ -6,6 +6,7 @@ from rest_framework import status
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from employees.models import Employee
+from accounts.models import User
 from biometrics.api.serializers import (
         BiometricEnrollmentSerializer,
         BiometricProfileSerializer
@@ -22,26 +23,23 @@ from .permissions import (
 
 class FaceEnrollmentViewSet(ViewSet):
     permission_classes = [IsAuthenticated | CanEnrollFace]
+
     def create(self, request):
         serializer = BiometricEnrollmentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         employee = get_object_or_404(
-            Employee,
+            User,
             id=serializer.validated_data["employee_id"]
         )
+        print(employee)
 
-        image = cv2.imdecode(
-            np.frombuffer(
-                serializer.validated_data["image"].read(),
-                np.uint8
-            ),
-            cv2.IMREAD_COLOR
+        BiometricEnrollmentService.enroll_face_from_camera(employee)
+
+        return Response(
+            {"status": "enrolled"},
+            status=201
         )
-
-        BiometricEnrollmentService.enroll_face(employee, image)
-        return Response({"status": "enrolled"}, status=201)
-
 
 class BiometricProfileViewSet(ViewSet):
     """
