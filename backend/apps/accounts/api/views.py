@@ -19,17 +19,6 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     """Custom login view that returns user data"""
     serializer_class = CustomTokenObtainPairSerializer
 
-# class RoleViewSet(viewsets.ModelViewSet):
-#     permission_classes = [IsAdmin]  
-#     queryset = Role.objects.all()
-#     serializer_class = RoleSerializer
-    
-#     def perform_create(self, serializer):
-#         name = self.request.data.pop('name').upper()
-#         if Role.objects.filter(name=name).exists():
-#             raise serializers.ValidationError({'detail': 'Role with this name already exists.'})
-#         serializer.save(name=name)
-
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
