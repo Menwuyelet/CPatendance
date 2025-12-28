@@ -7,12 +7,8 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleIcon from '@mui/icons-material/People';
 import DomainIcon from '@mui/icons-material/Domain';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
-import FingerprintIcon from '@mui/icons-material/Fingerprint';
-import AssessmentIcon from '@mui/icons-material/Assessment';
 import SettingsIcon from '@mui/icons-material/Settings';
-import WorkIcon from '@mui/icons-material/Work';
 import GroupsIcon from '@mui/icons-material/Groups';
-import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import EventNoteIcon from '@mui/icons-material/EventNote';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 
@@ -25,32 +21,23 @@ const Sidebar = ({ role, userName, onLogout }) => {
       { text: 'User Management', icon: <PeopleIcon />, path: '/users' },
       { text: 'Departments', icon: <DomainIcon />, path: '/companies' },
       { text: 'Attendance', icon: <CalendarTodayIcon />, path: '/attendance' },
-      { text: 'Biometric System', icon: <FingerprintIcon />, path: '/biometrics' },
-      { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
       { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
     ],
     HR: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
       { text: 'Employees', icon: <PeopleIcon />, path: '/employees' },
-      { text: 'Departments', icon: <DomainIcon />, path: '/companies' },
       { text: 'Attendance', icon: <CalendarTodayIcon />, path: '/attendance' },
-      { text: 'Leave Management', icon: <WorkIcon />, path: '/leaves' },
-      { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
       { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
     ],
     Manager: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/manager/dashboard' },
       { text: 'Team', icon: <GroupsIcon />, path: '/manager/team' },
-      { text: 'Approvals', icon: <AdminPanelSettingsIcon />, path: '/manager/approvals' },
-      { text: 'Team Reports', icon: <AssessmentIcon />, path: '/manager/reports' },
-      { text: 'Settings', icon: <SettingsIcon />, path: '/manager/settings' }, // Points to our new page
+      { text: 'Settings', icon: <SettingsIcon />, path: '/manager/settings' },
     ],
     Employee: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
       { text: 'My Attendance', icon: <EventNoteIcon />, path: '/attendance' },
-      // Removed "My Leaves"
-      { text: 'My Reports', icon: <AssessmentIcon />, path: '/reports' },
-      { text: 'Settings', icon: <SettingsIcon />, path: '/settings' }, // Or '/employee/settings' if separate
+      { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
     ],
   };
 

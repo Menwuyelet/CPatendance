@@ -69,6 +69,24 @@ const Attendance = ({ role, onNotify }) => {
         });
 
         setRows(filteredByDate);
+        
+        // Check if user is currently clocked in (for employee view)
+        if (isEmployee) {
+          const today = new Date().toISOString().slice(0, 10);
+          const todayRecords = filteredByDate.filter((r) => r.date === today);
+          const activeRecord = todayRecords.find(
+            (r) => r.check_in_time && !r.check_out_time
+          );
+          if (activeRecord) {
+            setIsClockedIn(true);
+            if (activeRecord.check_in_time) {
+              const time = new Date(activeRecord.check_in_time).toLocaleTimeString();
+              setLastActionTime(time);
+            }
+          } else {
+            setIsClockedIn(false);
+          }
+        }
       } catch (err) {
         setError('Unable to load attendance records.');
         setRows([]);
@@ -106,23 +124,37 @@ const Attendance = ({ role, onNotify }) => {
     const now = new Date().toLocaleTimeString();
 
     try {
-      // CHECK-IN: POST /api/attendance/attendance/
-      // CHECK-OUT: PUT /api/attendance/attendance/{id}/
-      // Backend does not actually use the {id} value; it resolves employee
-      // from the authenticated user or optional employee_id in the body.
       if (!isClockedIn) {
-        await api.post('/attendance/attendance/', {});
+        // CHECK-IN: POST /api/attendance/attendance/
+        const response = await api.post('/attendance/attendance/', {});
+        setIsClockedIn(true);
+        setLastActionTime(now);
+        onNotify?.(`Successfully clocked ${action}.`, 'success');
       } else {
-        // Use a dummy "self" pk; server ignores it and uses request.user.employee
-        await api.put('/attendance/attendance/self/', {});
+        // CHECK-OUT: Need to find the current attendance record first
+        // Get today's attendance records
+        const today = new Date().toISOString().slice(0, 10);
+        const records = await api.get(`/attendance/attendance/?date=${today}`);
+        const todayRecords = Array.isArray(records) ? records : [];
+        
+        // Find the record that's checked in but not checked out
+        const activeRecord = todayRecords.find(
+          (r) => r.check_in_time && !r.check_out_time
+        );
+        
+        if (activeRecord && activeRecord.id) {
+          await api.put(`/attendance/attendance/${activeRecord.id}/`, {});
+          setIsClockedIn(false);
+          setLastActionTime(now);
+          onNotify?.(`Successfully clocked ${action}.`, 'success');
+        } else {
+          throw new Error('No active attendance record found');
+        }
       }
-      onNotify?.(`Successfully clocked ${action}.`, 'success');
     } catch (err) {
-      onNotify?.('Clock action recorded locally.', 'warning');
+      console.error('Clock action failed:', err);
+      onNotify?.(`Failed to clock ${action}. ${err.message || 'Please try again.'}`, 'error');
     }
-
-    setIsClockedIn(!isClockedIn);
-    setLastActionTime(now);
   };
 
   return (

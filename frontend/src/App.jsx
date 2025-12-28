@@ -7,13 +7,10 @@ import AdminPanel from './pages/AdminPanel.jsx';
 import HRDashboard from './pages/HRPanel.jsx';
 import ManagerDashboard from './pages/ManagerDashboard.jsx';
 import EmployeeDashboard from './pages/EmployeeDashboard.jsx';
-import Biometrics from './pages/Biometrics.jsx';
-import PolicyConfig from './pages/PolicyConfig.jsx';
-import Reports from './pages/Reports.jsx';
 import UserManagement from './pages/UserManagement.jsx';
 import Attendance from './pages/Attendance.jsx';
-import LeaveRequest from './pages/LeaveRequest.jsx';
 import Departments from './pages/Departments.jsx';
+import Settings from './pages/Settings.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import Header from './components/Header.jsx';
 import Toast from './components/Toast.jsx';
@@ -33,7 +30,8 @@ function App() {
 
   // Role detection based on `roles` coming from backend (accounts.Role)
   const getRoleFromUserData = (userData) => {
-    console.log('User data from backend:', userData);
+    console.log('User data from backend:', JSON.stringify(userData, null, 2));
+    console.log('Raw roles:', userData.roles, 'User roles:', userData.user?.roles);
 
     // `roles` may be an array of strings (['ADMIN', 'HR', ...])
     // or an array of objects ([{ id, name: 'ADMIN' }, ...])
@@ -41,9 +39,18 @@ function App() {
     const rawRoles = userData.roles || userData.user?.roles || [];
 
     const roleNames = rawRoles
-      .map((r) => (typeof r === 'string' ? r : r.name))
+      .map((r) => {
+        if (typeof r === 'string') {
+          return r;
+        } else if (r && typeof r === 'object' && r.name) {
+          return r.name;
+        }
+        return null;
+      })
       .filter(Boolean)
       .map((r) => r.toUpperCase());
+    
+    console.log('Processed role names:', roleNames);
 
     if (roleNames.length > 0) {
       if (roleNames.includes('ADMIN')) {
@@ -89,13 +96,19 @@ function App() {
         const userData = await api.get('/accounts/users/me/');
 
         const role = getRoleFromUserData(userData);
-        const name = userData.name || 
+        const name = userData.full_name || 
+                     userData.name || 
                      (userData.first_name && userData.last_name 
                        ? `${userData.first_name} ${userData.last_name}` 
                        : userData.email?.split('@')[0] || 'User');
 
         setUser({ role, name });
-        navigate('/dashboard', { replace: true });
+        // Redirect based on role
+        if (role === 'Manager') {
+          navigate('/manager/dashboard', { replace: true });
+        } else {
+          navigate('/dashboard', { replace: true });
+        }
       } catch (err) {
         console.error('Auth failed:', err);
         api.logout();
@@ -113,13 +126,19 @@ function App() {
       const userData = await api.get('/accounts/users/me/');
 
       const role = getRoleFromUserData(userData);
-      const name = userData.name || 
+      const name = userData.full_name || 
+                   userData.name || 
                    (userData.first_name && userData.last_name 
                      ? `${userData.first_name} ${userData.last_name}` 
                      : userData.email?.split('@')[0] || 'User');
 
       setUser({ role, name });
-      navigate('/dashboard', { replace: true });
+      // Redirect based on role
+      if (role === 'Manager') {
+        navigate('/manager/dashboard', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
     } catch (err) {
       console.error('Profile load failed:', err);
       notify('Login successful but profile failed to load', 'error');
@@ -166,13 +185,12 @@ function App() {
             {/* ADMIN */}
             {user.role === 'Admin' && (
               <>
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<AdminPanel onNotify={notify} />} />
                 <Route path="/users" element={<UserManagement scope="admin" onNotify={notify} />} />
                 <Route path="/companies" element={<Departments onNotify={notify} />} />
-                <Route path="/config" element={<PolicyConfig />} />
                 <Route path="/attendance" element={<Attendance role="Admin" onNotify={notify} />} />
-                <Route path="/biometrics" element={<Biometrics />} />
-                <Route path="/reports" element={<Reports scope="system" />} />
+                <Route path="/settings" element={<Settings onNotify={notify} />} />
               </>
             )}
 
@@ -183,14 +201,13 @@ function App() {
                 <Route path="/employees" element={<UserManagement scope="hr" onNotify={notify} />} />
                 <Route path="/companies" element={<Departments onNotify={notify} />} />
                 <Route path="/attendance" element={<Attendance role="HR" onNotify={notify} />} />
-                <Route path="/leaves" element={<LeaveRequest role="HR" onNotify={notify} />} />
-                <Route path="/reports" element={<Reports scope="hr" />} />
+                <Route path="/settings" element={<Settings onNotify={notify} />} />
               </>
             )}
 
             {/* MANAGER */}
             {user.role === 'Manager' && (
-              <Route path="/*" element={<ManagerDashboard />} />
+              <Route path="/manager/*" element={<ManagerDashboard />} />
             )}
 
             {/* EMPLOYEE */}
@@ -198,8 +215,7 @@ function App() {
               <>
                 <Route path="/dashboard" element={<EmployeeDashboard />} />
                 <Route path="/attendance" element={<Attendance role="Employee" onNotify={notify} />} />
-                <Route path="/leaves" element={<LeaveRequest role="Employee" onNotify={notify} />} />
-                <Route path="/reports" element={<Reports scope="personal" />} />
+                <Route path="/settings" element={<Settings onNotify={notify} />} />
               </>
             )}
 

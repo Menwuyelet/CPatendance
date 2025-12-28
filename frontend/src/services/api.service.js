@@ -48,8 +48,35 @@ async function request(path, options = {}) {
   }
 
   if (!response.ok) {
-    const message = await safeReadText(response);
-    throw new Error(message || `Request failed with status ${response.status}`);
+    let errorMessage = `Request failed with status ${response.status}`;
+    try {
+      const errorData = await response.json();
+      // Handle Django REST Framework error format
+      if (errorData.detail) {
+        errorMessage = errorData.detail;
+      } else if (errorData.message) {
+        errorMessage = errorData.message;
+      } else if (errorData.error) {
+        errorMessage = errorData.error;
+      } else if (typeof errorData === 'object') {
+        // Handle field-specific errors
+        const fieldErrors = Object.entries(errorData)
+          .map(([field, errors]) => `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`)
+          .join('; ');
+        if (fieldErrors) {
+          errorMessage = fieldErrors;
+        }
+      }
+    } catch (e) {
+      // If JSON parsing fails, try text
+      const text = await safeReadText(response);
+      if (text) errorMessage = text;
+    }
+    
+    const error = new Error(errorMessage);
+    error.status = response.status;
+    error.response = { status: response.status };
+    throw error;
   }
 
   if (response.status === 204) {

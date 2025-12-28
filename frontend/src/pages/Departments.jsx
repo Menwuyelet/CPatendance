@@ -1,5 +1,5 @@
 // src/pages/Departments.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   Box,
   Card,
@@ -27,54 +27,69 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  InputAdornment,
+  Grid,
 } from '@mui/material';
-import { Edit, Save, Cancel, Refresh, Delete, Add } from '@mui/icons-material';
+import { Edit, Save, Cancel, Refresh, Delete, Add, Search, Clear, People, Business } from '@mui/icons-material';
 import { api } from '../services/api.service.js';
 
 const Departments = ({ onNotify }) => {
   const [departments, setDepartments] = useState([]);
   const [managers, setManagers] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', code: '', is_active: true, managerId: '' });
   const [createForm, setCreateForm] = useState({ name: '', code: '', is_active: true, managerId: '' });
+  
+  // Filter states
+  const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState('ALL');
  
   const loadDepartments = async () => {
     try {
       setLoading(true);
       setError('');
   
-      const data = await api.get('/employees/departments/');
-      const employeesRes = await api.get('/employees/employees/');
+      const [data, employeesRes] = await Promise.all([
+        api.get('/employees/departments/'),
+        api.get('/employees/employees/'),
+      ]);
+  
+      const employeesList = Array.isArray(employeesRes) 
+        ? employeesRes 
+        : employeesRes?.results || employeesRes?.data || [];
+      
+      setEmployees(employeesList);
   
       const employeeMap = new Map();
-      if (Array.isArray(employeesRes)) {
-        employeesRes.forEach((e) => {
-          employeeMap.set(e.id, e);
-        });
-      }
+      employeesList.forEach((e) => {
+        employeeMap.set(e.id, e);
+      });
   
       const normalizedDepartments = Array.isArray(data)
-        ? data.map((d) => ({
-            ...d,
-            manager: employeeMap.get(d.manager) || d.manager,
-          }))
+        ? data.map((d) => {
+            const deptEmployees = employeesList.filter((e) => e.department?.id === d.id);
+            return {
+              ...d,
+              manager: employeeMap.get(d.manager) || d.manager,
+              employeeCount: deptEmployees.length,
+            };
+          })
         : [];
   
       setDepartments(normalizedDepartments);
   
-      if (Array.isArray(employeesRes)) {
-        const managerEmployees = employeesRes.filter((e) => {
-          const roles = e.user?.roles || [];
-          const roleNames = roles
-            .map((r) => (typeof r === 'string' ? r : r.name))
-            .filter(Boolean)
-            .map((r) => r.toUpperCase());
-          return roleNames.includes('MANAGER');
-        });
-        setManagers(managerEmployees);
-      }
+      const managerEmployees = employeesList.filter((e) => {
+        const roles = e.user?.roles || [];
+        const roleNames = roles
+          .map((r) => (typeof r === 'string' ? r : r.name))
+          .filter(Boolean)
+          .map((r) => r.toUpperCase());
+        return roleNames.includes('MANAGER');
+      });
+      setManagers(managerEmployees);
     } catch (err) {
       console.error('Failed to load departments or managers:', err);
       setError('Unable to load departments. You might not have permission to view them.');
@@ -89,6 +104,35 @@ const Departments = ({ onNotify }) => {
   useEffect(() => {
     loadDepartments();
   }, []);
+
+  // Filter departments based on search and status
+  const filteredDepartments = useMemo(() => {
+    return departments.filter((dept) => {
+      const q = search.toLowerCase();
+      const matchesSearch =
+        !q ||
+        dept.name?.toLowerCase().includes(q) ||
+        dept.code?.toLowerCase().includes(q) ||
+        dept.manager?.full_name?.toLowerCase().includes(q);
+
+      const matchesStatus =
+        filterStatus === 'ALL' ||
+        (filterStatus === 'Active' && dept.is_active === true) ||
+        (filterStatus === 'Inactive' && dept.is_active === false);
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [departments, search, filterStatus]);
+
+  // Calculate statistics
+  const stats = useMemo(() => {
+    const total = departments.length;
+    const active = departments.filter((d) => d.is_active).length;
+    const inactive = total - active;
+    const totalEmployees = employees.length;
+    
+    return { total, active, inactive, totalEmployees };
+  }, [departments, employees]);
 
   const startEdit = (dept) => {
     setEditingId(dept.id);
@@ -208,9 +252,69 @@ const Departments = ({ onNotify }) => {
               {error}
             </Alert>
           )}
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            This list is powered by the backend endpoint <code>/api/employees/departments/</code>.
-          </Typography>
+          {/* Statistics Cards */}
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ bgcolor: 'primary.light', color: 'primary.contrastText' }}>
+                <CardContent>
+                  <Stack direction="row" alignItems="center" spacing={2}>
+                    <Business sx={{ fontSize: 40 }} />
+                    <Box>
+                      <Typography variant="h4" fontWeight="bold">
+                        {stats.total}
+                      </Typography>
+                      <Typography variant="body2">Total Departments</Typography>
+                    </Box>
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ bgcolor: 'success.light', color: 'success.contrastText' }}>
+                <CardContent>
+                  <Stack direction="row" alignItems="center" spacing={2}>
+                    <Business sx={{ fontSize: 40 }} />
+                    <Box>
+                      <Typography variant="h4" fontWeight="bold">
+                        {stats.active}
+                      </Typography>
+                      <Typography variant="body2">Active Departments</Typography>
+                    </Box>
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ bgcolor: 'error.light', color: 'error.contrastText' }}>
+                <CardContent>
+                  <Stack direction="row" alignItems="center" spacing={2}>
+                    <Business sx={{ fontSize: 40 }} />
+                    <Box>
+                      <Typography variant="h4" fontWeight="bold">
+                        {stats.inactive}
+                      </Typography>
+                      <Typography variant="body2">Inactive Departments</Typography>
+                    </Box>
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ bgcolor: 'info.light', color: 'info.contrastText' }}>
+                <CardContent>
+                  <Stack direction="row" alignItems="center" spacing={2}>
+                    <People sx={{ fontSize: 40 }} />
+                    <Box>
+                      <Typography variant="h4" fontWeight="bold">
+                        {stats.totalEmployees}
+                      </Typography>
+                      <Typography variant="body2">Total Employees</Typography>
+                    </Box>
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
 
           {/* Create new department */}
           <Box
@@ -275,24 +379,74 @@ const Departments = ({ onNotify }) => {
         </CardContent>
       </Card>
 
+      {/* Filters Card */}
+      <Card sx={{ mb: 3, borderRadius: 3 }}>
+        <CardContent>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
+            <TextField
+              fullWidth
+              placeholder="Search by name, code, or manager..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search />
+                  </InputAdornment>
+                ),
+                endAdornment: search && (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => setSearch('')}>
+                      <Clear />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <FormControl sx={{ minWidth: 150 }}>
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                label="Status"
+              >
+                <MenuItem value="ALL">All Status</MenuItem>
+                <MenuItem value="Active">Active</MenuItem>
+                <MenuItem value="Inactive">Inactive</MenuItem>
+              </Select>
+            </FormControl>
+          </Stack>
+        </CardContent>
+      </Card>
+
       <Card>
+        <CardHeader
+          title={<Typography variant="h6">Departments ({filteredDepartments.length})</Typography>}
+          subheader="Manage organizational departments and their assignments"
+        />
+        <Divider />
         <CardContent>
           {departments.length === 0 ? (
             <Alert severity="info">No departments found.</Alert>
+          ) : filteredDepartments.length === 0 ? (
+            <Alert severity="warning">
+              No departments match your filters. Try adjusting your search criteria.
+            </Alert>
           ) : (
             <TableContainer>
               <Table>
                 <TableHead>
-                  <TableRow>
+                  <TableRow sx={{ bgcolor: 'grey.50' }}>
                     <TableCell><strong>Name</strong></TableCell>
                     <TableCell><strong>Code</strong></TableCell>
                     <TableCell><strong>Manager</strong></TableCell>
+                    <TableCell><strong>Employees</strong></TableCell>
                     <TableCell><strong>Status</strong></TableCell>
                     <TableCell align="right"><strong>Actions</strong></TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {departments.map((dept) => {
+                  {filteredDepartments.map((dept) => {
                     const isEditing = editingId === dept.id;
                     return (
                       <TableRow key={dept.id} hover>
@@ -343,6 +497,15 @@ const Departments = ({ onNotify }) => {
                           ) : (
                             dept.manager?.full_name || dept.manager_name || '—'
                           )}
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            icon={<People />}
+                            label={`${dept.employeeCount || 0} employees`}
+                            size="small"
+                            variant="outlined"
+                            color="primary"
+                          />
                         </TableCell>
                         <TableCell>
                           {isEditing ? (

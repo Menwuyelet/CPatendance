@@ -1,6 +1,7 @@
 // src/pages/ManagerDashboard.jsx
 import React, { useEffect, useState } from 'react';
 import { Routes, Route, Link, useNavigate } from 'react-router-dom';
+import Settings from './Settings.jsx';
 import {
   Grid,
   Card,
@@ -446,40 +447,13 @@ const TeamOverviewPage = () => {
   );
 };
 
-// ====================== PLACEHOLDERS ======================
-const ApprovalCenterPage = () => (
-  <DashboardLayout title="Approval Center" breadcrumbs={['Approvals']}>
-    <Alert severity="info" sx={{ mt: 4 }}>
-      Leave and overtime approval system coming soon.
-    </Alert>
-  </DashboardLayout>
-);
-
-const TeamReportsPage = () => (
-  <DashboardLayout title="Team Reports" breadcrumbs={['Reports']}>
-    <Alert severity="info" sx={{ mt: 4 }}>
-      Detailed team performance reports coming soon.
-    </Alert>
-  </DashboardLayout>
-);
-
-const ProfileSettingsPage = () => (
-  <DashboardLayout title="My Profile" breadcrumbs={['Settings']}>
-    <Alert severity="info" sx={{ mt: 4 }}>
-      Personal profile settings coming soon.
-    </Alert>
-  </DashboardLayout>
-);
-
 // ====================== MAIN COMPONENT ======================
 const ManagerDashboard = ({ onNotify }) => {
   return (
     <Routes>
-      <Route path="/dashboard" element={<ManagerDashboardHome onNotify={onNotify} />} />
-      <Route path="/team" element={<TeamOverviewPage />} />
-      <Route path="/approvals" element={<ApprovalCenterPage />} />
-      <Route path="/reports" element={<TeamReportsPage />} />
-      <Route path="/settings" element={<ProfileSettingsPage />} />
+      <Route path="dashboard" element={<ManagerDashboardHome onNotify={onNotify} />} />
+      <Route path="team" element={<TeamOverviewPage />} />
+      <Route path="settings" element={<Settings onNotify={onNotify} />} />
       <Route path="*" element={<ManagerDashboardHome onNotify={onNotify} />} />
     </Routes>
   );
