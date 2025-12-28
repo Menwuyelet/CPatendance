@@ -11,7 +11,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import GroupsIcon from '@mui/icons-material/Groups';
 import EventNoteIcon from '@mui/icons-material/EventNote';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
-
+import FingerprintIcon from '@mui/icons-material/Fingerprint';
 const Sidebar = ({ role, userName, onLogout }) => {
   const location = useLocation();
 
@@ -20,8 +20,9 @@ const Sidebar = ({ role, userName, onLogout }) => {
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
       { text: 'User Management', icon: <PeopleIcon />, path: '/users' },
       { text: 'Departments', icon: <DomainIcon />, path: '/companies' },
-      { text: 'Attendance', icon: <CalendarTodayIcon />, path: '/attendance' },
-      { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
+  { text: 'Attendance', icon: <CalendarTodayIcon />, path: '/attendance' },
+  { text: 'Biometrics', icon: <FingerprintIcon />, path: '/biometrics' },
+  { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
     ],
     HR: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },

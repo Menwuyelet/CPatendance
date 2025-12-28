@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import Login from './pages/Login.jsx';
 import AdminPanel from './pages/AdminPanel.jsx';
+import Biometrics from './pages/Biometrics.jsx';
 import HRDashboard from './pages/HRPanel.jsx';
 import ManagerDashboard from './pages/ManagerDashboard.jsx';
 import EmployeeDashboard from './pages/EmployeeDashboard.jsx';
@@ -187,6 +188,7 @@ function App() {
               <>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<AdminPanel onNotify={notify} />} />
+                <Route path="/biometrics" element={<Biometrics onNotify={notify} />} />
                 <Route path="/users" element={<UserManagement scope="admin" onNotify={notify} />} />
                 <Route path="/companies" element={<Departments onNotify={notify} />} />
                 <Route path="/attendance" element={<Attendance role="Admin" onNotify={notify} />} />

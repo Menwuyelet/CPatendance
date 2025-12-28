@@ -47,11 +47,11 @@ import {
   Visibility,
   TrendingUp,
   Group,
-  Settings,
   Person,
   Home,
   ChevronRight,
 } from '@mui/icons-material';
+import SettingsIcon from '@mui/icons-material/Settings';
 import { api } from '../services/api.service.js';
 import { format, subDays } from 'date-fns';
 
@@ -77,7 +77,7 @@ const DashboardLayout = ({ children, title, breadcrumbs = [] }) => {
           </Typography>
           <Stack direction="row" spacing={2} alignItems="center">
             <IconButton color="inherit" onClick={() => navigate('/manager/settings')}>
-              <Settings />
+              <SettingsIcon />
             </IconButton>
             <Avatar sx={{ bgcolor: 'primary.main' }}>
               <Person />
