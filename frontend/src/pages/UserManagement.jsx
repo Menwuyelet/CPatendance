@@ -62,6 +62,9 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
       : 'Full control over user accounts, roles, and system access.';
 
   const [users, setUsers] = useState([]);
+  // Role options (name + id) are now derived from the roles attached to
+  // existing users returned by /accounts/users/. No separate roles endpoint
+  // is required.
   const [roleOptions, setRoleOptions] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -73,6 +76,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
+  const [filterDepartment, setFilterDepartment] = useState('ALL');
 
   const canDelete = scope === 'admin';
   const isEmployeeRole = EMPLOYEE_ROLE_NAMES.includes(form.role);
@@ -86,32 +90,49 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
       try {
         setLoading(true);
 
-        // Load roles first
-        const rolesRes = await api.get('/accounts/roles/');
-        if (Array.isArray(rolesRes)) {
-          setRoleOptions(rolesRes.map(r => ({ name: r.name, id: r.id })));
-        }
-
-        // Load users
+        // Load users (each user includes its roles); derive both the user list
+        // and available role options from this payload.
         const usersRes = await api.get('/accounts/users/');
         if (Array.isArray(usersRes)) {
-          const mapped = usersRes.map(u => {
-            const primaryRole =
-              u.roles?.[0]?.name ||
-              (typeof u.roles?.[0] === 'string' ? u.roles[0] : 'EMPLOYEE');
+          const roleMap = new Map();
+
+          const mapped = usersRes.map((u) => {
+            const rawRoles = Array.isArray(u.roles) ? u.roles : [];
+            const roleNames = rawRoles
+              .map((r) => (typeof r === 'string' ? r : r.name))
+              .filter(Boolean)
+              .map((r) => r.toUpperCase());
+
+            const deptName = u.department?.name || '';
+
+            // Collect distinct role options with IDs (if available) for
+            // create/update payloads.
+            rawRoles.forEach((r) => {
+              const name = (typeof r === 'string' ? r : r.name) || '';
+              const upper = name.toUpperCase();
+              const id = typeof r === 'string' ? null : r.id;
+              if (upper && id != null && !roleMap.has(upper)) {
+                roleMap.set(upper, { name: upper, id });
+              }
+            });
+
+            const primaryRole = roleNames[0] || 'EMPLOYEE';
 
             return {
               id: u.id,
               name: u.email?.split('@')[0] || 'User',
               email: u.email,
+              // Store a primary role (for display) and all role names for
+              // filtering.
               role: primaryRole,
-              // UserSerializer does not currently expose department; this will
-              // be populated once the backend adds it.
-              department: '',
+              rolesList: roleNames,
+              department: deptName,
               status: u.is_active ? 'Active' : 'Inactive',
             };
           });
+
           setUsers(mapped);
+          setRoleOptions(Array.from(roleMap.values()));
         }
 
         // Load departments for employee assignment
@@ -122,10 +143,10 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           );
         }
 
-        onNotify?.('Users, roles, and departments loaded successfully', 'success');
+        onNotify?.('Users and departments loaded successfully', 'success');
       } catch (err) {
         console.error('Failed to load data:', err);
-        onNotify?.('Failed to load users or roles. Check server connection.', 'error');
+        onNotify?.('Failed to load users or departments. Check server connection.', 'error');
         setUsers([]);
         setRoleOptions([]);
       } finally {
@@ -161,7 +182,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           is_active: form.status === 'Active',
         };
 
-        const roleOption = roleOptions.find(r => r.name === form.role);
+        const roleOption = roleOptions.find((r) => r.name === form.role.toUpperCase());
         if (roleOption) payload.roles = [roleOption.id];
 
         await api.patch(`/accounts/users/${form.id}/`, payload);
@@ -176,7 +197,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
         onNotify?.('User updated successfully', 'success');
       } else {
         // Create new user
-        const roleOption = roleOptions.find(r => r.name === form.role);
+        const roleOption = roleOptions.find((r) => r.name === form.role.toUpperCase());
         if (!roleOption) {
           onNotify?.('Selected role not available', 'error');
           return;
@@ -243,7 +264,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
   };
 
   const filteredUsers = useMemo(() => {
-    return users.filter(u => {
+    return users.filter((u) => {
       const q = search.toLowerCase();
       const matchesSearch =
         !q ||
@@ -251,12 +272,19 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
         u.email.toLowerCase().includes(q) ||
         u.department.toLowerCase().includes(q);
 
-      const matchesRole = filterRole === 'ALL' || u.role === filterRole.replace('_', ' ');
+      const matchesRole =
+        filterRole === 'ALL' ||
+        (Array.isArray(u.rolesList) && u.rolesList.includes(filterRole));
+
       const matchesStatus = filterStatus === 'ALL' || u.status === filterStatus;
 
-      return matchesSearch && matchesRole && matchesStatus;
+      const matchesDepartment =
+        filterDepartment === 'ALL' ||
+        (u.department || '') === filterDepartment;
+
+      return matchesSearch && matchesRole && matchesStatus && matchesDepartment;
     });
-  }, [users, search, filterRole, filterStatus]);
+  }, [users, search, filterRole, filterStatus, filterDepartment]);
 
   const activeCount = users.filter(u => u.status === 'Active').length;
 
@@ -315,11 +343,9 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
             />
             <Divider />
             <CardContent>
-              {roleOptions.length === 0 && (
-                <Alert severity="warning" sx={{ mb: 2 }}>
-                  No roles found. Create roles (ADMIN, HR, MANAGER, EMPLOYEE) in Django Admin first.
-                </Alert>
-              )}
+              {/* If no role options were derived from existing users, the form
+                  will still render but new users cannot be created until at
+                  least one user exists for each role in the backend. */}
 
               <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
                 <TextField label="Full Name" name="name" value={form.name} onChange={handleChange} fullWidth required />
@@ -394,7 +420,6 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                     fullWidth
                     size="large"
                     startIcon={isEditing ? <CheckCircle /> : <PersonAdd />}
-                    disabled={roleOptions.length === 0}
                   >
                     {isEditing ? 'Save Changes' : 'Create User'}
                   </Button>
@@ -427,10 +452,25 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                   <InputLabel>Role</InputLabel>
                   <Select value={filterRole} onChange={(e) => setFilterRole(e.target.value)} label="Role">
                     <MenuItem value="ALL">All Roles</MenuItem>
-                    <MenuItem value="Employee">Employee</MenuItem>
-                    <MenuItem value="Manager">Manager</MenuItem>
+                    <MenuItem value="EMPLOYEE">Employee</MenuItem>
+                    <MenuItem value="MANAGER">Manager</MenuItem>
                     <MenuItem value="HR">HR</MenuItem>
-                    <MenuItem value="Admin">Admin</MenuItem>
+                    <MenuItem value="ADMIN">Admin</MenuItem>
+                  </Select>
+                </FormControl>
+                <FormControl sx={{ minWidth: 140 }}>
+                  <InputLabel>Department</InputLabel>
+                  <Select
+                    value={filterDepartment}
+                    onChange={(e) => setFilterDepartment(e.target.value)}
+                    label="Department"
+                  >
+                    <MenuItem value="ALL">All Departments</MenuItem>
+                    {departments.map((d) => (
+                      <MenuItem key={d.id} value={d.name}>
+                        {d.name}
+                      </MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
                 <FormControl sx={{ minWidth: 140 }}>
