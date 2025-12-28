@@ -49,7 +49,7 @@ INSTALLED_APPS = [
     'accounts',
     'attendance',
     'employees',
-    # 'biometrics',
+    'biometrics',
     
 ]
 

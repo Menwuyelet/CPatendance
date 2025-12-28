@@ -11,9 +11,10 @@ from biometrics.api.serializers import (
         BiometricProfileSerializer
 )
 from biometrics.models import BiometricProfile
-from biometrics.services.face_service import (
-    enroll_face,
+from biometrics.services.enrollment_service import (
+    BiometricEnrollmentService
 )
+
 from accounts.policies.biometric import BiometricPolicy
 from .permissions import (
     CanEnrollFace
@@ -38,7 +39,7 @@ class FaceEnrollmentViewSet(ViewSet):
             cv2.IMREAD_COLOR
         )
 
-        enroll_face(employee, image)
+        BiometricEnrollmentService.enroll_face(employee, image)
         return Response({"status": "enrolled"}, status=201)
 
 

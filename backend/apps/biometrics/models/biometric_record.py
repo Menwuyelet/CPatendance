@@ -8,7 +8,7 @@ class BiometricProfile(models.Model):
         FINGERPRINT = "FINGERPRINT", "Fingerprint"
 
     employee = models.ForeignKey(
-        "accounts.Employee",  # Adjust if your Employee model is in different app
+        "employees.Employee",  # Adjust if your Employee model is in different app
         on_delete=models.CASCADE,
         related_name="biometric_profiles"
     )
