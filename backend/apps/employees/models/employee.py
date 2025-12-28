@@ -31,7 +31,7 @@ class Employee(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.full_name} ({self.employee_code})"
+        return f"{self.id}"
     
     def get_today_shift(self):
         today = timezone.localdate()

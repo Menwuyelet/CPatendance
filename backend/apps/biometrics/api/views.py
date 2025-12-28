@@ -21,7 +21,29 @@ from .permissions import (
     CanEnrollFace
 )
 
+# class FaceEnrollmentViewSet(ViewSet):
+#     permission_classes = [IsAuthenticated | CanEnrollFace]
+
+#     def create(self, request):
+#         serializer = BiometricEnrollmentSerializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+
+#         employee = get_object_or_404(
+#             Employee,
+#             id=serializer.validated_data["employee_id"]
+#         )
+#         print(employee)
+
+#         BiometricEnrollmentService.enroll_face_from_camera(employee)
+
+#         return Response(
+#             {"status": "enrolled"},
+#             status=201
+#         )
+
+
 class FaceEnrollmentViewSet(ViewSet):
+    ## done with ai help
     permission_classes = [IsAuthenticated | CanEnrollFace]
 
     def create(self, request):
@@ -32,13 +54,18 @@ class FaceEnrollmentViewSet(ViewSet):
             User,
             id=serializer.validated_data["employee_id"]
         )
-        print(employee)
 
-        BiometricEnrollmentService.enroll_face_from_camera(employee)
+        profile, created = BiometricEnrollmentService.enroll_face_from_camera(
+            employee=employee
+        )
 
         return Response(
-            {"status": "enrolled"},
-            status=201
+            {
+                "status": "created" if created else "updated",
+                "employee_id": str(employee.id),
+                "biometric_type": "FACE",
+            },
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
         )
 
 class BiometricProfileViewSet(ViewSet):

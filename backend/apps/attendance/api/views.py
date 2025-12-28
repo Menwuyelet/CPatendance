@@ -185,6 +185,7 @@ class AttendanceSessionViewSet(ViewSet):
 
 class AttendanceTakingViewSet(ViewSet):
     """
+    This takes attendance by calling the method in the service layer and if ther is not active session it returns error per api call
     Camera-based worker check-in
     """
 

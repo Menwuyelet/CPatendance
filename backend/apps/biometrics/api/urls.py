@@ -6,5 +6,5 @@ from biometrics.api.views import (
 
 router = DefaultRouter()
 router.register("face/enroll", FaceEnrollmentViewSet, basename="face-enroll")
-router.register("biometrics/profiles", BiometricProfileViewSet, basename="biometric-profiles")  
+router.register("profiles", BiometricProfileViewSet, basename="biometric-profiles")  
 urlpatterns = router.urls

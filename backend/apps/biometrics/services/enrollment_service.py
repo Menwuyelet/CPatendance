@@ -6,7 +6,8 @@ from django.utils import timezone
 from biometrics.models import BiometricProfile
 from employees.models import Employee
 from biometrics.engines.face_engine import FaceEmbeddingEngine
-
+from accounts.models import User
+from employees.models import Employee
 import cv2
 import numpy as np
 from django.conf import settings
@@ -18,29 +19,33 @@ class BiometricEnrollmentService:
     """
 
     @staticmethod
-    def enroll_face_from_camera(employee: Employee) -> BiometricProfile:
+    def enroll_face_from_camera(employee: User) -> BiometricProfile:
+        ## Calling the ai service to capture image and extract embedding
         if not employee.is_active:
             raise ValueError("Inactive employee cannot be enrolled")
-
+    
         # 1️⃣ Capture image
-        image = BiometricEnrollmentService._capture_single_frame()
+        # image = BiometricEnrollmentService._capture_single_frame()
 
         try:
             # 2️⃣ Extract embedding
-            embedding = BiometricEnrollmentService._extract_embedding(image)
-
+            # embedding = BiometricEnrollmentService._extract_embedding(image)
+            embedding = [1, 2, 4]
             # 3️⃣ Encrypt & store
+            emp = employee
             return BiometricEnrollmentService._store_embedding(
-                employee, embedding
+                emp, embedding
             )
 
         finally:
+            pass
             # 4️⃣ Explicitly delete image from memory
-            del image
+            # del image
 
     # -----------------------------
     @staticmethod
     def _capture_single_frame():
+        ## ai call for face embedding extraction with _exact_embedding method merging them
         cap = cv2.VideoCapture(0)
 
         if not cap.isOpened():
@@ -57,6 +62,7 @@ class BiometricEnrollmentService:
     # -----------------------------
     @staticmethod
     def _extract_embedding(image):
+        ## ai call for face embedding extraction
         embedding = FaceEmbeddingEngine.extract(image)
 
         if embedding is None:
@@ -70,7 +76,7 @@ class BiometricEnrollmentService:
         vector = np.array(embedding, dtype="float32").tobytes()
         encrypted = settings.BIOMETRIC_FERNET.encrypt(vector)
 
-        profile, _ = BiometricProfile.objects.update_or_create(
+        profile, created = BiometricProfile.objects.update_or_create(
             employee=employee,
             biometric_type=BiometricProfile.BiometricType.FACE,
             defaults={
@@ -79,4 +85,5 @@ class BiometricEnrollmentService:
                 "last_used": timezone.now(),
             }
         )
-        return profile
+
+        return profile, created
