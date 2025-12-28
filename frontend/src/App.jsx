@@ -16,6 +16,8 @@ import Sidebar from './components/Sidebar.jsx';
 import Header from './components/Header.jsx';
 import Toast from './components/Toast.jsx';
 import { api } from './services/api.service.js';
+import Reports from './pages/Reports.jsx';
+import Config from './pages/Config.jsx';
 
 function App() {
   const navigate = useNavigate();
@@ -189,6 +191,8 @@ function App() {
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<AdminPanel onNotify={notify} />} />
                 <Route path="/biometrics" element={<Biometrics onNotify={notify} />} />
+                <Route path="/reports" element={<Reports onNotify={notify} />} />
+                <Route path="/config" element={<Config onNotify={notify} />} />
                 <Route path="/users" element={<UserManagement scope="admin" onNotify={notify} />} />
                 <Route path="/companies" element={<Departments onNotify={notify} />} />
                 <Route path="/attendance" element={<Attendance role="Admin" onNotify={notify} />} />

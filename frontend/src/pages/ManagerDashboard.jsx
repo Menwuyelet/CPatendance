@@ -54,6 +54,7 @@ import {
 import SettingsIcon from '@mui/icons-material/Settings';
 import { api } from '../services/api.service.js';
 import { format, subDays } from 'date-fns';
+import Reports from './Reports.jsx';
 
 const getStatusColor = (status) => {
   if (!status) return 'default';
@@ -453,6 +454,7 @@ const ManagerDashboard = ({ onNotify }) => {
     <Routes>
       <Route path="dashboard" element={<ManagerDashboardHome onNotify={onNotify} />} />
       <Route path="team" element={<TeamOverviewPage />} />
+      <Route path="reports" element={<Reports onNotify={onNotify} />} />
       <Route path="settings" element={<Settings onNotify={onNotify} />} />
       <Route path="*" element={<ManagerDashboardHome onNotify={onNotify} />} />
     </Routes>
