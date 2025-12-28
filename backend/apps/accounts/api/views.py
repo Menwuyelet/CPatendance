@@ -1,3 +1,4 @@
+from accounts.permissions.hr_or_manager import IsHRorManager
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -32,7 +33,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated | IsAdmin | IsHRorManager]
 
     def get_queryset(self):
         return get_users_for_user(self.request.user)
