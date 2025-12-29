@@ -50,13 +50,23 @@ import {
 } from '@mui/icons-material';
 import { api } from '../services/api.service.js';
 
-const Biometrics = ({ onNotify }) => {
+const Biometrics = ({ onNotify, role }) => {
   const [tabValue, setTabValue] = useState(0);
   const [employeeId, setEmployeeId] = useState('');
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Biometric profiles from backend
+  const [profiles, setProfiles] = useState([]);
+  const [profilesLoading, setProfilesLoading] = useState(false);
+  const [profilesError, setProfilesError] = useState('');
+
+  // Role helpers (values from App: 'Admin', 'HR', 'Manager', 'Employee')
+  const isAdmin = role === 'Admin';
+  const isHR = role === 'HR';
+  const isEmployee = role === 'Employee';
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -107,11 +117,17 @@ const Biometrics = ({ onNotify }) => {
     };
   }, [imagePreview]);
 
+  // Simple stats derived from profiles
+  const totalEnrolled = profiles.length;
+  const totalActive = profiles.filter((p) => p.is_active).length;
+  const totalRevoked = totalEnrolled - totalActive;
+
   const stats = {
-    totalEnrolled: 0,
-    activeToday: 0,
-    totalRevoked: 0,
-    securityLevel: 'High',
+    totalEnrolled,
+    // No per-day field on profiles; treat active profiles as "active today" proxy
+    activeToday: totalActive,
+    totalRevoked,
+    securityLevel: totalActive > 0 ? 'High' : 'Medium',
   };
 
   const startCamera = async () => {
@@ -192,6 +208,9 @@ const Biometrics = ({ onNotify }) => {
   };
 
   const handleToggleProfile = async (profile) => {
+    // Only Admin/HR can toggle; employees are read-only here.
+    if (!(isAdmin || isHR)) return;
+
     const newActive = !profile.is_active;
     try {
       const updated = await api.patch(`/biometrics/profiles/${profile.id}/`, {
@@ -397,11 +416,19 @@ const Biometrics = ({ onNotify }) => {
                             <TableCell>{p.created_at ? new Date(p.created_at).toLocaleString() : '-'}</TableCell>
                             <TableCell>{p.last_used ? new Date(p.last_used).toLocaleString() : '-'}</TableCell>
                             <TableCell align="center">
-                              <Switch
-                                checked={!!p.is_active}
-                                onChange={() => handleToggleProfile(p)}
-                                color="success"
-                              />
+                              {isAdmin || isHR ? (
+                                <Switch
+                                  checked={!!p.is_active}
+                                  onChange={() => handleToggleProfile(p)}
+                                  color="success"
+                                />
+                              ) : (
+                                <Chip
+                                  label={p.is_active ? 'Active' : 'Inactive'}
+                                  size="small"
+                                  color={p.is_active ? 'success' : 'default'}
+                                />
+                              )}
                             </TableCell>
                           </TableRow>
                         ))}
