@@ -1,72 +1,164 @@
-import React, { useEffect, useState } from 'react';
-import { AppBar, Toolbar, Typography, IconButton, Avatar, Badge, Menu, MenuItem, ListItemText } from '@mui/material';
-import { Notifications, Logout } from '@mui/icons-material';
+// src/components/Header.jsx
+import React, { useState } from 'react';
+import {
+  AppBar,
+  Toolbar,
+  Typography,
+  IconButton,
+  Avatar,
+  Badge,
+  Popover,
+  Box,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  Button,
+  Divider,
+} from '@mui/material';
+import { Notifications, Logout, CheckCircle } from '@mui/icons-material';
+import { useNotifications } from '../context/NotificationContext';
 
-const Header = ({ user, onLogout, notifications = [] }) => {
+const Header = ({ user, onLogout }) => {
+  // Safe fallback if context not available
+  let notifications = [];
+  let unreadCount = 0;
+  let markAsRead = () => {};
+  let markAllAsRead = () => {};
+
+  try {
+    const context = useNotifications();
+    if (context) {
+      ({ notifications, unreadCount, markAsRead, markAllAsRead } = context);
+    }
+  } catch (e) {
+    console.warn('NotificationContext not available (likely outside provider)');
+  }
+
   const [now, setNow] = useState(new Date());
   const [anchorEl, setAnchorEl] = useState(null);
-
   const open = Boolean(anchorEl);
-  const handleOpenMenu = (event) => {
+
+  const handleBellClick = (event) => {
     setAnchorEl(event.currentTarget);
   };
 
-  const handleCloseMenu = () => {
+  const handleClose = () => {
     setAnchorEl(null);
   };
 
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 60000);
-    return () => clearInterval(id);
+  React.useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(interval);
   }, []);
 
-  const dateLabel = now.toLocaleDateString();
+  const dateLabel = now.toLocaleDateString('en-GB'); // 29/12/2025
   const timeLabel = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const recent = notifications.slice(0, 5);
 
   return (
     <AppBar position="static" color="default" elevation={1}>
       <Toolbar>
-        <Typography variant="h6" sx={{ flexGrow: 1 }}>
+        <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 'bold' }}>
           Attendance Management System
         </Typography>
-        <Typography variant="body2" sx={{ mr: 2 }}>
-          {dateLabel} {timeLabel}
+
+        <Typography variant="body2" sx={{ mr: 3, minWidth: 140, textAlign: 'right' }}>
+          {dateLabel}<br />
+          <span style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{timeLabel}</span>
         </Typography>
-        <Typography variant="body2" sx={{ mr: 2 }}>
-          Role: {user.role}
+
+        <Typography variant="body2" sx={{ mr: 3 }}>
+          Role: <strong>{user?.role || 'Unknown'}</strong>
         </Typography>
-        <IconButton aria-label="notifications" onClick={handleOpenMenu}>
-          <Badge color="error" badgeContent={notifications.length} max={9}>
+
+        {/* Notification Bell */}
+        <IconButton onClick={handleBellClick} sx={{ mr: 1 }}>
+          <Badge badgeContent={unreadCount} color="error">
             <Notifications />
           </Badge>
         </IconButton>
-        <Menu
-          anchorEl={anchorEl}
+
+        {/* Notification Popover */}
+        <Popover
           open={open}
-          onClose={handleCloseMenu}
+          anchorEl={anchorEl}
+          onClose={handleClose}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
           transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          PaperProps={{ sx: { width: 380, maxHeight: 500, mt: 1 } }}
         >
-          {recent.length === 0 ? (
-            <MenuItem disabled>
-              <ListItemText primary="No notifications yet" />
-            </MenuItem>
-          ) : (
-            recent.map((n) => (
-              <MenuItem key={n.id} onClick={handleCloseMenu}>
-                <ListItemText
-                  primary={n.message}
-                  secondary={new Date(n.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                />
-              </MenuItem>
-            ))
-          )}
-        </Menu>
-        <IconButton aria-label="user profile">
-          <Avatar>{user.role?.[0] || '?'}</Avatar>
+          <Box sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Typography variant="h6" fontWeight="bold">
+                Notifications
+              </Typography>
+              {unreadCount > 0 && (
+                <Button size="small" onClick={markAllAsRead} color="primary">
+                  Mark all as done
+                </Button>
+              )}
+            </Box>
+            <Divider sx={{ mb: 2 }} />
+
+            {notifications.length === 0 ? (
+              <Typography sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>
+                No notifications yet
+              </Typography>
+            ) : (
+              <List>
+                {notifications.map((notif) => (
+                  <ListItem
+                    key={notif.id}
+                    sx={{
+                      bgcolor: notif.read ? 'transparent' : 'action.hover',
+                      borderRadius: 2,
+                      mb: 1,
+                    }}
+                  >
+                    <ListItemText
+                      primary={notif.message}
+                      secondary={`${notif.date} • ${notif.time}`}
+                      primaryTypographyProps={{
+                        fontWeight: notif.read ? 'normal' : 'bold',
+                        variant: 'body2',
+                      }}
+                      secondaryTypographyProps={{ variant: 'caption' }}
+                    />
+                    {!notif.read && (
+                      <ListItemSecondaryAction>
+                        <IconButton
+                          size="small"
+                          onClick={() => markAsRead(notif.id)}
+                          sx={{
+                            bgcolor: 'error.main',
+                            color: 'white',
+                            width: 36,
+                            height: 36,
+                            '&:hover': { bgcolor: 'error.dark' },
+                          }}
+                        >
+                          <CheckCircle fontSize="small" />
+                        </IconButton>
+                      </ListItemSecondaryAction>
+                    )}
+                  </ListItem>
+                ))}
+              </List>
+            )}
+          </Box>
+        </Popover>
+
+        {/* User Avatar */}
+        <IconButton sx={{ mx: 1 }}>
+          <Avatar sx={{ bgcolor: 'primary.main', width: 40, height: 40 }}>
+            <Typography variant="subtitle1" fontWeight="bold">
+              {user?.name?.[0]?.toUpperCase() || user?.role?.[0] || '?'}
+            </Typography>
+          </Avatar>
         </IconButton>
-        <IconButton aria-label="logout" onClick={onLogout}>
+
+        {/* Logout */}
+        <IconButton onClick={onLogout} color="inherit">
           <Logout />
         </IconButton>
       </Toolbar>
