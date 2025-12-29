@@ -1,6 +1,5 @@
 from accounts.constants import Roles
 
-
 class BasePolicy:
     @staticmethod
     def is_admin(user):

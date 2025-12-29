@@ -1,4 +1,3 @@
-from time import timezone
 from rest_framework import serializers
 from attendance.models import AttendanceRecord
 from attendance.models import AttendanceSession
@@ -40,7 +39,6 @@ class AttendanceSerializer(serializers.ModelSerializer):
         model = AttendanceRecord
         fields = "__all__"
         read_only_fields = fields
-
 
 
 class EmployeeShiftSerializer(serializers.ModelSerializer):

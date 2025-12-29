@@ -1,7 +1,5 @@
-# attendance/models/session.py
 from django.db import models
 from django.utils import timezone
-
 
 class AttendanceSession(models.Model):
     shift = models.ForeignKey(

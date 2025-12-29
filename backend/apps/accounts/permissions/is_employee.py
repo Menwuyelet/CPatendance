@@ -1,4 +1,3 @@
-# accounts/permissions/is_employee.py
 from rest_framework.permissions import BasePermission
 
 class IsEmployee(BasePermission):

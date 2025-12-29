@@ -1,4 +1,3 @@
-# attendance/models/session_entry.py
 from django.db import models    
 from .atendance_session import AttendanceSession    
 class AttendanceSessionEntry(models.Model):

@@ -1,4 +1,3 @@
-# accounts/permissions/is_admin.py
 from rest_framework.permissions import BasePermission
 from .utils import user_has_role
 

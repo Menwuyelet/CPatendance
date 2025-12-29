@@ -1,6 +1,5 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
-
 class CanManageEmployeeShift(BasePermission):
     """
     - SAFE METHODS (GET, HEAD, OPTIONS): authenticated users

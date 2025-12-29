@@ -1,5 +1,3 @@
-# accounts/policies/biometrics.py
-
 class BiometricPolicy:
 
     @staticmethod
