@@ -5,7 +5,7 @@ from attendance.models import (
     AttendanceSession,
     AttendanceSessionEntry
 )
-
+from biometrics.services.matching_service import BiometricMatchingService
 # adapters (still abstract)
 # from ai.camera import start_camera, stop_camera, recognize_single_employee
 
@@ -48,19 +48,25 @@ class AttendanceSessionService:
         if not self.session.is_active:
             raise RuntimeError("Session is closed")
 
-        start_camera()
-
+        # start_camera()
+        print("simulating camera start...")
         try:
-            result = recognize_single_employee()
-            employee_id = result.get("employee_id")
+            ## AI call to send embeddidngs of a face detected in camera
+            # result = recognize_single_employee()
+            result = {
+                "embedding": [1, 2, 4],
+                "timestamp": timezone.now()
+            }
+            employee_id = BiometricMatchingService.match_face(result.get("embedding"))
             recognized_at = result.get("timestamp", timezone.now())
-
-            if not EmployeeShift.objects.filter(
-                shift=self.session.shift,
-                employee_id=employee_id
-            ).exists():
-                return {"status": "ignored", "reason": "not_in_shift"}
-
+            print(f"recognized employee ID: {employee_id}")
+            # if not EmployeeShift.objects.filter(
+            #     shift=self.session.shift,
+            #     employee_id=employee_id
+            # ).exists():
+            #     return {"status": "ignored", "reason": "not_in_shift"}
+            if not employee_id:
+                return {"status": "ignored", "reason": "no_match"}
             entry, created = AttendanceSessionEntry.objects.get_or_create(
                 session=self.session,
                 employee_id=employee_id,
@@ -77,7 +83,8 @@ class AttendanceSessionService:
             }
 
         finally:
-            stop_camera()
+            # stop_camera()
+            print("simulating camera stop...")
 
     # -------------------------
     # SESSION CLOSE

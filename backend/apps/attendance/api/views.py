@@ -79,7 +79,6 @@ class AttendanceSessionCreateViewSet(ViewSet):
             status=status.HTTP_200_OK
         )
 
-
 class AttendanceSessionViewSet(ViewSet):
     """
     Attendance session operations:
@@ -190,7 +189,6 @@ class AttendanceSessionViewSet(ViewSet):
                 return
 
         raise PermissionError("Not allowed to access this session")
-
 
 class AttendanceTakingViewSet(ViewSet):
     """
@@ -328,11 +326,8 @@ class AttendanceRecordViewSet(ViewSet):
             return
 
         raise PermissionError("Not allowed to view this attendance record")
-    
-
 
 ## Shift Logic
-
 
 class ShiftViewSet(ViewSet):
     permission_classes = [IsAuthenticated, IsHRorManager | IsAdmin]
