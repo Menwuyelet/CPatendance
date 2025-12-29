@@ -207,6 +207,7 @@ function App() {
                 <Route path="/employees" element={<UserManagement scope="hr" onNotify={notify} />} />
                 <Route path="/companies" element={<Departments onNotify={notify} />} />
                 <Route path="/attendance" element={<Attendance role="HR" onNotify={notify} />} />
+                <Route path="/biometrics" element={<Biometrics onNotify={notify} role={user.role} />} />
                 <Route path="/settings" element={<Settings onNotify={notify} />} />
               </>
             )}

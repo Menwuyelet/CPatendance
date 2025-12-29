@@ -308,7 +308,7 @@ const Biometrics = ({ onNotify, role }) => {
           }}
         >
           <Tab label="Overview" />
-          <Tab label="Enrollment Process" />
+          <Tab label="Enrollment Process" disabled={!isAdmin} />
           <Tab label="Security & Privacy" />
         </Tabs>
 
@@ -444,6 +444,7 @@ const Biometrics = ({ onNotify, role }) => {
 
           {/* Enrollment Process */}
           {tabValue === 1 && (
+            isAdmin ? (
             <Grid container spacing={6}>
               <Grid item xs={12} lg={7}>
                 <Card sx={{ borderRadius: 4, boxShadow: 6 }}>
@@ -562,6 +563,12 @@ const Biometrics = ({ onNotify, role }) => {
                 </Card>
               </Grid>
             </Grid>
+            ) : (
+              <Alert severity="info">
+                Only administrators can enroll biometric profiles. HR and managers can
+                view and activate/deactivate profiles from the Overview tab.
+              </Alert>
+            )
           )}
 
           {/* Security & Privacy */}
