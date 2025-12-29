@@ -213,7 +213,10 @@ function App() {
 
             {/* MANAGER */}
             {user.role === 'Manager' && (
-              <Route path="/manager/*" element={<ManagerDashboard />} />
+              <>
+                <Route path="/manager/*" element={<ManagerDashboard onNotify={notify} />} />
+                <Route path="/attendance" element={<Attendance role="Manager" onNotify={notify} />} />
+              </>
             )}
 
             {/* EMPLOYEE */}
