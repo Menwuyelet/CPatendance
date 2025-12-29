@@ -28,11 +28,13 @@ const Sidebar = ({ role, userName, onLogout }) => {
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
       { text: 'Employees', icon: <PeopleIcon />, path: '/employees' },
       { text: 'Attendance', icon: <CalendarTodayIcon />, path: '/attendance' },
+      { text: 'Biometrics', icon: <FingerprintIcon />, path: '/biometrics' },
       { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
     ],
     Manager: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/manager/dashboard' },
       { text: 'Team', icon: <GroupsIcon />, path: '/manager/team' },
+      { text: 'Biometrics', icon: <FingerprintIcon />, path: '/manager/biometrics' },
       { text: 'Settings', icon: <SettingsIcon />, path: '/manager/settings' },
     ],
     Employee: [
