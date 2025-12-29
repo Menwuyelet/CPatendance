@@ -16,6 +16,15 @@ import {
   Alert,
   Tabs,
   Tab,
+  Chip,
+  CircularProgress,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  Switch,
+  IconButton,
 } from '@mui/material';
 
 import {
@@ -37,6 +46,7 @@ import {
   Schedule,
   Shield,
   Info,
+  Refresh,
 } from '@mui/icons-material';
 import { api } from '../services/api.service.js';
 
@@ -60,6 +70,28 @@ const Biometrics = ({ onNotify }) => {
     })();
   }, []);
 
+  const loadProfiles = async () => {
+    setProfilesLoading(true);
+    setProfilesError('');
+    try {
+      const res = await api.get('/biometrics/profiles/');
+      const list = Array.isArray(res) ? res : res?.results || [];
+      setProfiles(list);
+    } catch (err) {
+      console.error('Failed to load biometric profiles:', err);
+      setProfiles([]);
+      setProfilesError('Unable to load biometric profiles.');
+      onNotify?.('Failed to load biometric profiles.', 'error');
+    } finally {
+      setProfilesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProfiles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const stats = {
     totalEnrolled: 0,
     activeToday: 0,
@@ -67,13 +99,44 @@ const Biometrics = ({ onNotify }) => {
     securityLevel: 'High',
   };
 
-  const handleEnrollClick = () => {
+  const handleEnrollClick = async () => {
     if (!employeeId.trim()) {
       onNotify?.('Please enter an Employee ID', 'warning');
       return;
     }
-    onNotify?.('Biometric enrollment will be available soon!', 'info');
-    setEmployeeId('');
+
+    try {
+      setSubmitting(true);
+      // Backend currently expects JSON with employee_id and (optionally) biometric_type.
+      await api.post('/biometrics/face/enroll/', {
+        employee_id: employeeId,
+        biometric_type: 'FACE',
+      });
+      onNotify?.('Face enrollment started successfully.', 'success');
+      await loadProfiles();
+    } catch (err) {
+      console.error('Enrollment failed:', err);
+      onNotify?.(err.message || 'Enrollment failed', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleToggleProfile = async (profile) => {
+    const newActive = !profile.is_active;
+    try {
+      const updated = await api.patch(`/biometrics/profiles/${profile.id}/`, {
+        is_active: newActive,
+      });
+      setProfiles((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      onNotify?.(
+        newActive ? 'Biometric profile activated.' : 'Biometric profile deactivated.',
+        'success',
+      );
+    } catch (err) {
+      console.error('Failed to update biometric profile:', err);
+      onNotify?.(err.message || 'Failed to update biometric profile.', 'error');
+    }
   };
 
   return (
@@ -164,6 +227,7 @@ const Biometrics = ({ onNotify }) => {
         <Box sx={{ p: { xs: 4, md: 6 } }}>
           {/* Overview */}
           {tabValue === 0 && (
+            <>
             <Grid container spacing={6}>
               <Grid item xs={12} md={6}>
                 <Paper elevation={3} sx={{ p: 5, borderRadius: 4, height: '100%', bgcolor: 'grey.50' }}>
@@ -213,6 +277,72 @@ const Biometrics = ({ onNotify }) => {
                 </Paper>
               </Grid>
             </Grid>
+
+            {/* Profiles table */}
+            <Box sx={{ mt: 6 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                <Typography variant="h5" fontWeight="bold">
+                  Enrolled Biometric Profiles
+                </Typography>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<Refresh />}
+                  onClick={loadProfiles}
+                  disabled={profilesLoading}
+                >
+                  Refresh
+                </Button>
+              </Stack>
+
+              {profilesError && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {profilesError}
+                </Alert>
+              )}
+
+              <Card>
+                <CardContent>
+                  {profilesLoading ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                      <CircularProgress />
+                    </Box>
+                  ) : profiles.length === 0 ? (
+                    <Alert severity="info">No biometric profiles found.</Alert>
+                  ) : (
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell><strong>Employee</strong></TableCell>
+                          <TableCell><strong>Type</strong></TableCell>
+                          <TableCell><strong>Created</strong></TableCell>
+                          <TableCell><strong>Last Used</strong></TableCell>
+                          <TableCell align="center"><strong>Active</strong></TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {profiles.map((p) => (
+                          <TableRow key={p.id} hover>
+                            <TableCell>{p.employee}</TableCell>
+                            <TableCell>{p.biometric_type}</TableCell>
+                            <TableCell>{p.created_at ? new Date(p.created_at).toLocaleString() : '-'}</TableCell>
+                            <TableCell>{p.last_used ? new Date(p.last_used).toLocaleString() : '-'}</TableCell>
+                            <TableCell align="center">
+                              <Switch
+                                checked={!!p.is_active}
+                                onChange={() => handleToggleProfile(p)}
+                                color="success"
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </Box>
+            </>
           )}
 
 
@@ -246,7 +376,7 @@ const Biometrics = ({ onNotify }) => {
                           Camera Preview
                         </Typography>
                         <Typography variant="body1" color="text.secondary" sx={{ mt: 2, textAlign: 'center', maxWidth: 400 }}>
-                          Live face detection and alignment guide will appear here during real enrollment
+                          Live face detection and alignment guide will appear here during real enrollment.
                         </Typography>
                       </Paper>
 
@@ -254,57 +384,24 @@ const Biometrics = ({ onNotify }) => {
                         <TextField
                           fullWidth
                           label="Employee ID"
-                          placeholder="e.g., EMP-2025-001"
-                            value={employeeId}
+                          placeholder="Paste user UUID from Users page"
+                          value={employeeId}
                           onChange={(e) => setEmployeeId(e.target.value)}
-                          helperText="Enter a registered employee ID (numeric)"
+                          helperText="Uses the same ID as the user in the system"
                           InputProps={{
-                              startAdornment: <PersonAdd sx={{ color: 'action.disabled', mr: 2 }} />,
-                              inputProps: { inputMode: 'numeric' },
+                            startAdornment: <PersonAdd sx={{ color: 'action.disabled', mr: 2 }} />,
                           }}
                         />
-                          <input
-                            accept="image/*"
-                            id="biometric-image"
-                            type="file"
-                            style={{ display: 'none' }}
-                            onChange={(e) => setImageFile(e.target.files?.[0] || null)}
-                          />
-                          <label htmlFor="biometric-image">
-                            <Button variant="outlined" component="span">Select Image</Button>
-                          </label>
-                          <Button
-                            variant="contained"
-                            size="large"
-                            startIcon={<Fingerprint />}
-                            sx={{ px: 4, py: 1.8, borderRadius: 3 }}
-                            onClick={async () => {
-                              if (!employeeId) {
-                                onNotify?.('Enter an Employee ID first', 'warning');
-                                return;
-                              }
-                              if (!imageFile) {
-                                onNotify?.('Select an image file for enrollment', 'warning');
-                                return;
-                              }
-                              setSubmitting(true);
-                              try {
-                                const form = new FormData();
-                                form.append('employee_id', employeeId);
-                                form.append('image', imageFile, imageFile.name);
-                                await api.postForm('/biometrics/face/enroll/', form);
-                                onNotify?.('Enrollment request submitted', 'success');
-                                setImageFile(null);
-                              } catch (err) {
-                                onNotify?.(err.message || 'Enrollment failed', 'error');
-                              } finally {
-                                setSubmitting(false);
-                              }
-                            }}
-                            disabled={submitting}
-                          >
-                            {submitting ? 'Submitting…' : 'Add Me'}
-                          </Button>
+                        <Button
+                          variant="contained"
+                          size="large"
+                          startIcon={<Fingerprint />}
+                          sx={{ px: 4, py: 1.8, borderRadius: 3 }}
+                          onClick={handleEnrollClick}
+                          disabled={submitting}
+                        >
+                          {submitting ? 'Submitting…' : 'Enroll Face'}
+                        </Button>
                       </Stack>
                     </Stack>
                   </CardContent>
