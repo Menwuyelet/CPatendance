@@ -29,13 +29,17 @@ class FaceEnrollmentViewSet(ViewSet):
 
         employee = get_object_or_404(
             User,
-            id=serializer.validated_data["employee_id"]
+            id=request.user.id
         )
 
         service = BiometricEnrollmentService(employee)
 
         result = enroll_face(service.handle_embedding)
-
+        if not result.get("success", True):
+            return Response(
+                {"detail": result.get("reason", "Enrollment failed Try Again")},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         return Response(
             {
                 "status": "created" if result["created"] else "updated",

@@ -2,7 +2,7 @@ from rest_framework import serializers
 from biometrics.models import BiometricProfile
 
 class BiometricEnrollmentSerializer(serializers.Serializer):
-    employee_id = serializers.UUIDField()
+    # employee_id = serializers.UUIDField()
     biometric_type = serializers.ChoiceField(
         choices=BiometricProfile.BiometricType.choices,
         default=BiometricProfile.BiometricType.FACE
