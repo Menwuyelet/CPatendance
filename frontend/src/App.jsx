@@ -203,7 +203,7 @@ function App() {
             {/* HR */}
             {user.role === 'HR' && (
               <>
-                <Route path="/dashboard" element={<HRDashboard />} />
+                <Route path="/dashboard" element={<HRDashboard onNotify={notify} />} />
                 <Route path="/employees" element={<UserManagement scope="hr" onNotify={notify} />} />
                 <Route path="/companies" element={<Departments onNotify={notify} />} />
                 <Route path="/attendance" element={<Attendance role="HR" onNotify={notify} />} />
@@ -222,7 +222,7 @@ function App() {
             {/* EMPLOYEE */}
             {user.role === 'Employee' && (
               <>
-                <Route path="/dashboard" element={<EmployeeDashboard />} />
+                <Route path="/dashboard" element={<EmployeeDashboard onNotify={notify} />} />
                 <Route path="/attendance" element={<Attendance role="Employee" onNotify={notify} />} />
                 <Route path="/settings" element={<Settings onNotify={notify} />} />
               </>

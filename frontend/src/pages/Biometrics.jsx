@@ -1,5 +1,5 @@
 // src/pages/Biometrics.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Grid,
@@ -54,7 +54,12 @@ const Biometrics = ({ onNotify }) => {
   const [tabValue, setTabValue] = useState(0);
   const [employeeId, setEmployeeId] = useState('');
   const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
 
   useEffect(() => {
     // Try to prefill employeeId from /accounts/users/me/ -> may include employee id under employee or user.employee
@@ -92,11 +97,63 @@ const Biometrics = ({ onNotify }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    // Cleanup camera and object URLs when component unmounts
+    return () => {
+      try { stopCamera(); } catch (e) {}
+      if (imagePreview) {
+        try { URL.revokeObjectURL(imagePreview); } catch (e) {}
+      }
+    };
+  }, [imagePreview]);
+
   const stats = {
     totalEnrolled: 0,
     activeToday: 0,
     totalRevoked: 0,
     securityLevel: 'High',
+  };
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (videoRef.current) videoRef.current.srcObject = stream;
+      setCameraOpen(true);
+    } catch (e) {
+      console.error('Unable to access camera', e);
+      onNotify?.('Unable to access camera. Check permissions.', 'error');
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
+      videoRef.current.srcObject = null;
+    }
+    setCameraOpen(false);
+  };
+
+  const captureFrame = () => {
+    if (!videoRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current || document.createElement('canvas');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      setImageFile(blob);
+      try {
+        const url = URL.createObjectURL(blob);
+        setImagePreview(url);
+      } catch (e) {
+        setImagePreview(null);
+      }
+      // Stop camera after capture
+      stopCamera();
+    }, 'image/jpeg', 0.9);
   };
 
   const handleEnrollClick = async () => {
@@ -107,12 +164,24 @@ const Biometrics = ({ onNotify }) => {
 
     try {
       setSubmitting(true);
-      // Backend currently expects JSON with employee_id and (optionally) biometric_type.
-      await api.post('/biometrics/face/enroll/', {
-        employee_id: employeeId,
-        biometric_type: 'FACE',
-      });
-      onNotify?.('Face enrollment started successfully.', 'success');
+      if (imageFile) {
+        const form = new FormData();
+        form.append('employee_id', employeeId);
+        form.append('biometric_type', 'FACE');
+        form.append('image', imageFile, 'capture.jpg');
+
+        await api.postForm('/biometrics/face/enroll/', form);
+        onNotify?.('Face enrollment (from camera) completed.', 'success');
+      } else {
+        // Backend fallback (server-side camera or stub)
+        await api.post('/biometrics/face/enroll/', {
+          employee_id: employeeId,
+          biometric_type: 'FACE',
+        });
+        onNotify?.('Face enrollment started successfully.', 'success');
+      }
+
+      // reload profiles
       await loadProfiles();
     } catch (err) {
       console.error('Enrollment failed:', err);
@@ -371,13 +440,37 @@ const Biometrics = ({ onNotify }) => {
                           borderColor: 'grey.400',
                         }}
                       >
-                        <CameraAlt sx={{ fontSize: 100, color: 'grey.600', mb: 3 }} />
-                        <Typography variant="h5" fontWeight="medium" color="text.secondary">
-                          Camera Preview
-                        </Typography>
-                        <Typography variant="body1" color="text.secondary" sx={{ mt: 2, textAlign: 'center', maxWidth: 400 }}>
-                          Live face detection and alignment guide will appear here during real enrollment.
-                        </Typography>
+                        {cameraOpen ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            <video ref={videoRef} autoPlay playsInline style={{ width: 540, maxWidth: '100%' }} />
+                            <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
+                              <Button variant="contained" onClick={captureFrame}>Capture</Button>
+                              <Button variant="outlined" onClick={stopCamera}>Stop Camera</Button>
+                            </Stack>
+                            <canvas ref={canvasRef} style={{ display: 'none' }} />
+                          </div>
+                        ) : (
+                          <div style={{ textAlign: 'center' }}>
+                            <CameraAlt sx={{ fontSize: 100, color: 'grey.600', mb: 3 }} />
+                            <Typography variant="h5" fontWeight="medium" color="text.secondary">
+                              Camera Preview
+                            </Typography>
+                            <Typography variant="body1" color="text.secondary" sx={{ mt: 2, textAlign: 'center', maxWidth: 400 }}>
+                              Live face detection and alignment guide will appear here during real enrollment. Use the camera below to capture a photo for enrollment.
+                            </Typography>
+                            <Button variant="contained" sx={{ mt: 3 }} onClick={startCamera}>Open Camera</Button>
+                          </div>
+                        )}
+
+                        {imagePreview && (
+                          <Box sx={{ mt: 2 }}>
+                            <Typography variant="subtitle2">Captured preview</Typography>
+                            <img src={imagePreview} alt="capture" style={{ width: 220, borderRadius: 6, marginTop: 8 }} />
+                            <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
+                              <Button size="small" onClick={() => { setImageFile(null); URL.revokeObjectURL(imagePreview); setImagePreview(null); }}>Retake</Button>
+                            </Stack>
+                          </Box>
+                        )}
                       </Paper>
 
                       <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="end">
