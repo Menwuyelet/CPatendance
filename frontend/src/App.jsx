@@ -190,7 +190,7 @@ function App() {
               <>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<AdminPanel onNotify={notify} />} />
-                <Route path="/biometrics" element={<Biometrics onNotify={notify} />} />
+                <Route path="/biometrics" element={<Biometrics onNotify={notify} role={user.role} />} />
                 <Route path="/reports" element={<Reports onNotify={notify} />} />
                 <Route path="/config" element={<Config onNotify={notify} />} />
                 <Route path="/users" element={<UserManagement scope="admin" onNotify={notify} />} />
