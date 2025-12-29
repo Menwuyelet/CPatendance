@@ -25,9 +25,16 @@ function App() {
   const [user, setUser] = useState({ role: null, name: '' });
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState({ message: '', type: 'success' });
+  const [notifications, setNotifications] = useState([]); // recent notifications for header
 
   const notify = (message, type = 'success') => {
+    if (!message) return;
     setToast({ message, type });
+    // Store last 20 notifications (newest first)
+    setNotifications((prev) => [
+      { id: Date.now(), message, type, time: new Date().toISOString() },
+      ...prev,
+    ].slice(0, 20));
     setTimeout(() => setToast({ message: '', type: 'success' }), 3000);
   };
 
@@ -180,7 +187,11 @@ function App() {
       <Sidebar role={user.role} userName={user.name} onLogout={handleLogout} />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <Header user={{ role: user.role, name: user.name }} onLogout={handleLogout} />
+        <Header
+          user={{ role: user.role, name: user.name }}
+          onLogout={handleLogout}
+          notifications={notifications}
+        />
         <Toast message={toast.message} type={toast.type} />
 
         <main style={{ flex: 1, padding: '24px', overflow: 'auto' }}>
@@ -196,6 +207,7 @@ function App() {
                 <Route path="/users" element={<UserManagement scope="admin" onNotify={notify} />} />
                 <Route path="/companies" element={<Departments onNotify={notify} />} />
                 <Route path="/attendance" element={<Attendance role="Admin" onNotify={notify} />} />
+                <Route path="/attendance/shifts" element={<Attendance role="Admin" onNotify={notify} initialSection="shifts" />} />
                 <Route path="/settings" element={<Settings onNotify={notify} />} />
               </>
             )}
@@ -207,6 +219,7 @@ function App() {
                 <Route path="/employees" element={<UserManagement scope="hr" onNotify={notify} />} />
                 <Route path="/companies" element={<Departments onNotify={notify} />} />
                 <Route path="/attendance" element={<Attendance role="HR" onNotify={notify} />} />
+                <Route path="/attendance/shifts" element={<Attendance role="HR" onNotify={notify} initialSection="shifts" />} />
                 <Route path="/biometrics" element={<Biometrics onNotify={notify} role={user.role} />} />
                 <Route path="/settings" element={<Settings onNotify={notify} />} />
               </>
@@ -217,6 +230,7 @@ function App() {
               <>
                 <Route path="/manager/*" element={<ManagerDashboard onNotify={notify} />} />
                 <Route path="/attendance" element={<Attendance role="Manager" onNotify={notify} />} />
+                <Route path="/attendance/shifts" element={<Attendance role="Manager" onNotify={notify} initialSection="shifts" />} />
               </>
             )}
 
