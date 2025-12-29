@@ -1,4 +1,3 @@
-# attendance/models/shift.py
 from django.db import models
 
 class Shift(models.Model):
@@ -6,10 +5,31 @@ class Shift(models.Model):
     start_time = models.TimeField()
     end_time = models.TimeField()
 
-    is_overnight = models.BooleanField(default=False)
+    description = models.TextField(blank=True)
+
+    # days this shift applies to
+    monday = models.BooleanField(default=False)
+    tuesday = models.BooleanField(default=False)
+    wednesday = models.BooleanField(default=False)
+    thursday = models.BooleanField(default=False)
+    friday = models.BooleanField(default=False)
+    saturday = models.BooleanField(default=False)
+    sunday = models.BooleanField(default=False)
 
     class Meta:
         unique_together = ("name", "start_time", "end_time")
 
+    def applies_today(self, date):
+        weekday = date.weekday()  # 0 = Monday
+        return [
+            self.monday,
+            self.tuesday,
+            self.wednesday,
+            self.thursday,
+            self.friday,
+            self.saturday,
+            self.sunday,
+        ][weekday]
+
     def __str__(self):
-        return f"{self.name} ({self.start_time} - {self.end_time})"
+        return self.name

@@ -1,0 +1,35 @@
+from attendance.models import EmployeeShift
+from django.core.exceptions import ValidationError
+from attendance.services.shift_resolution_service import ShiftResolutionService
+
+class EmployeeShiftService:
+    @staticmethod
+    def assign_shift(employee, shift):
+        # check max 2 shifts per applicable weekday
+        from django.utils import timezone
+
+        today = timezone.now().date()
+        existing_shifts = ShiftResolutionService.get_employee_shifts_for_date(
+            employee, today
+        )
+
+        if len(existing_shifts) >= 2:
+            raise ValidationError(
+                "Employee already has maximum shifts for applicable days."
+            )
+
+        return EmployeeShift.objects.create(
+            employee=employee,
+            shift=shift
+        )
+
+    @staticmethod
+    def list_employee_shifts(employee=None):
+        qs = EmployeeShift.objects.select_related("employee", "shift")
+        if employee:
+            qs = qs.filter(employee=employee)
+        return qs
+
+    @staticmethod
+    def remove_shift(employee_shift):
+        employee_shift.delete()
