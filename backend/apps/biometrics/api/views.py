@@ -13,18 +13,15 @@ from biometrics.models import BiometricProfile
 from biometrics.services.enrollment_service import (
     BiometricEnrollmentService
 )
+from AI.enrollment_controller import enroll_face
 
 from accounts.policies.biometric import BiometricPolicy
 from .permissions import (
     CanEnrollFace
 )
 
-
-
 class FaceEnrollmentViewSet(ViewSet):
-    ## done with ai help
-    permission_classes = [IsAuthenticated | CanEnrollFace]
-    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    permission_classes = [IsAuthenticated, CanEnrollFace]
 
     def create(self, request):
         serializer = BiometricEnrollmentSerializer(data=request.data)
@@ -35,18 +32,45 @@ class FaceEnrollmentViewSet(ViewSet):
             id=serializer.validated_data["employee_id"]
         )
 
-        profile, created = BiometricEnrollmentService.enroll_face_from_camera(
-            employee=employee
-        )
+        service = BiometricEnrollmentService(employee)
+
+        result = enroll_face(service.handle_embedding)
 
         return Response(
             {
-                "status": "created" if created else "updated",
-                "employee_id": str(employee.id),
+                "status": "created" if result["created"] else "updated",
+                "employee_id": result["employee_id"],
                 "biometric_type": "FACE",
             },
-            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+            status=status.HTTP_201_CREATED
         )
+
+# class FaceEnrollmentViewSet(ViewSet):
+#     ## done with ai help
+#     permission_classes = [IsAuthenticated | CanEnrollFace]
+#     parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+#     def create(self, request):
+#         serializer = BiometricEnrollmentSerializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+
+#         employee = get_object_or_404(
+#             User,
+#             id=serializer.validated_data["employee_id"]
+#         )
+
+#         profile, created = BiometricEnrollmentService.enroll_face_from_camera(
+#             employee=employee
+#         )
+
+#         return Response(
+#             {
+#                 "status": "created" if created else "updated",
+#                 "employee_id": str(employee.id),
+#                 "biometric_type": "FACE",
+#             },
+#             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+#         )
 
 class BiometricProfileViewSet(ViewSet):
     """
