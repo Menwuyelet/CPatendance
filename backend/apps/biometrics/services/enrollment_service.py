@@ -58,7 +58,7 @@
 import numpy as np
 from django.utils import timezone
 from biometrics.models import BiometricProfile
-from biometrics.services.crypto_service import encrypt_template
+from biometrics.services.encryption_service import encrypt_template
 
 
 class BiometricEnrollmentService:
