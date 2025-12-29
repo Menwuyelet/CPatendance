@@ -1,7 +1,9 @@
+from time import timezone
 from rest_framework import serializers
 from attendance.models import AttendanceRecord
 from attendance.models import AttendanceSession
-
+from attendance.models import EmployeeShift
+from attendance.models import Shift
 
 class AttendanceCheckInSerializer(serializers.Serializer):
     employee_id = serializers.IntegerField(required=False)
@@ -38,3 +40,32 @@ class AttendanceSerializer(serializers.ModelSerializer):
         model = AttendanceRecord
         fields = "__all__"
         read_only_fields = fields
+
+
+
+class EmployeeShiftSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmployeeShift
+        fields = [
+            "id",
+            "employee",
+            "shift",
+        ]
+
+class ShiftSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Shift
+        fields = [
+            "id",
+            "name",
+            "start_time",
+            "end_time",
+            "description",
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+        ]

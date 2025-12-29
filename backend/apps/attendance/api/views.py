@@ -1,4 +1,6 @@
 from urllib import request
+from accounts.permissions.is_hr import IsHR
+from attendance.models.employee_shift import EmployeeShift
 from rest_framework.viewsets import ViewSet
 from rest_framework.response import Response
 from rest_framework import status
@@ -8,17 +10,24 @@ from attendance.api.serializers import (
     AttendanceCheckInSerializer,
     AttendanceCheckOutSerializer,
     AttendanceSerializer,
-    AttendanceSessionSerializer
+    AttendanceSessionSerializer,
+    ShiftSerializer,
+    EmployeeShiftSerializer
 )
 from attendance.services.attendance_service import (
     mark_attendance,
 )
+from rest_framework.permissions import IsAuthenticated
+from accounts.permissions import IsAdmin, IsHRorManager
 from attendance.services.check_out import (check_out)
 from attendance.models import AttendanceRecord
 from attendance.models import AttendanceSession, Shift
 from attendance.services.attendance_session_service import AttendanceSessionService
 from attendance.services.process_session_service import process_attendance_session
 from django.utils import timezone
+from attendance.services.shift_service import ShiftService
+from attendance.services.employee_shift_service import EmployeeShiftService
+from attendance.permissions.employee_shift_permission import CanManageEmployeeShift
 
 class AttendanceSessionCreateViewSet(ViewSet):
     """
@@ -320,3 +329,87 @@ class AttendanceRecordViewSet(ViewSet):
 
         raise PermissionError("Not allowed to view this attendance record")
     
+
+
+## Shift Logic
+
+
+class ShiftViewSet(ViewSet):
+    permission_classes = [IsAuthenticated, IsHRorManager | IsAdmin]
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            self.permission_classes = [IsAuthenticated, IsHR]
+        return super().get_permissions()
+    
+    def list(self, request):
+        shifts = ShiftService.list_shifts()
+        serializer = ShiftSerializer(shifts, many=True)
+        return Response(serializer.data)
+
+    def create(self, request):
+        serializer = ShiftSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        shift = ShiftService.create_shift(serializer.validated_data)
+        return Response(
+            ShiftSerializer(shift).data,
+            status=status.HTTP_201_CREATED
+        )
+
+    def update(self, request, pk=None):
+        shift = Shift.objects.get(pk=pk)
+        serializer = ShiftSerializer(shift, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        shift = ShiftService.update_shift(shift, serializer.validated_data)
+        return Response(ShiftSerializer(shift).data)
+
+    def destroy(self, request, pk=None):
+        shift = Shift.objects.get(pk=pk)
+        ShiftService.delete_shift(shift)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+class EmployeeShiftViewSet(ViewSet):
+    permission_classes = [CanManageEmployeeShift]
+
+    def list(self, request):
+        employee_id = request.query_params.get("employee")
+
+        assignments = EmployeeShiftService.list_employee_shifts(employee_id)
+        serializer = EmployeeShiftSerializer(assignments, many=True)
+        return Response(serializer.data)
+
+    def create(self, request):
+        serializer = EmployeeShiftSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        assignment = EmployeeShiftService.assign_shift(
+            employee=serializer.validated_data["employee"],
+            shift=serializer.validated_data["shift"],
+        )
+
+        return Response(
+            EmployeeShiftSerializer(assignment).data,
+            status=status.HTTP_201_CREATED
+        )
+
+    def destroy(self, request, pk=None):
+        assignment = EmployeeShift.objects.get(pk=pk)
+        EmployeeShiftService.remove_shift(assignment)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    def _can_manage_employee(self, user, employee):
+        # return True
+        # HR
+        if getattr(user, "role", None) == "HR":
+            return True
+
+        # Manager of department
+        if getattr(user, "role", None) == "MANAGER":
+            return (
+                employee.department
+                and employee.department.manager_id == user.id
+            )
+
+        return False

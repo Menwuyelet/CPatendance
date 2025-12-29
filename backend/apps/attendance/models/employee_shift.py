@@ -1,30 +1,17 @@
 # attendance/models/employee_shift.py
 from django.db import models
+from attendance.models.shift import Shift
 
 class EmployeeShift(models.Model):
     employee = models.ForeignKey(
         "employees.Employee",
         on_delete=models.CASCADE,
-        related_name="shift_assignments"
+        related_name="shifts"
     )
     shift = models.ForeignKey(
-        "attendance.Shift",
-        on_delete=models.PROTECT
-    )
-    date = models.DateField()
-
-    assigned_by = models.ForeignKey(
-        "accounts.User",
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name="assigned_shifts"
+        Shift,
+        on_delete=models.CASCADE
     )
 
     class Meta:
-        unique_together = ("employee", "date")
-        indexes = [
-            models.Index(fields=["employee", "date"]),
-        ]
-
-    def __str__(self):
-        return f"{self.employee} → {self.shift} on {self.date}"
+        unique_together = ("employee", "shift")
