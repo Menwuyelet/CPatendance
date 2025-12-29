@@ -26,32 +26,46 @@ class AttendanceSessionCreateViewSet(ViewSet):
     """
     Manages attendance sessions (HR / Manager).
     """
+    class AttendanceTakingViewSet(ViewSet):
+        def create(self, request):
+            shift = get_object_or_404(Shift, id=request.data.get("shift_id"))
 
-    def create(self, request):
-        """
-        START SESSION
-        """
-        shift_id = request.data.get("shift_id")
-        if not shift_id:
-            return Response(
-                {"detail": "shift_id is required"},
-                status=status.HTTP_400_BAD_REQUEST
+            service = AttendanceSessionService.start_session(
+                shift=shift,
+                user=request.user,
             )
 
-        shift = get_object_or_404(Shift, id=shift_id)
+            service.run()
 
-        service = AttendanceSessionService.start_session(
-            shift=shift,
-            user=request.user
-        )
+            return Response(
+                {"detail": "Attendance session completed"},
+                status=status.HTTP_200_OK,
+            )
+    # def create(self, request):
+    #     """
+    #     START SESSION
+    #     """
+    #     shift_id = request.data.get("shift_id")
+    #     if not shift_id:
+    #         return Response(
+    #             {"detail": "shift_id is required"},
+    #             status=status.HTTP_400_BAD_REQUEST
+    #         )
 
-        return Response(
-            {
-                "session_id": service.session.id,
-                "shift_id": shift.id
-            },
-            status=status.HTTP_201_CREATED
-        )
+    #     shift = get_object_or_404(Shift, id=shift_id)
+
+    #     service = AttendanceSessionService.start_session(
+    #         shift=shift,
+    #         user=request.user
+    #     )
+
+    #     return Response(
+    #         {
+    #             "session_id": service.session.id,
+    #             "shift_id": shift.id
+    #         },
+    #         status=status.HTTP_201_CREATED
+    #     )
 
     def destroy(self, request, pk=None):
         """
@@ -59,18 +73,30 @@ class AttendanceSessionCreateViewSet(ViewSet):
         """
         session = get_object_or_404(AttendanceSession, id=pk)
 
+        # Optional but strongly recommended
+        if not session.is_active:
+            return Response(
+                {"detail": "Session already closed"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         service = AttendanceSessionService(session)
+
+        # Close session (mark inactive, collect entries)
         raw_data = service.close()
 
+        # Final attendance processing (present / absent / late)
         process_attendance_session(session, request.user)
 
         return Response(
             {
                 "session_id": session.id,
-                "processed": raw_data
+                "entries": raw_data,
+                "status": "closed"
             },
             status=status.HTTP_200_OK
         )
+
 
 class AttendanceSessionViewSet(ViewSet):
     """
