@@ -26,6 +26,7 @@ class Employee(models.Model):
     )
 
     full_name = models.CharField(max_length=255)
+    photo = models.ImageField(upload_to='employees/photos/', null=True, blank=True)
 
     is_active = models.BooleanField(default=True)
 

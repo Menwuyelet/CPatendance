@@ -16,13 +16,14 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Employee
-        fields = ['id', 'user', 'department', 'employee_code', 'full_name', 'is_active', 'created_at']
+        fields = ['id', 'user', 'department', 'employee_code', 'full_name', 'photo', 'is_active', 'created_at']
 
 
 class EmployeeUpdateSerializer(serializers.ModelSerializer):
     department = serializers.PrimaryKeyRelatedField(queryset=Department.objects.all(), required=False)
+    photo = serializers.ImageField(required=False, allow_null=True)
 
     class Meta:
         model = Employee
-        fields = ['department', 'employee_code', 'full_name', 'is_active']
+        fields = ['department', 'employee_code', 'full_name', 'photo', 'is_active']
         read_only_fields = ['user']
