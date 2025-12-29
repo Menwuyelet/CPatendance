@@ -7,8 +7,6 @@ class BiometricEnrollmentSerializer(serializers.Serializer):
         choices=BiometricProfile.BiometricType.choices,
         default=BiometricProfile.BiometricType.FACE
     )
-    # Optional uploaded image for browser-based enrollment
-    image = serializers.ImageField(required=False, allow_null=True)
 
 
 class BiometricProfileSerializer(serializers.ModelSerializer):

@@ -1,12 +1,9 @@
-import cv2
-import numpy as np
 from rest_framework.viewsets import ViewSet
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from employees.models import Employee
 from accounts.models import User
 from biometrics.api.serializers import (
         BiometricEnrollmentSerializer,
@@ -22,25 +19,6 @@ from .permissions import (
     CanEnrollFace
 )
 
-# class FaceEnrollmentViewSet(ViewSet):
-#     permission_classes = [IsAuthenticated | CanEnrollFace]
-
-#     def create(self, request):
-#         serializer = BiometricEnrollmentSerializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-
-#         employee = get_object_or_404(
-#             Employee,
-#             id=serializer.validated_data["employee_id"]
-#         )
-#         print(employee)
-
-#         BiometricEnrollmentService.enroll_face_from_camera(employee)
-
-#         return Response(
-#             {"status": "enrolled"},
-#             status=201
-#         )
 
 
 class FaceEnrollmentViewSet(ViewSet):
@@ -52,26 +30,14 @@ class FaceEnrollmentViewSet(ViewSet):
         serializer = BiometricEnrollmentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        employee = get_object_or_404(User, id=serializer.validated_data["employee_id"])
+        employee = get_object_or_404(
+            User,
+            id=serializer.validated_data["employee_id"]
+        )
 
-        # If a browser captured image was uploaded, process it
-        image_file = request.FILES.get('image')
-        if image_file:
-            try:
-                data = image_file.read()
-                nparr = np.frombuffer(data, np.uint8)
-                img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-                if img is None:
-                    return Response({"detail": "Invalid image data"}, status=status.HTTP_400_BAD_REQUEST)
-
-                profile, created = BiometricEnrollmentService.enroll_face_from_image(
-                    employee=employee, image=img
-                )
-            except Exception as exc:
-                return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            # Fallback to server-side camera/stub flow
-            profile, created = BiometricEnrollmentService.enroll_face_from_camera(employee=employee)
+        profile, created = BiometricEnrollmentService.enroll_face_from_camera(
+            employee=employee
+        )
 
         return Response(
             {

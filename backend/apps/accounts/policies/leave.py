@@ -1,6 +1,5 @@
 from .common import BasePolicy
 
-
 class LeavePolicy(BasePolicy):
 
     @classmethod

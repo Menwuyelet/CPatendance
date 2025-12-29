@@ -1,25 +1,18 @@
-from urllib import request
 from accounts.permissions.is_hr import IsHR
 from attendance.models.employee_shift import EmployeeShift
 from rest_framework.viewsets import ViewSet
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
-from employees.models import Employee
 from attendance.api.serializers import (
-    AttendanceCheckInSerializer,
-    AttendanceCheckOutSerializer,
     AttendanceSerializer,
     AttendanceSessionSerializer,
     ShiftSerializer,
     EmployeeShiftSerializer
 )
-from attendance.services.attendance_service import (
-    mark_attendance,
-)
+
 from rest_framework.permissions import IsAuthenticated
 from accounts.permissions import IsAdmin, IsHRorManager
-from attendance.services.check_out import (check_out)
 from attendance.models import AttendanceRecord
 from attendance.models import AttendanceSession, Shift
 from attendance.services.attendance_session_service import AttendanceSessionService

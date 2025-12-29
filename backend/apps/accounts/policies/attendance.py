@@ -1,6 +1,5 @@
 from .common import BasePolicy
 
-
 class AttendancePolicy(BasePolicy):
 
     @classmethod

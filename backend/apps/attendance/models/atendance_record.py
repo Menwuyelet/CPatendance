@@ -1,4 +1,3 @@
-# attendance/models/attendance_record.py
 from django.db import models
 
 class AttendanceRecord(models.Model):

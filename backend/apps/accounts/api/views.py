@@ -1,15 +1,13 @@
 from accounts.permissions.hr_or_manager import IsHRorManager
-from rest_framework import viewsets, status
+from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-# from django.shortcuts import get_object_or_404
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework import serializers
-from accounts.models import User, Role
+from accounts.models import User
 from accounts.constants import Roles
-# from employees.models import Employee
-from .serializers import UserSerializer, UserCreateSerializer, UserUpdateSerializer, RoleSerializer
+from .serializers import UserSerializer, UserCreateSerializer, UserUpdateSerializer
 from accounts.services.user_service import create_user, update_user, get_users_for_user
 from accounts.permissions import IsAdmin
 from .serializers import CustomTokenObtainPairSerializer

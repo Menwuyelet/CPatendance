@@ -1,4 +1,3 @@
-# attendance/models/employee_shift.py
 from django.db import models
 from attendance.models.shift import Shift
 
