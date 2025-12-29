@@ -1,7 +1,6 @@
-// src/App.jsx
+// src/App.jsx (UNCHANGED — only added NotificationProvider)
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-
 import Login from './pages/Login.jsx';
 import AdminPanel from './pages/AdminPanel.jsx';
 import Biometrics from './pages/Biometrics.jsx';
@@ -19,9 +18,11 @@ import { api } from './services/api.service.js';
 import Reports from './pages/Reports.jsx';
 import Config from './pages/Config.jsx';
 
+// ONLY THIS LINE ADDED
+import { NotificationProvider } from './context/NotificationContext';
+
 function App() {
   const navigate = useNavigate();
-
   const [user, setUser] = useState({ role: null, name: '' });
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState({ message: '', type: 'success' });
@@ -42,12 +43,7 @@ function App() {
   const getRoleFromUserData = (userData) => {
     console.log('User data from backend:', JSON.stringify(userData, null, 2));
     console.log('Raw roles:', userData.roles, 'User roles:', userData.user?.roles);
-
-    // `roles` may be an array of strings (['ADMIN', 'HR', ...])
-    // or an array of objects ([{ id, name: 'ADMIN' }, ...])
-    // and it can be at root (/accounts/users/me/) or nested under `user` (login response)
     const rawRoles = userData.roles || userData.user?.roles || [];
-
     const roleNames = rawRoles
       .map((r) => {
         if (typeof r === 'string') {
@@ -59,9 +55,8 @@ function App() {
       })
       .filter(Boolean)
       .map((r) => r.toUpperCase());
-    
+   
     console.log('Processed role names:', roleNames);
-
     if (roleNames.length > 0) {
       if (roleNames.includes('ADMIN')) {
         console.log(' Role detected from backend: Admin');
@@ -80,8 +75,6 @@ function App() {
         return 'Employee';
       }
     }
-
-    // Fallback: single `role` string field if backend ever sends it
     if (userData.role) {
       const role = String(userData.role).trim();
       if (['Admin', 'HR', 'Manager', 'Employee'].includes(role)) {
@@ -89,7 +82,6 @@ function App() {
         return role;
       }
     }
-
     console.log(' Default role: Employee');
     return 'Employee';
   };
@@ -101,19 +93,15 @@ function App() {
         setLoading(false);
         return;
       }
-
       try {
         const userData = await api.get('/accounts/users/me/');
-
         const role = getRoleFromUserData(userData);
-        const name = userData.full_name || 
-                     userData.name || 
-                     (userData.first_name && userData.last_name 
-                       ? `${userData.first_name} ${userData.last_name}` 
+        const name = userData.full_name ||
+                     userData.name ||
+                     (userData.first_name && userData.last_name
+                       ? `${userData.first_name} ${userData.last_name}`
                        : userData.email?.split('@')[0] || 'User');
-
         setUser({ role, name });
-        // Redirect based on role
         if (role === 'Manager') {
           navigate('/manager/dashboard', { replace: true });
         } else {
@@ -126,7 +114,6 @@ function App() {
         setLoading(false);
       }
     };
-
     checkAuth();
   }, []);
 
@@ -134,16 +121,13 @@ function App() {
   const handleLogin = async () => {
     try {
       const userData = await api.get('/accounts/users/me/');
-
       const role = getRoleFromUserData(userData);
-      const name = userData.full_name || 
-                   userData.name || 
-                   (userData.first_name && userData.last_name 
-                     ? `${userData.first_name} ${userData.last_name}` 
+      const name = userData.full_name ||
+                   userData.name ||
+                   (userData.first_name && userData.last_name
+                     ? `${userData.first_name} ${userData.last_name}`
                      : userData.email?.split('@')[0] || 'User');
-
       setUser({ role, name });
-      // Redirect based on role
       if (role === 'Manager') {
         navigate('/manager/dashboard', { replace: true });
       } else {
@@ -183,71 +167,68 @@ function App() {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f5f5f5' }}>
-      <Sidebar role={user.role} userName={user.name} onLogout={handleLogout} />
-
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <Header
-          user={{ role: user.role, name: user.name }}
-          onLogout={handleLogout}
-          notifications={notifications}
-        />
-        <Toast message={toast.message} type={toast.type} />
-
-        <main style={{ flex: 1, padding: '24px', overflow: 'auto' }}>
-          <Routes>
-            {/* ADMIN */}
-            {user.role === 'Admin' && (
-              <>
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<AdminPanel onNotify={notify} />} />
-                <Route path="/biometrics" element={<Biometrics onNotify={notify} role={user.role} />} />
-                <Route path="/reports" element={<Reports onNotify={notify} />} />
-                <Route path="/config" element={<Config onNotify={notify} />} />
-                <Route path="/users" element={<UserManagement scope="admin" onNotify={notify} />} />
-                <Route path="/companies" element={<Departments onNotify={notify} />} />
-                <Route path="/attendance" element={<Attendance role="Admin" onNotify={notify} />} />
-                <Route path="/attendance/shifts" element={<Attendance role="Admin" onNotify={notify} initialSection="shifts" />} />
-                <Route path="/settings" element={<Settings onNotify={notify} />} />
-              </>
-            )}
-
-            {/* HR */}
-            {user.role === 'HR' && (
-              <>
-                <Route path="/dashboard" element={<HRDashboard onNotify={notify} />} />
-                <Route path="/employees" element={<UserManagement scope="hr" onNotify={notify} />} />
-                <Route path="/companies" element={<Departments onNotify={notify} />} />
-                <Route path="/attendance" element={<Attendance role="HR" onNotify={notify} />} />
-                <Route path="/attendance/shifts" element={<Attendance role="HR" onNotify={notify} initialSection="shifts" />} />
-                <Route path="/biometrics" element={<Biometrics onNotify={notify} role={user.role} />} />
-                <Route path="/settings" element={<Settings onNotify={notify} />} />
-              </>
-            )}
-
-            {/* MANAGER */}
-            {user.role === 'Manager' && (
-              <>
-                <Route path="/manager/*" element={<ManagerDashboard onNotify={notify} />} />
-                <Route path="/attendance" element={<Attendance role="Manager" onNotify={notify} />} />
-                <Route path="/attendance/shifts" element={<Attendance role="Manager" onNotify={notify} initialSection="shifts" />} />
-              </>
-            )}
-
-            {/* EMPLOYEE */}
-            {user.role === 'Employee' && (
-              <>
-                <Route path="/dashboard" element={<EmployeeDashboard onNotify={notify} />} />
-                <Route path="/attendance" element={<Attendance role="Employee" onNotify={notify} />} />
-                <Route path="/settings" element={<Settings onNotify={notify} />} />
-              </>
-            )}
-
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
-        </main>
+    // ONLY THIS WRAPPER ADDED
+    <NotificationProvider>
+      <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f5f5f5' }}>
+        <Sidebar role={user.role} userName={user.name} onLogout={handleLogout} />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <Header
+            user={{ role: user.role, name: user.name }}
+            onLogout={handleLogout}
+            notifications={notifications}
+          />
+          <Toast message={toast.message} type={toast.type} />
+          <main style={{ flex: 1, padding: '24px', overflow: 'auto' }}>
+            <Routes>
+              {/* ADMIN */}
+              {user.role === 'Admin' && (
+                <>
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/dashboard" element={<AdminPanel onNotify={notify} />} />
+                  <Route path="/biometrics" element={<Biometrics onNotify={notify} role={user.role} />} />
+                  <Route path="/reports" element={<Reports onNotify={notify} />} />
+                  <Route path="/config" element={<Config onNotify={notify} />} />
+                  <Route path="/users" element={<UserManagement scope="admin" onNotify={notify} />} />
+                  <Route path="/companies" element={<Departments onNotify={notify} />} />
+                  <Route path="/attendance" element={<Attendance role="Admin" onNotify={notify} />} />
+                  <Route path="/attendance/shifts" element={<Attendance role="Admin" onNotify={notify} initialSection="shifts" />} />
+                  <Route path="/settings" element={<Settings onNotify={notify} />} />
+                </>
+              )}
+              {/* HR */}
+              {user.role === 'HR' && (
+                <>
+                  <Route path="/dashboard" element={<HRDashboard onNotify={notify} />} />
+                  <Route path="/employees" element={<UserManagement scope="hr" onNotify={notify} />} />
+                  <Route path="/companies" element={<Departments onNotify={notify} />} />
+                  <Route path="/attendance" element={<Attendance role="HR" onNotify={notify} />} />
+                  <Route path="/attendance/shifts" element={<Attendance role="HR" onNotify={notify} initialSection="shifts" />} />
+                  <Route path="/biometrics" element={<Biometrics onNotify={notify} role={user.role} />} />
+                  <Route path="/settings" element={<Settings onNotify={notify} />} />
+                </>
+              )}
+              {/* MANAGER */}
+              {user.role === 'Manager' && (
+                <>
+                  <Route path="/manager/*" element={<ManagerDashboard onNotify={notify} />} />
+                  <Route path="/attendance" element={<Attendance role="Manager" onNotify={notify} />} />
+                  <Route path="/attendance/shifts" element={<Attendance role="Manager" onNotify={notify} initialSection="shifts" />} />
+                </>
+              )}
+              {/* EMPLOYEE */}
+              {user.role === 'Employee' && (
+                <>
+                  <Route path="/dashboard" element={<EmployeeDashboard onNotify={notify} />} />
+                  <Route path="/attendance" element={<Attendance role="Employee" onNotify={notify} />} />
+                  <Route path="/settings" element={<Settings onNotify={notify} />} />
+                </>
+              )}
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </main>
+        </div>
       </div>
-    </div>
+    </NotificationProvider>
   );
 }
 

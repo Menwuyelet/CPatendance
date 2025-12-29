@@ -56,15 +56,16 @@ const Attendance = ({ role, onNotify, initialSection }) => {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL'); // ALL, PRESENT, LATE, ABSENT
+  const [statusFilter, setStatusFilter] = useState('ALL');
   const [search, setSearch] = useState('');
 
-  // --- Shift management state (frontend only) ---
+  // --- Shift management state ---
   const [shifts, setShifts] = useState([]);
-  const [shiftsLoading, setShiftsLoading] = useState(true);
+  const [shiftsLoading, setShiftsLoading] = useState(false);
   const [shiftError, setShiftError] = useState('');
   const [shiftDialogOpen, setShiftDialogOpen] = useState(false);
   const [editingShift, setEditingShift] = useState(null);
+
   const emptyShiftForm = {
     name: '',
     start_time: '',
@@ -80,6 +81,8 @@ const Attendance = ({ role, onNotify, initialSection }) => {
   };
   const [shiftForm, setShiftForm] = useState(emptyShiftForm);
 
+  // Permissions
+  const canViewShifts = isAdmin || isHR || isManager;
   const canManageShifts = isHR || isManager;
 
   useEffect(() => {
@@ -96,25 +99,18 @@ const Attendance = ({ role, onNotify, initialSection }) => {
     const loadAttendance = async () => {
       setLoading(true);
       setError('');
-
       try {
-        // Backend exposes: GET /api/attendance/attendance/ (scoped by user).
-        // It does NOT understand from/to/scope query params, so we fetch
-        // once and filter by date range on the frontend.
         const data = await api.get('/attendance/attendance/');
         const list = Array.isArray(data) ? data : [];
-
         const filteredByDate = list.filter((row) => {
-          const d = row.date; // "YYYY-MM-DD"
+          const d = row.date;
           if (!d) return false;
           const afterFrom = !from || d >= from;
           const beforeTo = !to || d <= to;
           return afterFrom && beforeTo;
         });
-
         setRows(filteredByDate);
-        
-        // Check if user is currently clocked in (for employee view)
+
         if (isEmployee) {
           const today = new Date().toISOString().slice(0, 10);
           const todayRecords = filteredByDate.filter((r) => r.date === today);
@@ -139,14 +135,16 @@ const Attendance = ({ role, onNotify, initialSection }) => {
         setLoading(false);
       }
     };
-
     loadAttendance();
-    // Important: do NOT depend on `onNotify` here, otherwise every toast
-    // update from the parent will re-create the function and refetch.
-  }, [from, to, isEmployee, isManager]);
+  }, [from, to, isEmployee]);
 
-  // Load shifts once per mount (and when role changes)
   useEffect(() => {
+    if (!canViewShifts) {
+      setShifts([]);
+      setShiftsLoading(false);
+      return;
+    }
+
     const loadShifts = async () => {
       setShiftsLoading(true);
       setShiftError('');
@@ -158,15 +156,16 @@ const Attendance = ({ role, onNotify, initialSection }) => {
         console.error('Unable to load shifts:', err);
         setShifts([]);
         setShiftError('Unable to load shifts.');
-        onNotify?.('Failed to fetch shifts from server.', 'error');
+        if (err.response?.status !== 403) {
+          onNotify?.('Failed to fetch shifts from server.', 'error');
+        }
       } finally {
         setShiftsLoading(false);
       }
     };
 
-    // Everyone can VIEW shifts; only HR/Manager can edit.
     loadShifts();
-  }, [role, onNotify]);
+  }, [canViewShifts]);
 
   const handleShiftFieldChange = (field, value) => {
     setShiftForm((prev) => ({ ...prev, [field]: value }));
@@ -229,7 +228,6 @@ const Attendance = ({ role, onNotify, initialSection }) => {
         onNotify?.('Shift created successfully.', 'success');
       }
 
-      // Update local list optimistically
       setShifts((prev) => {
         if (editingShift && editingShift.id) {
           return prev.map((s) => (s.id === result.id ? result : s));
@@ -265,10 +263,7 @@ const Attendance = ({ role, onNotify, initialSection }) => {
   const filteredRows = rows.filter((row) => {
     const status = (row.status || '').toUpperCase();
     if (statusFilter !== 'ALL' && status !== statusFilter) return false;
-
     if (!isEmployee && search.trim()) {
-      // Backend sends `employee` as an ID; we don't yet have the name here,
-      // so search currently only applies to whatever `row.name` might be.
       const name = (row.name || '').toLowerCase();
       if (!name.includes(search.toLowerCase())) return false;
     }
@@ -283,26 +278,20 @@ const Attendance = ({ role, onNotify, initialSection }) => {
   const handleClockToggle = async () => {
     const action = isClockedIn ? 'out' : 'in';
     const now = new Date().toLocaleTimeString();
-
     try {
       if (!isClockedIn) {
-        // CHECK-IN: POST /api/attendance/attendance/
         const response = await api.post('/attendance/attendance/', {});
         setIsClockedIn(true);
         setLastActionTime(now);
         onNotify?.(`Successfully clocked ${action}.`, 'success');
       } else {
-        // CHECK-OUT: Need to find the current attendance record first
-        // Get today's attendance records
         const today = new Date().toISOString().slice(0, 10);
         const records = await api.get(`/attendance/attendance/?date=${today}`);
         const todayRecords = Array.isArray(records) ? records : [];
-        
-        // Find the record that's checked in but not checked out
         const activeRecord = todayRecords.find(
           (r) => r.check_in_time && !r.check_out_time
         );
-        
+
         if (activeRecord && activeRecord.id) {
           await api.put(`/attendance/attendance/${activeRecord.id}/`, {});
           setIsClockedIn(false);
@@ -324,10 +313,11 @@ const Attendance = ({ role, onNotify, initialSection }) => {
         {heading}
       </Typography>
 
+      {/* UPDATED: Grid v2 syntax - no more item, xs, md props */}
       <Grid container spacing={4}>
         {/* Clock In/Out Card - Only for Employee */}
         {isEmployee && (
-          <Grid item xs={12} md={4}>
+          <Grid size={{ xs: 12, md: 4 }}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
@@ -353,7 +343,7 @@ const Attendance = ({ role, onNotify, initialSection }) => {
         )}
 
         {/* Attendance Table */}
-        <Grid item xs={12} md={isEmployee ? 8 : 12}>
+        <Grid size={{ xs: 12, md: isEmployee ? 8 : 12 }}>
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between">
@@ -375,7 +365,6 @@ const Attendance = ({ role, onNotify, initialSection }) => {
                     InputLabelProps={{ shrink: true }}
                   />
                 </Stack>
-
                 <Stack direction="row" spacing={2} alignItems="center">
                   {!isEmployee && (
                     <TextField
@@ -401,7 +390,6 @@ const Attendance = ({ role, onNotify, initialSection }) => {
                   </FormControl>
                 </Stack>
               </Stack>
-
               <Stack direction="row" spacing={2} sx={{ mt: 3 }}>
                 <Chip label={`Total: ${totalRecords}`} />
                 <Chip label={`Present: ${presentCount}`} color="success" />
@@ -435,7 +423,7 @@ const Attendance = ({ role, onNotify, initialSection }) => {
                   <TableBody>
                     {filteredRows.map((row) => (
                       <TableRow key={row.id} hover>
-                        {!isEmployee && <TableCell>{row.employee /* UUID/ID */}</TableCell>}
+                        {!isEmployee && <TableCell>{row.employee}</TableCell>}
                         <TableCell>{row.date}</TableCell>
                         <TableCell>{row.check_in_time || '-'}</TableCell>
                         <TableCell>{row.check_out_time || '-'}</TableCell>
@@ -451,7 +439,6 @@ const Attendance = ({ role, onNotify, initialSection }) => {
                               status === 'PRESENT' ? 'success' :
                               status === 'LATE' ? 'warning' :
                               status === 'ABSENT' ? 'error' : 'default';
-
                             return (
                               <Chip
                                 label={niceLabel}
@@ -471,172 +458,175 @@ const Attendance = ({ role, onNotify, initialSection }) => {
         </Grid>
       </Grid>
 
-      {/* Shifts Management (connected to backend, frontend-only changes) */}
-      <Box sx={{ mt: 4 }} ref={shiftsRef} id="shifts-section">
-        <Typography variant="h5" gutterBottom>
-          Shifts
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          View all defined shifts. HR and Managers can add or edit shifts; Admin has read-only access.
-        </Typography>
+      {/* Shifts Management Section - Only shown to authorized roles */}
+      {canViewShifts && (
+        <Box sx={{ mt: 4 }} ref={shiftsRef} id="shifts-section">
+          <Typography variant="h5" gutterBottom>
+            Shifts
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {isAdmin
+              ? 'View all defined shifts (read-only access).'
+              : 'View all defined shifts. HR and Managers can add, edit, or delete shifts.'}
+          </Typography>
+          <Card>
+            <CardContent>
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={2}
+                justifyContent="space-between"
+                alignItems={{ xs: 'flex-start', sm: 'center' }}
+                sx={{ mb: 2 }}
+              >
+                <Typography variant="h6">Shift List</Typography>
+                {canManageShifts && (
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={openShiftDialogForCreate}
+                    size="small"
+                  >
+                    Add Shift
+                  </Button>
+                )}
+              </Stack>
 
-        <Card>
-          <CardContent>
-            <Stack
-              direction={{ xs: 'column', sm: 'row' }}
-              spacing={2}
-              justifyContent="space-between"
-              alignItems={{ xs: 'flex-start', sm: 'center' }}
-              sx={{ mb: 2 }}
-            >
-              <Typography variant="h6">Shift List</Typography>
+              {shiftError && (
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setShiftError('')}>
+                  {shiftError}
+                </Alert>
+              )}
+
+              {shiftsLoading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                  <CircularProgress size={32} />
+                </Box>
+              ) : shifts.length === 0 ? (
+                <Alert severity="info">No shifts defined yet.</Alert>
+              ) : (
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell><strong>Name</strong></TableCell>
+                      <TableCell><strong>Time</strong></TableCell>
+                      <TableCell><strong>Days</strong></TableCell>
+                      {canManageShifts && (
+                        <TableCell align="right"><strong>Actions</strong></TableCell>
+                      )}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {shifts.map((shift) => {
+                      const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+                        .filter((d) => shift[d])
+                        .map((d) => d.charAt(0).toUpperCase());
+                      return (
+                        <TableRow key={shift.id} hover>
+                          <TableCell>{shift.name}</TableCell>
+                          <TableCell>
+                            {shift.start_time} – {shift.end_time}
+                          </TableCell>
+                          <TableCell>{days.length ? days.join(' ') : '–'}</TableCell>
+                          {canManageShifts && (
+                            <TableCell align="right">
+                              <Tooltip title="Edit">
+                                <IconButton size="small" onClick={() => openShiftDialogForEdit(shift)}>
+                                  <EditIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Delete">
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() => handleDeleteShift(shift.id)}
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          <Dialog open={shiftDialogOpen} onClose={closeShiftDialog} fullWidth maxWidth="sm">
+            <DialogTitle>{editingShift ? 'Edit Shift' : 'Add Shift'}</DialogTitle>
+            <DialogContent dividers>
+              <TextField
+                margin="normal"
+                label="Name"
+                fullWidth
+                value={shiftForm.name}
+                onChange={(e) => handleShiftFieldChange('name', e.target.value)}
+                required
+              />
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 1 }}>
+                <TextField
+                  label="Start Time"
+                  type="time"
+                  fullWidth
+                  value={shiftForm.start_time}
+                  onChange={(e) => handleShiftFieldChange('start_time', e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ step: 300 }}
+                  required
+                />
+                <TextField
+                  label="End Time"
+                  type="time"
+                  fullWidth
+                  value={shiftForm.end_time}
+                  onChange={(e) => handleShiftFieldChange('end_time', e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ step: 300 }}
+                  required
+                />
+              </Stack>
+              <TextField
+                margin="normal"
+                label="Description"
+                fullWidth
+                multiline
+                minRows={2}
+                value={shiftForm.description}
+                onChange={(e) => handleShiftFieldChange('description', e.target.value)}
+              />
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Days
+                </Typography>
+                <FormGroup row>
+                  {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => (
+                    <FormControlLabel
+                      key={day}
+                      control={
+                        <Checkbox
+                          checked={shiftForm[day]}
+                          onChange={(e) => handleShiftFieldChange(day, e.target.checked)}
+                        />
+                      }
+                      label={day.charAt(0).toUpperCase() + day.slice(1, 3)}
+                    />
+                  ))}
+                </FormGroup>
+              </Box>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={closeShiftDialog}>Cancel</Button>
               {canManageShifts && (
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={openShiftDialogForCreate}
-                  size="small"
-                >
-                  Add Shift
+                <Button onClick={handleSubmitShift} variant="contained">
+                  {editingShift ? 'Save' : 'Create'}
                 </Button>
               )}
-            </Stack>
-
-            {shiftError && (
-              <Alert severity="error" sx={{ mb: 2 }} onClose={() => setShiftError('')}>
-                {shiftError}
-              </Alert>
-            )}
-
-            {shiftsLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                <CircularProgress size={32} />
-              </Box>
-            ) : shifts.length === 0 ? (
-              <Alert severity="info">No shifts defined yet.</Alert>
-            ) : (
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell><strong>Name</strong></TableCell>
-                    <TableCell><strong>Time</strong></TableCell>
-                    <TableCell><strong>Days</strong></TableCell>
-                    {canManageShifts && (
-                      <TableCell align="right"><strong>Actions</strong></TableCell>
-                    )}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {shifts.map((shift) => {
-                    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-                      .filter((d) => shift[d])
-                      .map((d) => d.charAt(0).toUpperCase());
-                    return (
-                      <TableRow key={shift.id} hover>
-                        <TableCell>{shift.name}</TableCell>
-                        <TableCell>
-                          {shift.start_time}  {shift.end_time}
-                        </TableCell>
-                        <TableCell>{days.length ? days.join(' ') : ''}</TableCell>
-                        {canManageShifts && (
-                          <TableCell align="right">
-                            <Tooltip title="Edit">
-                              <IconButton size="small" onClick={() => openShiftDialogForEdit(shift)}>
-                                <EditIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Delete">
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={() => handleDeleteShift(shift.id)}
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-
-        <Dialog open={shiftDialogOpen} onClose={closeShiftDialog} fullWidth maxWidth="sm">
-          <DialogTitle>{editingShift ? 'Edit Shift' : 'Add Shift'}</DialogTitle>
-          <DialogContent dividers>
-            <TextField
-              margin="normal"
-              label="Name"
-              fullWidth
-              value={shiftForm.name}
-              onChange={(e) => handleShiftFieldChange('name', e.target.value)}
-              required
-            />
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 1 }}>
-              <TextField
-                label="Start Time"
-                type="time"
-                fullWidth
-                value={shiftForm.start_time}
-                onChange={(e) => handleShiftFieldChange('start_time', e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                inputProps={{ step: 300 }}
-                required
-              />
-              <TextField
-                label="End Time"
-                type="time"
-                fullWidth
-                value={shiftForm.end_time}
-                onChange={(e) => handleShiftFieldChange('end_time', e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                inputProps={{ step: 300 }}
-                required
-              />
-            </Stack>
-            <TextField
-              margin="normal"
-              label="Description"
-              fullWidth
-              multiline
-              minRows={2}
-              value={shiftForm.description}
-              onChange={(e) => handleShiftFieldChange('description', e.target.value)}
-            />
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="subtitle2" gutterBottom>
-                Days
-              </Typography>
-              <FormGroup row>
-                {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => (
-                  <FormControlLabel
-                    key={day}
-                    control={
-                      <Checkbox
-                        checked={shiftForm[day]}
-                        onChange={(e) => handleShiftFieldChange(day, e.target.checked)}
-                      />
-                    }
-                    label={day.charAt(0).toUpperCase() + day.slice(1, 3)}
-                  />
-                ))}
-              </FormGroup>
-            </Box>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={closeShiftDialog}>Cancel</Button>
-            {canManageShifts && (
-              <Button onClick={handleSubmitShift} variant="contained">
-                {editingShift ? 'Save' : 'Create'}
-              </Button>
-            )}
-          </DialogActions>
-        </Dialog>
-      </Box>
+            </DialogActions>
+          </Dialog>
+        </Box>
+      )}
     </Box>
   );
 };

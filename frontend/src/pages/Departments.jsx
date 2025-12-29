@@ -40,34 +40,36 @@ const Departments = ({ onNotify }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editingId, setEditingId] = useState(null);
+
+  // Initialize with empty strings to avoid undefined → controlled/uncontrolled issues
   const [editForm, setEditForm] = useState({ name: '', code: '', is_active: true, managerId: '' });
   const [createForm, setCreateForm] = useState({ name: '', code: '', is_active: true, managerId: '' });
-  
+
   // Filter states
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
- 
+
   const loadDepartments = async () => {
     try {
       setLoading(true);
       setError('');
-  
+
       const [data, employeesRes] = await Promise.all([
         api.get('/employees/departments/'),
         api.get('/employees/employees/'),
       ]);
-  
-      const employeesList = Array.isArray(employeesRes) 
-        ? employeesRes 
+
+      const employeesList = Array.isArray(employeesRes)
+        ? employeesRes
         : employeesRes?.results || employeesRes?.data || [];
-      
+
       setEmployees(employeesList);
-  
+
       const employeeMap = new Map();
       employeesList.forEach((e) => {
-        employeeMap.set(e.id, e);
+        if (e.id) employeeMap.set(e.id, e);
       });
-  
+
       const normalizedDepartments = Array.isArray(data)
         ? data.map((d) => {
             const deptEmployees = employeesList.filter((e) => e.department?.id === d.id);
@@ -78,9 +80,9 @@ const Departments = ({ onNotify }) => {
             };
           })
         : [];
-  
+
       setDepartments(normalizedDepartments);
-  
+
       const managerEmployees = employeesList.filter((e) => {
         const roles = e.user?.roles || [];
         const roleNames = roles
@@ -99,13 +101,11 @@ const Departments = ({ onNotify }) => {
       setLoading(false);
     }
   };
-  
 
   useEffect(() => {
     loadDepartments();
   }, []);
 
-  // Filter departments based on search and status
   const filteredDepartments = useMemo(() => {
     return departments.filter((dept) => {
       const q = search.toLowerCase();
@@ -124,13 +124,12 @@ const Departments = ({ onNotify }) => {
     });
   }, [departments, search, filterStatus]);
 
-  // Calculate statistics
   const stats = useMemo(() => {
     const total = departments.length;
     const active = departments.filter((d) => d.is_active).length;
     const inactive = total - active;
     const totalEmployees = employees.length;
-    
+
     return { total, active, inactive, totalEmployees };
   }, [departments, employees]);
 
@@ -140,7 +139,7 @@ const Departments = ({ onNotify }) => {
       name: dept.name || '',
       code: dept.code || '',
       is_active: dept.is_active !== false,
-      managerId: dept.manager?.id || '',
+      managerId: dept.manager?.id || '', // safe string
     });
   };
 
@@ -153,9 +152,12 @@ const Departments = ({ onNotify }) => {
     setEditForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleCreateChange = (field, value) => {
+    setCreateForm((prev) => ({ ...prev, [field]: value }));
+  };
+
   const saveEdit = async () => {
     if (!editingId) return;
-
     try {
       const payload = {
         name: editForm.name.trim(),
@@ -163,13 +165,10 @@ const Departments = ({ onNotify }) => {
         is_active: editForm.is_active,
         manager: editForm.managerId || null,
       };
-
       const updated = await api.patch(`/employees/departments/${editingId}/`, payload);
-
       setDepartments((prev) =>
-        prev.map((d) => (d.id === editingId ? { ...d, ...updated } : d)),
+        prev.map((d) => (d.id === editingId ? { ...d, ...updated } : d))
       );
-
       onNotify?.('Department updated successfully.', 'success');
     } catch (err) {
       console.error('Failed to update department:', err);
@@ -179,20 +178,14 @@ const Departments = ({ onNotify }) => {
     }
   };
 
-  const handleCreateChange = (field, value) => {
-    setCreateForm((prev) => ({ ...prev, [field]: value }));
-  };
-
   const createDepartment = async (e) => {
     e?.preventDefault?.();
-
     const name = createForm.name.trim();
     const code = createForm.code.trim();
     if (!name || !code) {
-      onNotify?.('Name and code are required to create a department.', 'warning');
+      onNotify?.('Name and code are required.', 'warning');
       return;
     }
-
     try {
       const payload = {
         name,
@@ -200,10 +193,9 @@ const Departments = ({ onNotify }) => {
         is_active: createForm.is_active,
         manager: createForm.managerId || null,
       };
-
       const created = await api.post('/employees/departments/', payload);
       setDepartments((prev) => [created, ...prev]);
-      setCreateForm({ name: '', code: '', is_active: true });
+      setCreateForm({ name: '', code: '', is_active: true, managerId: '' });
       onNotify?.('Department created successfully.', 'success');
     } catch (err) {
       console.error('Failed to create department:', err);
@@ -212,8 +204,7 @@ const Departments = ({ onNotify }) => {
   };
 
   const deleteDepartment = async (id) => {
-    if (!window.confirm('Delete this department? This cannot be undone.')) return;
-
+    if (!window.confirm('Delete this department? This action cannot be undone.')) return;
     try {
       await api.delete(`/employees/departments/${id}/`);
       setDepartments((prev) => prev.filter((d) => d.id !== id));
@@ -247,67 +238,56 @@ const Departments = ({ onNotify }) => {
           }
         />
         <CardContent>
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          )}
-          {/* Statistics Cards */}
+          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+          {/* Statistics Cards - Fixed Grid v2 */}
           <Grid container spacing={2} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <Card sx={{ bgcolor: 'primary.light', color: 'primary.contrastText' }}>
                 <CardContent>
                   <Stack direction="row" alignItems="center" spacing={2}>
                     <Business sx={{ fontSize: 40 }} />
                     <Box>
-                      <Typography variant="h4" fontWeight="bold">
-                        {stats.total}
-                      </Typography>
+                      <Typography variant="h4" fontWeight="bold">{stats.total}</Typography>
                       <Typography variant="body2">Total Departments</Typography>
                     </Box>
                   </Stack>
                 </CardContent>
               </Card>
             </Grid>
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <Card sx={{ bgcolor: 'success.light', color: 'success.contrastText' }}>
                 <CardContent>
                   <Stack direction="row" alignItems="center" spacing={2}>
                     <Business sx={{ fontSize: 40 }} />
                     <Box>
-                      <Typography variant="h4" fontWeight="bold">
-                        {stats.active}
-                      </Typography>
+                      <Typography variant="h4" fontWeight="bold">{stats.active}</Typography>
                       <Typography variant="body2">Active Departments</Typography>
                     </Box>
                   </Stack>
                 </CardContent>
               </Card>
             </Grid>
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <Card sx={{ bgcolor: 'error.light', color: 'error.contrastText' }}>
                 <CardContent>
                   <Stack direction="row" alignItems="center" spacing={2}>
                     <Business sx={{ fontSize: 40 }} />
                     <Box>
-                      <Typography variant="h4" fontWeight="bold">
-                        {stats.inactive}
-                      </Typography>
+                      <Typography variant="h4" fontWeight="bold">{stats.inactive}</Typography>
                       <Typography variant="body2">Inactive Departments</Typography>
                     </Box>
                   </Stack>
                 </CardContent>
               </Card>
             </Grid>
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <Card sx={{ bgcolor: 'info.light', color: 'info.contrastText' }}>
                 <CardContent>
                   <Stack direction="row" alignItems="center" spacing={2}>
                     <People sx={{ fontSize: 40 }} />
                     <Box>
-                      <Typography variant="h4" fontWeight="bold">
-                        {stats.totalEmployees}
-                      </Typography>
+                      <Typography variant="h4" fontWeight="bold">{stats.totalEmployees}</Typography>
                       <Typography variant="body2">Total Employees</Typography>
                     </Box>
                   </Stack>
@@ -316,7 +296,7 @@ const Departments = ({ onNotify }) => {
             </Grid>
           </Grid>
 
-          {/* Create new department */}
+          {/* Create Form */}
           <Box
             component="form"
             onSubmit={createDepartment}
@@ -347,8 +327,9 @@ const Departments = ({ onNotify }) => {
               <Select
                 labelId="dept-manager-create-label"
                 label="Manager"
-                value={createForm.managerId}
+                value={createForm.managerId || ''}
                 onChange={(e) => handleCreateChange('managerId', e.target.value)}
+                displayEmpty
               >
                 <MenuItem value="">No manager</MenuItem>
                 {managers.map((m) => (
@@ -367,20 +348,15 @@ const Departments = ({ onNotify }) => {
               }
               label={createForm.is_active ? 'Active' : 'Inactive'}
             />
-            <Button
-              type="submit"
-              variant="contained"
-              startIcon={<Add />}
-              sx={{ whiteSpace: 'nowrap' }}
-            >
+            <Button type="submit" variant="contained" startIcon={<Add />} sx={{ whiteSpace: 'nowrap' }}>
               Add Department
             </Button>
           </Box>
         </CardContent>
       </Card>
 
-      {/* Filters Card */}
-      <Card sx={{ mb: 3, borderRadius: 3 }}>
+      {/* Filters */}
+      <Card sx={{ mb: 3 }}>
         <CardContent>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
             <TextField
@@ -389,27 +365,17 @@ const Departments = ({ onNotify }) => {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Search />
-                  </InputAdornment>
-                ),
+                startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
                 endAdornment: search && (
                   <InputAdornment position="end">
-                    <IconButton size="small" onClick={() => setSearch('')}>
-                      <Clear />
-                    </IconButton>
+                    <IconButton size="small" onClick={() => setSearch('')}><Clear /></IconButton>
                   </InputAdornment>
                 ),
               }}
             />
             <FormControl sx={{ minWidth: 150 }}>
               <InputLabel>Status</InputLabel>
-              <Select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                label="Status"
-              >
+              <Select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} label="Status">
                 <MenuItem value="ALL">All Status</MenuItem>
                 <MenuItem value="Active">Active</MenuItem>
                 <MenuItem value="Inactive">Inactive</MenuItem>
@@ -419,19 +385,15 @@ const Departments = ({ onNotify }) => {
         </CardContent>
       </Card>
 
+      {/* Departments Table */}
       <Card>
-        <CardHeader
-          title={<Typography variant="h6">Departments ({filteredDepartments.length})</Typography>}
-          subheader="Manage organizational departments and their assignments"
-        />
+        <CardHeader title={<Typography variant="h6">Departments ({filteredDepartments.length})</Typography>} />
         <Divider />
         <CardContent>
           {departments.length === 0 ? (
             <Alert severity="info">No departments found.</Alert>
           ) : filteredDepartments.length === 0 ? (
-            <Alert severity="warning">
-              No departments match your filters. Try adjusting your search criteria.
-            </Alert>
+            <Alert severity="warning">No departments match your filters.</Alert>
           ) : (
             <TableContainer>
               <Table>
@@ -452,24 +414,14 @@ const Departments = ({ onNotify }) => {
                       <TableRow key={dept.id} hover>
                         <TableCell>
                           {isEditing ? (
-                            <TextField
-                              value={editForm.name}
-                              onChange={(e) => handleEditChange('name', e.target.value)}
-                              size="small"
-                              fullWidth
-                            />
+                            <TextField value={editForm.name} onChange={(e) => handleEditChange('name', e.target.value)} size="small" fullWidth />
                           ) : (
                             dept.name
                           )}
                         </TableCell>
                         <TableCell>
                           {isEditing ? (
-                            <TextField
-                              value={editForm.code}
-                              onChange={(e) => handleEditChange('code', e.target.value)}
-                              size="small"
-                              fullWidth
-                            />
+                            <TextField value={editForm.code} onChange={(e) => handleEditChange('code', e.target.value)} size="small" fullWidth />
                           ) : (
                             dept.code
                           )}
@@ -477,14 +429,12 @@ const Departments = ({ onNotify }) => {
                         <TableCell>
                           {isEditing ? (
                             <FormControl size="small" fullWidth>
-                              <InputLabel id={`dept-manager-edit-label-${dept.id}`}>
-                                Manager
-                              </InputLabel>
+                              <InputLabel>Manager</InputLabel>
                               <Select
-                                labelId={`dept-manager-edit-label-${dept.id}`}
-                                label="Manager"
-                                value={editForm.managerId}
+                                value={editForm.managerId || ''}
                                 onChange={(e) => handleEditChange('managerId', e.target.value)}
+                                label="Manager"
+                                displayEmpty
                               >
                                 <MenuItem value="">No manager</MenuItem>
                                 {managers.map((m) => (
@@ -499,68 +449,31 @@ const Departments = ({ onNotify }) => {
                           )}
                         </TableCell>
                         <TableCell>
-                          <Chip
-                            icon={<People />}
-                            label={`${dept.employeeCount || 0} employees`}
-                            size="small"
-                            variant="outlined"
-                            color="primary"
-                          />
+                          <Chip icon={<People />} label={`${dept.employeeCount || 0} employees`} size="small" variant="outlined" color="primary" />
                         </TableCell>
                         <TableCell>
                           {isEditing ? (
                             <FormControlLabel
-                              control={
-                                <Switch
-                                  checked={editForm.is_active}
-                                  onChange={(e) => handleEditChange('is_active', e.target.checked)}
-                                />
-                              }
+                              control={<Switch checked={editForm.is_active} onChange={(e) => handleEditChange('is_active', e.target.checked)} />}
                               label={editForm.is_active ? 'Active' : 'Inactive'}
                             />
                           ) : (
-                            <Chip
-                              label={dept.is_active ? 'Active' : 'Inactive'}
-                              color={dept.is_active ? 'success' : 'default'}
-                              size="small"
-                            />
+                            <Chip label={dept.is_active ? 'Active' : 'Inactive'} color={dept.is_active ? 'success' : 'default'} size="small" />
                           )}
                         </TableCell>
                         <TableCell align="right">
                           {isEditing ? (
                             <Stack direction="row" spacing={1} justifyContent="flex-end">
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                startIcon={<Cancel />}
-                                onClick={cancelEdit}
-                              >
-                                Cancel
-                              </Button>
-                              <Button
-                                size="small"
-                                variant="contained"
-                                startIcon={<Save />}
-                                onClick={saveEdit}
-                              >
-                                Save
-                              </Button>
+                              <Button size="small" variant="outlined" startIcon={<Cancel />} onClick={cancelEdit}>Cancel</Button>
+                              <Button size="small" variant="contained" startIcon={<Save />} onClick={saveEdit}>Save</Button>
                             </Stack>
                           ) : (
                             <Stack direction="row" spacing={1} justifyContent="flex-end">
                               <Tooltip title="Edit">
-                                <IconButton size="small" onClick={() => startEdit(dept)}>
-                                  <Edit fontSize="small" />
-                                </IconButton>
+                                <IconButton size="small" onClick={() => startEdit(dept)}><Edit fontSize="small" /></IconButton>
                               </Tooltip>
                               <Tooltip title="Delete">
-                                <IconButton
-                                  size="small"
-                                  color="error"
-                                  onClick={() => deleteDepartment(dept.id)}
-                                >
-                                  <Delete fontSize="small" />
-                                </IconButton>
+                                <IconButton size="small" color="error" onClick={() => deleteDepartment(dept.id)}><Delete fontSize="small" /></IconButton>
                               </Tooltip>
                             </Stack>
                           )}
