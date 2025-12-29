@@ -20,25 +20,28 @@ const Sidebar = ({ role, userName, onLogout }) => {
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
       { text: 'User Management', icon: <PeopleIcon />, path: '/users' },
       { text: 'Departments', icon: <DomainIcon />, path: '/companies' },
-  { text: 'Attendance', icon: <CalendarTodayIcon />, path: '/attendance' },
-  { text: 'Biometrics', icon: <FingerprintIcon />, path: '/biometrics' },
-  { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
+      // Admin: Attendance & Shifts (read‑only shifts UI)
+      { text: 'Attendance & Shifts', icon: <CalendarTodayIcon />, path: '/attendance' },
+      { text: 'Biometrics', icon: <FingerprintIcon />, path: '/biometrics' },
+      { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
     ],
     HR: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
       { text: 'Employees', icon: <PeopleIcon />, path: '/employees' },
-      { text: 'Attendance', icon: <CalendarTodayIcon />, path: '/attendance' },
+      // HR: full access to Attendance & Shifts
+      { text: 'Attendance & Shifts', icon: <CalendarTodayIcon />, path: '/attendance' },
       { text: 'Biometrics', icon: <FingerprintIcon />, path: '/biometrics' },
       { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
     ],
     Manager: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/manager/dashboard' },
       { text: 'Team', icon: <GroupsIcon />, path: '/manager/team' },
+      // Manager: Attendance & Shifts view (and shift UI in Attendance page)
+      { text: 'Attendance & Shifts', icon: <CalendarTodayIcon />, path: '/attendance' },
       { text: 'Biometrics', icon: <FingerprintIcon />, path: '/manager/biometrics' },
       { text: 'Settings', icon: <SettingsIcon />, path: '/manager/settings' },
     ],
     Employee: [
-      { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
       { text: 'My Attendance', icon: <EventNoteIcon />, path: '/attendance' },
       { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
     ],
