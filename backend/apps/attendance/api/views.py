@@ -24,23 +24,28 @@ from attendance.permissions.employee_shift_permission import CanManageEmployeeSh
 
 class AttendanceSessionCreateViewSet(ViewSet):
     """
-    Manages attendance sessions (HR / Manager).
+    HR / Manager starts attendance session
     """
-    class AttendanceTakingViewSet(ViewSet):
-        def create(self, request):
-            shift = get_object_or_404(Shift, id=request.data.get("shift_id"))
 
-            service = AttendanceSessionService.start_session(
-                shift=shift,
-                user=request.user,
-            )
+    permission_classes = [IsAuthenticated]
 
-            service.run()
+    def create(self, request):
+        shift = get_object_or_404(Shift, id=request.data.get("shift_id"))
 
-            return Response(
-                {"detail": "Attendance session completed"},
-                status=status.HTTP_200_OK,
-            )
+        session = AttendanceSession.objects.create(
+            shift=shift,
+            started_by=request.user,
+            is_active=True,
+        )
+
+        return Response(
+            {
+                "session_id": session.id,
+                "detail": "Attendance session started",
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
     # def create(self, request):
     #     """
     #     START SESSION
@@ -214,21 +219,20 @@ class AttendanceTakingViewSet(ViewSet):
     This takes attendance by calling the method in the service layer and if ther is not active session it returns error per api call
     Camera-based worker check-in
     """
+    serializer_class = None
 
     def create(self, request):
-        session_id = request.data.get("session_id")
-        if not session_id:
+        session = (
+        AttendanceSession.objects
+        .filter(is_active=True)
+        .order_by("-started_at")
+        .first()
+        )
+        if not session:
             return Response(
-                {"detail": "session_id required"},
+                {"detail": "There is no active attendance session."},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
-        session = get_object_or_404(
-            AttendanceSession,
-            id=session_id,
-            is_active=True
-        )
-
         service = AttendanceSessionService(session)
         result = service.check_in_next_worker()
 
