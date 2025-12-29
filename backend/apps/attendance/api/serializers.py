@@ -23,12 +23,12 @@ class AttendanceSessionSerializer(serializers.ModelSerializer):
             "started_by",
             "started_at",
             "is_active",
-            "closed_at",
+            "ended_at",
         )
         read_only_fields = (
             "started_by",
             "started_at",
-            "closed_at",
+            "ednded_at",
         )
 
 class AttendanceCheckOutSerializer(serializers.Serializer):
