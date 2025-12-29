@@ -26,7 +26,6 @@ import {
   Switch,
   IconButton,
 } from '@mui/material';
-
 import {
   Timeline,
   TimelineItem,
@@ -35,7 +34,6 @@ import {
   TimelineContent,
   TimelineDot,
 } from '@mui/lab';
-
 import {
   Fingerprint,
   Security,
@@ -47,6 +45,7 @@ import {
   Shield,
   Info,
   Refresh,
+  Visibility, // Added for View button
 } from '@mui/icons-material';
 import { api } from '../services/api.service.js';
 import Modal from '../components/Modal.jsx';
@@ -58,14 +57,17 @@ const Biometrics = ({ onNotify, role }) => {
   const [imagePreview, setImagePreview] = useState(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [bopOpen, setBopOpen] = useState(false);
 
   // Biometric profiles from backend
   const [profiles, setProfiles] = useState([]);
   const [profilesLoading, setProfilesLoading] = useState(false);
   const [profilesError, setProfilesError] = useState('');
 
-  // Role helpers (values from App: 'Admin', 'HR', 'Manager', 'Employee')
+  // For details popup
+  const [selectedProfile, setSelectedProfile] = useState(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  // Role helpers
   const isAdmin = role === 'Admin';
   const isHR = role === 'HR';
   const isEmployee = role === 'Employee';
@@ -74,11 +76,9 @@ const Biometrics = ({ onNotify, role }) => {
   const canvasRef = useRef(null);
 
   useEffect(() => {
-    // Try to prefill employeeId from /accounts/users/me/ -> may include employee id under employee or user.employee
     (async () => {
       try {
         const me = await api.get('/accounts/users/me/');
-        // Try common locations
         if (me?.employee?.id) setEmployeeId(String(me.employee.id));
         else if (me?.id) setEmployeeId(String(me.id));
       } catch (e) {
@@ -93,12 +93,38 @@ const Biometrics = ({ onNotify, role }) => {
     try {
       const res = await api.get('/biometrics/profiles/');
       const list = Array.isArray(res) ? res : res?.results || [];
-      setProfiles(list);
+
+      // If backend returns nothing, show your requested demo data
+      if (list.length === 0) {
+        setProfiles([
+          {
+            id: 1,
+            employee_name: 'admin@gmail.com',
+            employee: 'admin@gmail.com',
+            biometric_type: 'FACE',
+            created_at: '2025-12-29T00:29:47Z',
+            last_used: '2025-12-29T00:29:49Z',
+            is_active: true,
+          },
+        ]);
+      } else {
+        setProfiles(list);
+      }
     } catch (err) {
       console.error('Failed to load biometric profiles:', err);
-      setProfiles([]);
-      setProfilesError('Unable to load biometric profiles.');
-      onNotify?.('Failed to load biometric profiles.', 'error');
+      // Still show demo data on error
+      setProfiles([
+        {
+          id: 1,
+          employee_name: 'admin@gmail.com',
+          employee: 'admin@gmail.com',
+          biometric_type: 'FACE',
+          created_at: '2025-12-29T00:29:47Z',
+          last_used: '2025-12-29T00:29:49Z',
+          is_active: true,
+        },
+      ]);
+      setProfilesError('Unable to load from server – showing demo profile.');
     } finally {
       setProfilesLoading(false);
     }
@@ -106,11 +132,9 @@ const Biometrics = ({ onNotify, role }) => {
 
   useEffect(() => {
     loadProfiles();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    // Cleanup camera and object URLs when component unmounts
     return () => {
       try { stopCamera(); } catch (e) {}
       if (imagePreview) {
@@ -119,14 +143,12 @@ const Biometrics = ({ onNotify, role }) => {
     };
   }, [imagePreview]);
 
-  // Simple stats derived from profiles
   const totalEnrolled = profiles.length;
   const totalActive = profiles.filter((p) => p.is_active).length;
   const totalRevoked = totalEnrolled - totalActive;
 
   const stats = {
     totalEnrolled,
-    // No per-day field on profiles; treat active profiles as "active today" proxy
     activeToday: totalActive,
     totalRevoked,
     securityLevel: totalActive > 0 ? 'High' : 'Medium',
@@ -159,7 +181,6 @@ const Biometrics = ({ onNotify, role }) => {
     canvas.height = video.videoHeight || 480;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
     canvas.toBlob((blob) => {
       if (!blob) return;
       setImageFile(blob);
@@ -169,7 +190,6 @@ const Biometrics = ({ onNotify, role }) => {
       } catch (e) {
         setImagePreview(null);
       }
-      // Stop camera after capture
       stopCamera();
     }, 'image/jpeg', 0.9);
   };
@@ -179,7 +199,6 @@ const Biometrics = ({ onNotify, role }) => {
       onNotify?.('Please enter an Employee ID', 'warning');
       return;
     }
-
     try {
       setSubmitting(true);
       if (imageFile) {
@@ -187,19 +206,15 @@ const Biometrics = ({ onNotify, role }) => {
         form.append('employee_id', employeeId);
         form.append('biometric_type', 'FACE');
         form.append('image', imageFile, 'capture.jpg');
-
         await api.postForm('/biometrics/face/enroll/', form);
         onNotify?.('Face enrollment (from camera) completed.', 'success');
       } else {
-        // Backend fallback (server-side camera or stub)
         await api.post('/biometrics/face/enroll/', {
           employee_id: employeeId,
           biometric_type: 'FACE',
         });
         onNotify?.('Face enrollment started successfully.', 'success');
       }
-
-      // reload profiles
       await loadProfiles();
     } catch (err) {
       console.error('Enrollment failed:', err);
@@ -210,9 +225,7 @@ const Biometrics = ({ onNotify, role }) => {
   };
 
   const handleToggleProfile = async (profile) => {
-    // Only Admin/HR can toggle; employees are read-only here.
     if (!(isAdmin || isHR)) return;
-
     const newActive = !profile.is_active;
     try {
       const updated = await api.patch(`/biometrics/profiles/${profile.id}/`, {
@@ -227,6 +240,12 @@ const Biometrics = ({ onNotify, role }) => {
       console.error('Failed to update biometric profile:', err);
       onNotify?.(err.message || 'Failed to update biometric profile.', 'error');
     }
+  };
+
+  // Open details popup
+  const openDetails = (profile) => {
+    setSelectedProfile(profile);
+    setDetailsOpen(true);
   };
 
   return (
@@ -287,7 +306,6 @@ const Biometrics = ({ onNotify, role }) => {
         ))}
       </Grid>
 
-
       {/* Tabs Section */}
       <Paper elevation={6} sx={{ borderRadius: 4, overflow: 'hidden' }}>
         <Tabs
@@ -318,63 +336,61 @@ const Biometrics = ({ onNotify, role }) => {
           {/* Overview */}
           {tabValue === 0 && (
             <>
-            <Grid container spacing={6}>
-              <Grid item xs={12} md={6}>
-                <Paper elevation={3} sx={{ p: 5, borderRadius: 4, height: '100%', bgcolor: 'grey.50' }}>
-                  <Typography variant="h5" fontWeight="bold" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Info sx={{ color: 'info.main' }} />
-                    Current Status
-                  </Typography>
-                  <Alert severity="info" sx={{ borderRadius: 3, p: 3 }}>
-                    <Typography variant="body1" fontWeight="medium">
-                      Biometric system is under active development
+              <Grid container spacing={6}>
+                <Grid item xs={12} md={6}>
+                  <Paper elevation={3} sx={{ p: 5, borderRadius: 4, height: '100%', bgcolor: 'grey.50' }}>
+                    <Typography variant="h5" fontWeight="bold" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Info sx={{ color: 'info.main' }} />
+                      Current Status
                     </Typography>
-                    <Typography variant="body2" sx={{ mt: 2 }}>
-                      Facial recognition enrollment and verification will be available soon. Employees will enjoy touchless clock-in with enterprise-grade security.
+                    <Alert severity="info" sx={{ borderRadius: 3, p: 3 }}>
+                      <Typography variant="body1" fontWeight="medium">
+                        Biometric system is under active development
+                      </Typography>
+                      <Typography variant="body2" sx={{ mt: 2 }}>
+                        Facial recognition enrollment and verification will be available soon. Employees will enjoy touchless clock-in with enterprise-grade security.
+                      </Typography>
+                    </Alert>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Paper elevation={3} sx={{ p: 5, borderRadius: 4 }}>
+                    <Typography variant="h5" fontWeight="bold" sx={{ mb: 4 }}>
+                      Key Benefits
                     </Typography>
-                  </Alert>
-                </Paper>
+                    <Timeline>
+                      {[
+                        { title: 'Touchless & Hygienic', desc: 'No physical contact required', color: 'primary' },
+                        { title: 'Lightning Fast', desc: 'Verification in under 1 second', color: 'success' },
+                        { title: 'Anti-Spoofing Protection', desc: 'Detects photos, videos, and masks', color: 'warning' },
+                        { title: 'Privacy First', desc: 'Raw images deleted instantly', color: 'info' },
+                      ].map((item, i) => (
+                        <TimelineItem key={i}>
+                          <TimelineSeparator>
+                            <TimelineDot color={item.color} />
+                            {i < 3 && <TimelineConnector />}
+                          </TimelineSeparator>
+                          <TimelineContent>
+                            <Typography variant="body1" fontWeight="medium">
+                              {item.title}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {item.desc}
+                            </Typography>
+                          </TimelineContent>
+                        </TimelineItem>
+                      ))}
+                    </Timeline>
+                  </Paper>
+                </Grid>
               </Grid>
 
-              <Grid item xs={12} md={6}>
-                <Paper elevation={3} sx={{ p: 5, borderRadius: 4 }}>
-                  <Typography variant="h5" fontWeight="bold" sx={{ mb: 4 }}>
-                    Key Benefits
+              {/* Profiles table */}
+              <Box sx={{ mt: 6 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                  <Typography variant="h5" fontWeight="bold">
+                    Enrolled Biometric Profiles
                   </Typography>
-                  <Timeline>
-                    {[
-                      { title: 'Touchless & Hygienic', desc: 'No physical contact required', color: 'primary' },
-                      { title: 'Lightning Fast', desc: 'Verification in under 1 second', color: 'success' },
-                      { title: 'Anti-Spoofing Protection', desc: 'Detects photos, videos, and masks', color: 'warning' },
-                      { title: 'Privacy First', desc: 'Raw images deleted instantly', color: 'info' },
-                    ].map((item, i) => (
-                      <TimelineItem key={i}>
-                        <TimelineSeparator>
-                          <TimelineDot color={item.color} />
-                          {i < 3 && <TimelineConnector />}
-                        </TimelineSeparator>
-                        <TimelineContent>
-                          <Typography variant="body1" fontWeight="medium">
-                            {item.title}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {item.desc}
-                          </Typography>
-                        </TimelineContent>
-                      </TimelineItem>
-                    ))}
-                  </Timeline>
-                </Paper>
-              </Grid>
-            </Grid>
-
-            {/* Profiles table */}
-            <Box sx={{ mt: 6 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                <Typography variant="h5" fontWeight="bold">
-                  Enrolled Biometric Profiles
-                </Typography>
-                <Stack direction="row" spacing={1}>
                   <Button
                     size="small"
                     variant="outlined"
@@ -384,207 +400,207 @@ const Biometrics = ({ onNotify, role }) => {
                   >
                     Refresh
                   </Button>
-                  <Button
-                    size="small"
-                    variant="contained"
-                    onClick={() => { onNotify?.('Bopappp triggered', 'info'); setBopOpen(true); }}
-                  >
-                    Bopappp
-                  </Button>
                 </Stack>
-              </Stack>
 
-              {profilesError && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                  {profilesError}
-                </Alert>
-              )}
+                {profilesError && (
+                  <Alert severity="error" sx={{ mb: 2 }}>
+                    {profilesError}
+                  </Alert>
+                )}
 
-              <Card>
-                <CardContent>
-                  {profilesLoading ? (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                      <CircularProgress />
-                    </Box>
-                  ) : profiles.length === 0 ? (
-                    <Alert severity="info">No biometric profiles found.</Alert>
-                  ) : (
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell><strong>Employee</strong></TableCell>
-                          <TableCell><strong>Type</strong></TableCell>
-                          <TableCell><strong>Created</strong></TableCell>
-                          <TableCell><strong>Last Used</strong></TableCell>
-                          <TableCell align="center"><strong>Active</strong></TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {profiles.map((p) => (
-                          <TableRow key={p.id} hover>
-                            <TableCell>{p.employee_name || p.employee}</TableCell>
-                            <TableCell>{p.biometric_type}</TableCell>
-                            <TableCell>{p.created_at ? new Date(p.created_at).toLocaleString() : '-'}</TableCell>
-                            <TableCell>{p.last_used ? new Date(p.last_used).toLocaleString() : '-'}</TableCell>
-                            <TableCell align="center">
-                              {isAdmin || isHR ? (
-                                <Switch
-                                  checked={!!p.is_active}
-                                  onChange={() => handleToggleProfile(p)}
-                                  color="success"
-                                />
-                              ) : (
-                                <Chip
-                                  label={p.is_active ? 'Active' : 'Inactive'}
-                                  size="small"
-                                  color={p.is_active ? 'success' : 'default'}
-                                />
-                              )}
-                            </TableCell>
+                <Card>
+                  <CardContent>
+                    {profilesLoading ? (
+                      <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                        <CircularProgress />
+                      </Box>
+                    ) : profiles.length === 0 ? (
+                      <Alert severity="info">No biometric profiles found.</Alert>
+                    ) : (
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell><strong>Employee</strong></TableCell>
+                            <TableCell><strong>Type</strong></TableCell>
+                            <TableCell><strong>Created</strong></TableCell>
+                            <TableCell><strong>Last Used</strong></TableCell>
+                            <TableCell align="center"><strong>Active</strong></TableCell>
+                            <TableCell align="center"><strong>Actions</strong></TableCell>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Bopappp modal */}
-              <Modal
-                open={bopOpen}
-                title="Bopappp"
-                onClose={() => setBopOpen(false)}
-                onConfirm={() => { setBopOpen(false); onNotify?.('Bopappp confirmed', 'info'); }}
-                confirmLabel="OK"
-              >
-                <Typography>This is the Bopappp popup. Put your content here.</Typography>
-              </Modal>
-            </Box>
+                        </TableHead>
+                        <TableBody>
+                          {profiles.map((p) => (
+                            <TableRow
+                              key={p.id}
+                              hover
+                              sx={{ cursor: 'pointer' }}
+                              onClick={() => openDetails(p)}
+                            >
+                              <TableCell>{p.employee_name || p.employee}</TableCell>
+                              <TableCell>{p.biometric_type}</TableCell>
+                              <TableCell>{p.created_at ? new Date(p.created_at).toLocaleString() : '-'}</TableCell>
+                              <TableCell>{p.last_used ? new Date(p.last_used).toLocaleString() : '-'}</TableCell>
+                              <TableCell align="center">
+                                {isAdmin || isHR ? (
+                                  <Switch
+                                    checked={!!p.is_active}
+                                    onChange={(e) => {
+                                      e.stopPropagation(); // Prevent row click
+                                      handleToggleProfile(p);
+                                    }}
+                                    color="success"
+                                  />
+                                ) : (
+                                  <Chip
+                                    label={p.is_active ? 'Active' : 'Inactive'}
+                                    size="small"
+                                    color={p.is_active ? 'success' : 'default'}
+                                  />
+                                )}
+                              </TableCell>
+                              <TableCell align="center">
+                                <IconButton
+                                  size="small"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openDetails(p);
+                                  }}
+                                >
+                                  <Visibility fontSize="small" />
+                                </IconButton>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </CardContent>
+                </Card>
+              </Box>
             </>
           )}
-
 
           {/* Enrollment Process */}
           {tabValue === 1 && (
             isAdmin ? (
-            <Grid container spacing={6}>
-              <Grid item xs={12} lg={7}>
-                <Card sx={{ borderRadius: 4, boxShadow: 6 }}>
-                  <CardHeader
-                    title={<Typography variant="h5" fontWeight="bold">Enroll New Employee</Typography>}
-                    subheader="Secure facial recognition setup"
-                  />
-                  <Divider />
-                  <CardContent sx={{ pt: 4 }}>
-                    <Stack spacing={5}>
-                      <Paper
-                        sx={{
-                          height: 420,
-                          borderRadius: 4,
-                          bgcolor: 'grey.100',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          border: '3px dashed',
-                          borderColor: 'grey.400',
-                        }}
-                      >
-                        {cameraOpen ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                            <video ref={videoRef} autoPlay playsInline style={{ width: 540, maxWidth: '100%' }} />
-                            <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
-                              <Button variant="contained" onClick={captureFrame}>Capture</Button>
-                              <Button variant="outlined" onClick={stopCamera}>Stop Camera</Button>
-                            </Stack>
-                            <canvas ref={canvasRef} style={{ display: 'none' }} />
-                          </div>
-                        ) : (
-                          <div style={{ textAlign: 'center' }}>
-                            <CameraAlt sx={{ fontSize: 100, color: 'grey.600', mb: 3 }} />
-                            <Typography variant="h5" fontWeight="medium" color="text.secondary">
-                              Camera Preview
-                            </Typography>
-                            <Typography variant="body1" color="text.secondary" sx={{ mt: 2, textAlign: 'center', maxWidth: 400 }}>
-                              Live face detection and alignment guide will appear here during real enrollment. Use the camera below to capture a photo for enrollment.
-                            </Typography>
-                            <Button variant="contained" sx={{ mt: 3 }} onClick={startCamera}>Open Camera</Button>
-                          </div>
-                        )}
-
-                        {imagePreview && (
-                          <Box sx={{ mt: 2 }}>
-                            <Typography variant="subtitle2">Captured preview</Typography>
-                            <img src={imagePreview} alt="capture" style={{ width: 220, borderRadius: 6, marginTop: 8 }} />
-                            <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
-                              <Button size="small" onClick={() => { setImageFile(null); URL.revokeObjectURL(imagePreview); setImagePreview(null); }}>Retake</Button>
-                            </Stack>
-                          </Box>
-                        )}
-                      </Paper>
-
-                      <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="end">
-                        <TextField
-                          fullWidth
-                          label="Employee ID"
-                          placeholder="Paste user UUID from Users page"
-                          value={employeeId}
-                          onChange={(e) => setEmployeeId(e.target.value)}
-                          helperText="Uses the same ID as the user in the system"
-                          InputProps={{
-                            startAdornment: <PersonAdd sx={{ color: 'action.disabled', mr: 2 }} />,
+              <Grid container spacing={6}>
+                <Grid item xs={12} lg={7}>
+                  <Card sx={{ borderRadius: 4, boxShadow: 6 }}>
+                    <CardHeader
+                      title={<Typography variant="h5" fontWeight="bold">Enroll New Employee</Typography>}
+                      subheader="Secure facial recognition setup"
+                    />
+                    <Divider />
+                    <CardContent sx={{ pt: 4 }}>
+                      <Stack spacing={5}>
+                        <Paper
+                          sx={{
+                            height: 420,
+                            borderRadius: 4,
+                            bgcolor: 'grey.100',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            border: '3px dashed',
+                            borderColor: 'grey.400',
                           }}
-                        />
-                        <Button
-                          variant="contained"
-                          size="large"
-                          startIcon={<Fingerprint />}
-                          sx={{ px: 4, py: 1.8, borderRadius: 3 }}
-                          onClick={handleEnrollClick}
-                          disabled={submitting}
                         >
-                          {submitting ? 'Submitting…' : 'Enroll Face'}
-                        </Button>
-                      </Stack>
-                    </Stack>
-                  </CardContent>
-                </Card>
-              </Grid>
-
-
-              <Grid item xs={12} lg={5}>
-                <Card sx={{ borderRadius: 4, boxShadow: 6, height: '100%' }}>
-                  <CardHeader title={<Typography variant="h5" fontWeight="bold">Enrollment Steps</Typography>} />
-                  <Divider />
-                  <CardContent sx={{ pt: 4 }}>
-                    <Stack spacing={4}>
-                      {[
-                        'Enter registered Employee ID',
-                        'Position face in camera view',
-                        'System captures multiple angles',
-                        'AI generates encrypted template',
-                        'Raw images deleted permanently',
-                        'Employee ready for touchless clock-in',
-                      ].map((step, i) => (
-                        <Stack direction="row" spacing={3} key={i} alignItems="center">
-                          <Avatar
-                            sx={{
-                              bgcolor: 'primary.main',
-                              width: 48,
-                              height: 48,
-                              fontWeight: 'bold',
+                          {cameraOpen ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                              <video ref={videoRef} autoPlay playsInline style={{ width: 540, maxWidth: '100%' }} />
+                              <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
+                                <Button variant="contained" onClick={captureFrame}>Capture</Button>
+                                <Button variant="outlined" onClick={stopCamera}>Stop Camera</Button>
+                              </Stack>
+                              <canvas ref={canvasRef} style={{ display: 'none' }} />
+                            </div>
+                          ) : (
+                            <div style={{ textAlign: 'center' }}>
+                              <CameraAlt sx={{ fontSize: 100, color: 'grey.600', mb: 3 }} />
+                              <Typography variant="h5" fontWeight="medium" color="text.secondary">
+                                Camera Preview
+                              </Typography>
+                              <Typography variant="body1" color="text.secondary" sx={{ mt: 2, textAlign: 'center', maxWidth: 400 }}>
+                                Live face detection and alignment guide will appear here during real enrollment. Use the camera below to capture a photo for enrollment.
+                              </Typography>
+                              <Button variant="contained" sx={{ mt: 3 }} onClick={startCamera}>Open Camera</Button>
+                            </div>
+                          )}
+                          {imagePreview && (
+                            <Box sx={{ mt: 2 }}>
+                              <Typography variant="subtitle2">Captured preview</Typography>
+                              <img src={imagePreview} alt="capture" style={{ width: 220, borderRadius: 6, marginTop: 8 }} />
+                              <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
+                                <Button size="small" onClick={() => {
+                                  setImageFile(null);
+                                  URL.revokeObjectURL(imagePreview);
+                                  setImagePreview(null);
+                                }}>Retake</Button>
+                              </Stack>
+                            </Box>
+                          )}
+                        </Paper>
+                        <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="end">
+                          <TextField
+                            fullWidth
+                            label="Employee ID"
+                            placeholder="Paste user UUID from Users page"
+                            value={employeeId}
+                            onChange={(e) => setEmployeeId(e.target.value)}
+                            helperText="Uses the same ID as the user in the system"
+                            InputProps={{
+                              startAdornment: <PersonAdd sx={{ color: 'action.disabled', mr: 2 }} />,
                             }}
+                          />
+                          <Button
+                            variant="contained"
+                            size="large"
+                            startIcon={<Fingerprint />}
+                            sx={{ px: 4, py: 1.8, borderRadius: 3 }}
+                            onClick={handleEnrollClick}
+                            disabled={submitting}
                           >
-                            {i + 1}
-                          </Avatar>
-                          <Typography variant="body1">{step}</Typography>
+                            {submitting ? 'Submitting…' : 'Enroll Face'}
+                          </Button>
                         </Stack>
-                      ))}
-                    </Stack>
-                  </CardContent>
-                </Card>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={12} lg={5}>
+                  <Card sx={{ borderRadius: 4, boxShadow: 6, height: '100%' }}>
+                    <CardHeader title={<Typography variant="h5" fontWeight="bold">Enrollment Steps</Typography>} />
+                    <Divider />
+                    <CardContent sx={{ pt: 4 }}>
+                      <Stack spacing={4}>
+                        {[
+                          'Enter registered Employee ID',
+                          'Position face in camera view',
+                          'System captures multiple angles',
+                          'AI generates encrypted template',
+                          'Raw images deleted permanently',
+                          'Employee ready for touchless clock-in',
+                        ].map((step, i) => (
+                          <Stack direction="row" spacing={3} key={i} alignItems="center">
+                            <Avatar
+                              sx={{
+                                bgcolor: 'primary.main',
+                                width: 48,
+                                height: 48,
+                                fontWeight: 'bold',
+                              }}
+                            >
+                              {i + 1}
+                            </Avatar>
+                            <Typography variant="body1">{step}</Typography>
+                          </Stack>
+                        ))}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Grid>
               </Grid>
-            </Grid>
             ) : (
               <Alert severity="info">
                 Only administrators can enroll biometric profiles. HR and managers can
@@ -628,6 +644,36 @@ const Biometrics = ({ onNotify, role }) => {
           )}
         </Box>
       </Paper>
+
+      {/* New Details Popup */}
+      <Modal
+        open={detailsOpen}
+        title="Biometric Profile Details"
+        onClose={() => setDetailsOpen(false)}
+        onConfirm={() => setDetailsOpen(false)}
+        confirmLabel="Close"
+      >
+        {selectedProfile && (
+          <Stack spacing={3} sx={{ py: 2 }}>
+            <Typography variant="h6" fontWeight="bold" align="center">
+              {selectedProfile.employee_name || selectedProfile.employee}
+            </Typography>
+            <Divider />
+            <Typography><strong>Type:</strong> {selectedProfile.biometric_type}</Typography>
+            <Typography><strong>Created:</strong> {new Date(selectedProfile.created_at).toLocaleString()}</Typography>
+            <Typography><strong>Last Used:</strong> {selectedProfile.last_used ? new Date(selectedProfile.last_used).toLocaleString() : 'Never'}</Typography>
+            <Typography>
+              <strong>Status:</strong>{' '}
+              <Chip
+                label={selectedProfile.is_active ? 'Active' : 'Inactive'}
+                color={selectedProfile.is_active ? 'success' : 'default'}
+                size="small"
+                sx={{ ml: 1 }}
+              />
+            </Typography>
+          </Stack>
+        )}
+      </Modal>
     </Box>
   );
 };
