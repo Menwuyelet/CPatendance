@@ -49,6 +49,7 @@ import {
   Refresh,
 } from '@mui/icons-material';
 import { api } from '../services/api.service.js';
+import Modal from '../components/Modal.jsx';
 
 const Biometrics = ({ onNotify, role }) => {
   const [tabValue, setTabValue] = useState(0);
@@ -57,6 +58,7 @@ const Biometrics = ({ onNotify, role }) => {
   const [imagePreview, setImagePreview] = useState(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [bopOpen, setBopOpen] = useState(false);
 
   // Biometric profiles from backend
   const [profiles, setProfiles] = useState([]);
@@ -372,15 +374,24 @@ const Biometrics = ({ onNotify, role }) => {
                 <Typography variant="h5" fontWeight="bold">
                   Enrolled Biometric Profiles
                 </Typography>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<Refresh />}
-                  onClick={loadProfiles}
-                  disabled={profilesLoading}
-                >
-                  Refresh
-                </Button>
+                <Stack direction="row" spacing={1}>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<Refresh />}
+                    onClick={loadProfiles}
+                    disabled={profilesLoading}
+                  >
+                    Refresh
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    onClick={() => setBopOpen(true)}
+                  >
+                    Bopappp
+                  </Button>
+                </Stack>
               </Stack>
 
               {profilesError && (
@@ -411,7 +422,7 @@ const Biometrics = ({ onNotify, role }) => {
                       <TableBody>
                         {profiles.map((p) => (
                           <TableRow key={p.id} hover>
-                            <TableCell>{p.employee}</TableCell>
+                            <TableCell>{p.employee_name || p.employee}</TableCell>
                             <TableCell>{p.biometric_type}</TableCell>
                             <TableCell>{p.created_at ? new Date(p.created_at).toLocaleString() : '-'}</TableCell>
                             <TableCell>{p.last_used ? new Date(p.last_used).toLocaleString() : '-'}</TableCell>
@@ -437,6 +448,17 @@ const Biometrics = ({ onNotify, role }) => {
                   )}
                 </CardContent>
               </Card>
+
+              {/* Bopappp modal */}
+              <Modal
+                open={bopOpen}
+                title="Bopappp"
+                onClose={() => setBopOpen(false)}
+                onConfirm={() => { setBopOpen(false); onNotify?.('Bopappp confirmed', 'info'); }}
+                confirmLabel="OK"
+              >
+                <Typography>This is the Bopappp popup. Put your content here.</Typography>
+              </Modal>
             </Box>
             </>
           )}
