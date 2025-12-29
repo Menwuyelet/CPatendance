@@ -5,7 +5,7 @@ import { api } from '../services/api.service.js';
 import { AccessTime, CheckCircle, Schedule, EventNote } from '@mui/icons-material';
 import { format } from 'date-fns';
 
-const EmployeeDashboard = () => {
+const EmployeeDashboard = ({ onNotify }) => {
   const [loading, setLoading] = useState(true);
   const [clockedIn, setClockedIn] = useState(false);
   const [attendanceToday, setAttendanceToday] = useState(null);
@@ -42,6 +42,7 @@ const EmployeeDashboard = () => {
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
       setError('Failed to load dashboard data');
+      onNotify?.('Failed to load dashboard data', 'error');
     } finally {
       setLoading(false);
     }
@@ -70,12 +71,14 @@ const EmployeeDashboard = () => {
         }
         setClockedIn(false);
         setSuccess('Clocked out successfully!');
+        onNotify?.('Clocked out successfully!', 'success');
       } else {
         // Clock In - Create new attendance record
         const newAttendance = await api.post('/attendance/attendance/', {});
         setAttendanceToday(newAttendance);
         setClockedIn(true);
         setSuccess('Clocked in successfully!');
+        onNotify?.('Clocked in successfully!', 'success');
       }
       
       // Reload data to get updated times
@@ -84,7 +87,9 @@ const EmployeeDashboard = () => {
       setTimeout(() => setSuccess(''), 3000);
     } catch (error) {
       console.error('Clock action failed:', error);
-      setError(error.message || 'Failed to clock in/out. Please try again.');
+      const message = error.message || 'Failed to clock in/out. Please try again.';
+      setError(message);
+      onNotify?.(message, 'error');
       setTimeout(() => setError(''), 5000);
     }
   };
