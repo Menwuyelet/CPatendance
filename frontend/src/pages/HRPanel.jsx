@@ -50,7 +50,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api.service.js';
 import { format, startOfMonth, endOfMonth, addDays, subDays, isWithinInterval } from 'date-fns';
 
-const HRDashboard = () => {
+const HRDashboard = ({ onNotify }) => {
   const navigate = useNavigate();
 
   // Real data states
@@ -191,6 +191,7 @@ const HRDashboard = () => {
       } catch (err) {
         console.error('Failed to load HR dashboard data:', err);
         setError('Unable to load dashboard data. Please try again later.');
+        onNotify?.('Failed to load HR dashboard data.', 'error');
       } finally {
         setLoading(false);
       }

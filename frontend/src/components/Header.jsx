@@ -1,9 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { AppBar, Toolbar, Typography, IconButton, Avatar } from '@mui/material';
+import { AppBar, Toolbar, Typography, IconButton, Avatar, Badge, Menu, MenuItem, ListItemText } from '@mui/material';
 import { Notifications, Logout } from '@mui/icons-material';
 
-const Header = ({ user, onLogout }) => {
+const Header = ({ user, onLogout, notifications = [] }) => {
   const [now, setNow] = useState(new Date());
+  const [anchorEl, setAnchorEl] = useState(null);
+
+  const open = Boolean(anchorEl);
+  const handleOpenMenu = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleCloseMenu = () => {
+    setAnchorEl(null);
+  };
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60000);
@@ -12,6 +22,7 @@ const Header = ({ user, onLogout }) => {
 
   const dateLabel = now.toLocaleDateString();
   const timeLabel = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const recent = notifications.slice(0, 5);
 
   return (
     <AppBar position="static" color="default" elevation={1}>
@@ -25,9 +36,33 @@ const Header = ({ user, onLogout }) => {
         <Typography variant="body2" sx={{ mr: 2 }}>
           Role: {user.role}
         </Typography>
-        <IconButton aria-label="notifications">
-          <Notifications />
+        <IconButton aria-label="notifications" onClick={handleOpenMenu}>
+          <Badge color="error" badgeContent={notifications.length} max={9}>
+            <Notifications />
+          </Badge>
         </IconButton>
+        <Menu
+          anchorEl={anchorEl}
+          open={open}
+          onClose={handleCloseMenu}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        >
+          {recent.length === 0 ? (
+            <MenuItem disabled>
+              <ListItemText primary="No notifications yet" />
+            </MenuItem>
+          ) : (
+            recent.map((n) => (
+              <MenuItem key={n.id} onClick={handleCloseMenu}>
+                <ListItemText
+                  primary={n.message}
+                  secondary={new Date(n.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                />
+              </MenuItem>
+            ))
+          )}
+        </Menu>
         <IconButton aria-label="user profile">
           <Avatar>{user.role?.[0] || '?'}</Avatar>
         </IconButton>

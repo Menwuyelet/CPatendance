@@ -44,6 +44,21 @@ class BiometricEnrollmentService:
 
     # -----------------------------
     @staticmethod
+    def enroll_face_from_image(employee: User, image) -> BiometricProfile:
+        """Enroll a face given an image (numpy array BGR as from OpenCV)."""
+        if not employee.is_active:
+            raise ValueError("Inactive employee cannot be enrolled")
+
+        # Extract embedding using the configured engine (may be a stub)
+        embedding = BiometricEnrollmentService._extract_embedding(image)
+        if embedding is None:
+            raise ValueError("No face detected in the provided image")
+
+        # Store the encrypted embedding and return profile
+        return BiometricEnrollmentService._store_embedding(employee, embedding)
+
+    # -----------------------------
+    @staticmethod
     def _capture_single_frame():
         ## ai call for face embedding extraction with _exact_embedding method merging them
         cap = cv2.VideoCapture(0)
