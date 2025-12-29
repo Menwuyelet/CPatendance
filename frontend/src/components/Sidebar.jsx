@@ -23,6 +23,7 @@ const Sidebar = ({ role, userName, onLogout }) => {
       { text: 'Departments', icon: <DomainIcon />, path: '/companies' },
       // Admin: Attendance & Shifts (read‑only shifts UI)
       { text: 'Attendance & Shifts', icon: <CalendarTodayIcon />, path: '/attendance' },
+      { text: 'Shifts', icon: <ScheduleIcon />, path: '/attendance/shifts' },
       { text: 'Biometrics', icon: <FingerprintIcon />, path: '/biometrics' },
       { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
     ],
@@ -31,6 +32,7 @@ const Sidebar = ({ role, userName, onLogout }) => {
       { text: 'Employees', icon: <PeopleIcon />, path: '/employees' },
       // HR: full access to Attendance & Shifts
       { text: 'Attendance & Shifts', icon: <CalendarTodayIcon />, path: '/attendance' },
+      { text: 'Shifts', icon: <ScheduleIcon />, path: '/attendance/shifts' },
       { text: 'Biometrics', icon: <FingerprintIcon />, path: '/biometrics' },
       { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
     ],
