@@ -387,7 +387,7 @@ const Biometrics = ({ onNotify, role }) => {
                   <Button
                     size="small"
                     variant="contained"
-                    onClick={() => setBopOpen(true)}
+                    onClick={() => { onNotify?.('Bopappp triggered', 'info'); setBopOpen(true); }}
                   >
                     Bopappp
                   </Button>
