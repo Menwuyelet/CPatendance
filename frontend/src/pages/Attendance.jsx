@@ -1,5 +1,5 @@
 // src/pages/Attendance.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Box,
   Grid,
@@ -34,8 +34,9 @@ import {
 import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { api } from '../services/api.service.js';
 
-const Attendance = ({ role, onNotify }) => {
+const Attendance = ({ role, onNotify, initialSection }) => {
   const isEmployee = role === 'Employee';
+  const shiftsRef = useRef(null);
   const isManager = role === 'Manager';
   const isHR = role === 'HR';
   const isAdmin = role === 'Admin';
@@ -80,6 +81,16 @@ const Attendance = ({ role, onNotify }) => {
   const [shiftForm, setShiftForm] = useState(emptyShiftForm);
 
   const canManageShifts = isHR || isManager;
+
+  useEffect(() => {
+    if (initialSection === 'shifts') {
+      setTimeout(() => {
+        if (shiftsRef.current) {
+          shiftsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 120);
+    }
+  }, [initialSection]);
 
   useEffect(() => {
     const loadAttendance = async () => {
@@ -461,7 +472,7 @@ const Attendance = ({ role, onNotify }) => {
       </Grid>
 
       {/* Shifts Management (connected to backend, frontend-only changes) */}
-      <Box sx={{ mt: 4 }}>
+      <Box sx={{ mt: 4 }} ref={shiftsRef} id="shifts-section">
         <Typography variant="h5" gutterBottom>
           Shifts
         </Typography>

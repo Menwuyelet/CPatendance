@@ -10,6 +10,7 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import SettingsIcon from '@mui/icons-material/Settings';
 import GroupsIcon from '@mui/icons-material/Groups';
 import EventNoteIcon from '@mui/icons-material/EventNote';
+import ScheduleIcon from '@mui/icons-material/Schedule';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import FingerprintIcon from '@mui/icons-material/Fingerprint';
 const Sidebar = ({ role, userName, onLogout }) => {
@@ -38,6 +39,7 @@ const Sidebar = ({ role, userName, onLogout }) => {
       { text: 'Team', icon: <GroupsIcon />, path: '/manager/team' },
       // Manager: Attendance & Shifts view (and shift UI in Attendance page)
       { text: 'Attendance & Shifts', icon: <CalendarTodayIcon />, path: '/attendance' },
+      { text: 'Shifts', icon: <ScheduleIcon />, path: '/attendance/shifts' },
       { text: 'Biometrics', icon: <FingerprintIcon />, path: '/manager/biometrics' },
       { text: 'Settings', icon: <SettingsIcon />, path: '/manager/settings' },
     ],
