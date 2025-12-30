@@ -457,6 +457,8 @@ const AttendanceSessions = ({ role, onNotify }) => {
                 placeholder="Search by email, name, or employee code..."
                 value={employeeSearch}
                 onChange={(e) => setEmployeeSearch(e.target.value)}
+                name="attendance-employee-search"
+                id="attendance-employee-search"
                 InputProps={{
                   startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
                   endAdornment: employeeSearch && (

@@ -529,6 +529,8 @@ const TeamOverviewPage = () => {
                 placeholder="Search by name, email, or department..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                name="manager-team-search"
+                id="manager-team-search"
                 InputProps={{
                   startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
                 }}
