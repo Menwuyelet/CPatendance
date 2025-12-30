@@ -26,6 +26,7 @@ import {
   Tooltip,
   TextField,
   InputAdornment,
+  Chip,
 } from '@mui/material';
 import { Add as AddIcon, Delete as DeleteIcon, PlayArrow, Stop, Search, Clear } from '@mui/icons-material';
 import { api } from '../services/api.service.js';
