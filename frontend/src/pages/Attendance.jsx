@@ -96,10 +96,14 @@ const Attendance = ({ role, onNotify, initialSection }) => {
   const [employees, setEmployees] = useState([]);
   const [employeeShiftForm, setEmployeeShiftForm] = useState({ employee: '', shift: '' });
 
-  // Permissions
+  // Permissions - based on backend views
+  // Shifts: List (HR/Manager/Admin), Create/Update/Delete (HR only)
   const canViewShifts = isAdmin || isHR || isManager;
-  const canManageShifts = isHR || isManager;
+  const canManageShifts = isHR; // Only HR can create/update/delete shifts
+  // Sessions: Create/Close (HR/Manager/Admin), Update (HR/Admin only)
   const canManageSessions = isHR || isManager || isAdmin;
+  const canUpdateSessions = isHR || isAdmin; // Only HR/Admin can update sessions
+  // Employee Shifts: HR or Manager
   const canManageEmployeeShifts = isHR || isManager;
 
   useEffect(() => {
@@ -432,11 +436,21 @@ const Attendance = ({ role, onNotify, initialSection }) => {
     const now = new Date().toLocaleTimeString();
     try {
       if (!isClockedIn) {
-        const response = await api.post('/attendance/attendance/', {});
+        // Use attendance-check-in endpoint for clocking in
+        await api.checkInAttendance();
         setIsClockedIn(true);
         setLastActionTime(now);
         onNotify?.(`Successfully clocked ${action}.`, 'success');
+        // Reload attendance to update UI
+        const today = new Date().toISOString().slice(0, 10);
+        const records = await api.get(`/attendance/attendance/?date=${today}`);
+        const todayRecords = Array.isArray(records) ? records : [];
+        setRows((prev) => {
+          const filtered = prev.filter((r) => r.date !== today);
+          return [...filtered, ...todayRecords];
+        });
       } else {
+        // Clock out - update the attendance record
         const today = new Date().toISOString().slice(0, 10);
         const records = await api.get(`/attendance/attendance/?date=${today}`);
         const todayRecords = Array.isArray(records) ? records : [];
@@ -445,10 +459,19 @@ const Attendance = ({ role, onNotify, initialSection }) => {
         );
 
         if (activeRecord && activeRecord.id) {
-          await api.put(`/attendance/attendance/${activeRecord.id}/`, {});
+          await api.put(`/attendance/attendance/${activeRecord.id}/`, {
+            check_out_time: new Date().toISOString(),
+          });
           setIsClockedIn(false);
           setLastActionTime(now);
           onNotify?.(`Successfully clocked ${action}.`, 'success');
+          // Reload attendance to update UI
+          const updatedRecords = await api.get(`/attendance/attendance/?date=${today}`);
+          const updatedTodayRecords = Array.isArray(updatedRecords) ? updatedRecords : [];
+          setRows((prev) => {
+            const filtered = prev.filter((r) => r.date !== today);
+            return [...filtered, ...updatedTodayRecords];
+          });
         } else {
           throw new Error('No active attendance record found');
         }
@@ -619,7 +642,9 @@ const Attendance = ({ role, onNotify, initialSection }) => {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             {isAdmin
               ? 'View all defined shifts (read-only access).'
-              : 'View all defined shifts. HR and Managers can add, edit, or delete shifts.'}
+              : isManager
+              ? 'View all defined shifts (read-only access). Only HR can create, edit, or delete shifts.'
+              : 'View all defined shifts. HR can add, edit, or delete shifts.'}
           </Typography>
           <Card>
             <CardContent>
