@@ -119,10 +119,12 @@ class AttendanceSessionViewSet(ViewSet):
             pass
 
         elif request.user.is_department_manager():
-            if hasattr(request.user, "employee"):
+            employee = getattr(request.user, "employee", None)
+
+            if employee and employee.department_id:
                 qs = qs.filter(
-                    shift__department=request.user.employee.department
-                )
+                    entries__employee__department_id=employee.department_id
+                ).distinct()
             else:
                 qs = qs.none()
 
