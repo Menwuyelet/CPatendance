@@ -227,7 +227,7 @@ const HRDashboard = ({ onNotify }) => {
       
       // Check active sessions - get all active sessions
       try {
-        const sessions = await api.listAttendanceSessions({ active: 'true' });
+        const sessions = await api.listAttendanceSessions({ active: true });
         const activeSessions = Array.isArray(sessions) ? sessions.filter(s => s.is_active) : [];
         
         if (activeSessions.length > 0) {
