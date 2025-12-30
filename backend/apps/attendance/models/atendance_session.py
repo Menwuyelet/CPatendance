@@ -18,7 +18,7 @@ class AttendanceSession(models.Model):
     ended_at = models.DateTimeField(null=True, blank=True)
 
     is_active = models.BooleanField(default=True)
-
+    is_processed = models.BooleanField(default=False)
     def close(self):
         self.is_active = False
         self.ended_at = timezone.now()

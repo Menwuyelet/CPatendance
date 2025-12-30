@@ -4,12 +4,36 @@ from attendance.services.attendance_service import mark_attendance
 
 
 def process_attendance_session(session: AttendanceSession, user):
-    if session.is_active:
-        raise RuntimeError("Session still active")
+    """
+    Convert session entries into AttendanceRecord.
+    Idempotent & safe.
+    """
 
-    for entry in session.entries.select_related("employee"):
+    if session.is_active:
+        return
+
+    if getattr(session, "is_processed", False):
+        return
+
+    employees = (
+        session.entries
+        .values_list("employee_id", flat=True)
+        .distinct()
+    )
+
+    for employee_id in employees:
+        entry = (
+            session.entries
+            .filter(employee_id=employee_id)
+            .earliest("recognized_at")
+        )
+
         mark_attendance(
             employee=entry.employee,
             user=user,
-            check_in_time=entry.recognized_at
+            check_in_time=entry.recognized_at,
+            session=session
         )
+        
+    session.is_processed = True
+    session.save(update_fields=["is_processed"])

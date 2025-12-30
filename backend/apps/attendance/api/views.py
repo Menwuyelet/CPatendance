@@ -27,7 +27,7 @@ class AttendanceSessionCreateViewSet(ViewSet):
     HR / Manager starts attendance session
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsHRorManager | IsAdmin]  # set is later isHrorManager only
 
     def create(self, request):
         shift = get_object_or_404(Shift, id=request.data.get("shift_id"))
@@ -73,12 +73,8 @@ class AttendanceSessionCreateViewSet(ViewSet):
     #     )
 
     def destroy(self, request, pk=None):
-        """
-        CLOSE SESSION + PROCESS ATTENDANCE
-        """
         session = get_object_or_404(AttendanceSession, id=pk)
 
-        # Optional but strongly recommended
         if not session.is_active:
             return Response(
                 {"detail": "Session already closed"},
@@ -87,16 +83,14 @@ class AttendanceSessionCreateViewSet(ViewSet):
 
         service = AttendanceSessionService(session)
 
-        # Close session (mark inactive, collect entries)
-        raw_data = service.close()
+        raw_entries = service.close()
 
-        # Final attendance processing (present / absent / late)
         process_attendance_session(session, request.user)
 
         return Response(
             {
                 "session_id": session.id,
-                "entries": raw_data,
+                "entries_count": len(raw_entries),
                 "status": "closed"
             },
             status=status.HTTP_200_OK
@@ -216,27 +210,31 @@ class AttendanceSessionViewSet(ViewSet):
 
 class AttendanceTakingViewSet(ViewSet):
     """
-    This takes attendance by calling the method in the service layer and if ther is not active session it returns error per api call
-    Camera-based worker check-in
+    One button click → one worker check-in
     """
-    serializer_class = None
 
     def create(self, request):
         session = (
-        AttendanceSession.objects
-        .filter(is_active=True)
-        .order_by("-started_at")
-        .first()
+            AttendanceSession.objects
+            .filter(is_active=True)
+            .order_by("-started_at")
+            .first()
         )
+
         if not session:
             return Response(
-                {"detail": "There is no active attendance session."},
-                status=status.HTTP_400_BAD_REQUEST
+                {"detail": "No active attendance session"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-        service = AttendanceSessionService(session)
-        result = service.check_in_next_worker()
 
-        return Response(result, status=status.HTTP_200_OK)
+        service = AttendanceSessionService(session)
+        service.check_in_next_worker()
+
+        return Response(
+            {"detail": "Attendance attempt completed"},
+            status=status.HTTP_200_OK,
+        )
+
     
 class AttendanceRecordViewSet(ViewSet):
     """
