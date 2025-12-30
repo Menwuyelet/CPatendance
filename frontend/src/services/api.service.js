@@ -350,7 +350,10 @@ export const api = {
 
   listAttendanceSessions: async (filters = {}) => {
     const params = new URLSearchParams();
-    if (filters.active !== undefined) params.append('active', filters.active);
+    if (filters.active !== undefined) {
+      // Convert boolean to string for URL params
+      params.append('active', String(filters.active));
+    }
     if (filters.shift_id) params.append('shift_id', filters.shift_id);
     const query = params.toString();
     return await api.get(`/attendance/attendance-manage-sessions${query ? `?${query}` : ''}`);

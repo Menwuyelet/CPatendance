@@ -157,7 +157,7 @@ const ManagerDashboardHome = ({ onNotify }) => {
       
       // Check active sessions
       try {
-        const sessions = await api.listAttendanceSessions({ active: 'true' });
+        const sessions = await api.listAttendanceSessions({ active: true });
         const activeSessions = Array.isArray(sessions) ? sessions.filter(s => s.is_active) : [];
         
         if (activeSessions.length > 0 && user?.employee?.id) {
@@ -269,7 +269,14 @@ const ManagerDashboardHome = ({ onNotify }) => {
       }
       
       const attendanceRes = await api.get('/attendance/attendance/').catch(() => ({ data: [] }));
-      const attendance = Array.isArray(attendanceRes) ? attendanceRes : attendanceRes.data || [];
+      const allAttendance = Array.isArray(attendanceRes) ? attendanceRes : attendanceRes.data || [];
+      
+      // Filter attendance by department employees only
+      const employeeIds = employees.map(emp => emp.id);
+      const attendance = allAttendance.filter(a => {
+        const empId = a.employee?.id || a.employee;
+        return employeeIds.includes(empId);
+      });
 
       const teamCount = employees.length;
 
