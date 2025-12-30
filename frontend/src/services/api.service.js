@@ -337,5 +337,52 @@ export const api = {
 
   deleteProfile: async (id) => {
     return await api.delete(`/biometrics/profiles/${id}/`);
-  }
+  },
+
+  // --- Attendance Sessions Methods ---
+  createAttendanceSession: async (shiftId) => {
+    return await api.post('/attendance/attendance-sessions/', { shift_id: shiftId });
+  },
+
+  closeAttendanceSession: async (sessionId) => {
+    return await api.delete(`/attendance/attendance-sessions/${sessionId}/`);
+  },
+
+  listAttendanceSessions: async (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.active !== undefined) params.append('active', filters.active);
+    if (filters.shift_id) params.append('shift_id', filters.shift_id);
+    const query = params.toString();
+    return await api.get(`/attendance/attendance-manage-sessions${query ? `?${query}` : ''}`);
+  },
+
+  getAttendanceSession: async (sessionId) => {
+    return await api.get(`/attendance/attendance-manage-sessions/${sessionId}/`);
+  },
+
+  updateAttendanceSession: async (sessionId, data) => {
+    return await api.put(`/attendance/attendance-manage-sessions/${sessionId}/`, data);
+  },
+
+  // --- Employee Shifts Methods ---
+  listEmployeeShifts: async (employeeId = null) => {
+    const query = employeeId ? `?employee=${employeeId}` : '';
+    return await api.get(`/attendance/employee-shifts${query}`);
+  },
+
+  assignEmployeeShift: async (employeeId, shiftId) => {
+    return await api.post('/attendance/employee-shifts/', {
+      employee: employeeId,
+      shift: shiftId,
+    });
+  },
+
+  removeEmployeeShift: async (assignmentId) => {
+    return await api.delete(`/attendance/employee-shifts/${assignmentId}/`);
+  },
+
+  // --- Attendance Check-in Method ---
+  checkInAttendance: async () => {
+    return await api.post('/attendance/attendance-check-in/', {});
+  },
 };
