@@ -1,4 +1,4 @@
-// src/App.jsx (UNCHANGED — only added NotificationProvider)
+// src/App.jsx
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import Login from './pages/Login.jsx';
@@ -39,53 +39,6 @@ function App() {
     setTimeout(() => setToast({ message: '', type: 'success' }), 3000);
   };
 
-  // Role detection based on `roles` coming from backend (accounts.Role)
-  const getRoleFromUserData = (userData) => {
-    console.log('User data from backend:', JSON.stringify(userData, null, 2));
-    console.log('Raw roles:', userData.roles, 'User roles:', userData.user?.roles);
-    const rawRoles = userData.roles || userData.user?.roles || [];
-    const roleNames = rawRoles
-      .map((r) => {
-        if (typeof r === 'string') {
-          return r;
-        } else if (r && typeof r === 'object' && r.name) {
-          return r.name;
-        }
-        return null;
-      })
-      .filter(Boolean)
-      .map((r) => r.toUpperCase());
-   
-    console.log('Processed role names:', roleNames);
-    if (roleNames.length > 0) {
-      if (roleNames.includes('ADMIN')) {
-        console.log(' Role detected from backend: Admin');
-        return 'Admin';
-      }
-      if (roleNames.includes('HR')) {
-        console.log(' Role detected from backend: HR');
-        return 'HR';
-      }
-      if (roleNames.includes('MANAGER')) {
-        console.log(' Role detected from backend: Manager');
-        return 'Manager';
-      }
-      if (roleNames.includes('EMPLOYEE')) {
-        console.log(' Role detected from backend: Employee');
-        return 'Employee';
-      }
-    }
-    if (userData.role) {
-      const role = String(userData.role).trim();
-      if (['Admin', 'HR', 'Manager', 'Employee'].includes(role)) {
-        console.log(' Role detected from single role field:', role);
-        return role;
-      }
-    }
-    console.log(' Default role: Employee');
-    return 'Employee';
-  };
-
   // Check auth on load/refresh
   useEffect(() => {
     const checkAuth = async () => {
@@ -94,13 +47,9 @@ function App() {
         return;
       }
       try {
-        const userData = await api.get('/accounts/users/me/');
-        const role = getRoleFromUserData(userData);
-        const name = userData.full_name ||
-                     userData.name ||
-                     (userData.first_name && userData.last_name
-                       ? `${userData.first_name} ${userData.last_name}`
-                       : userData.email?.split('@')[0] || 'User');
+        const userData = await api.getCurrentUser();
+        const role = api.getUserRole(userData);
+        const name = api.getUserDisplayName(userData);
         setUser({ role, name });
         if (role === 'Manager') {
           navigate('/manager/dashboard', { replace: true });
@@ -120,13 +69,9 @@ function App() {
   // After login
   const handleLogin = async () => {
     try {
-      const userData = await api.get('/accounts/users/me/');
-      const role = getRoleFromUserData(userData);
-      const name = userData.full_name ||
-                   userData.name ||
-                   (userData.first_name && userData.last_name
-                     ? `${userData.first_name} ${userData.last_name}`
-                     : userData.email?.split('@')[0] || 'User');
+      const userData = await api.getCurrentUser();
+      const role = api.getUserRole(userData);
+      const name = api.getUserDisplayName(userData);
       setUser({ role, name });
       if (role === 'Manager') {
         navigate('/manager/dashboard', { replace: true });
@@ -213,6 +158,10 @@ function App() {
                   <Route path="/manager/*" element={<ManagerDashboard onNotify={notify} />} />
                   <Route path="/attendance" element={<Attendance role="Manager" onNotify={notify} />} />
                   <Route path="/attendance/shifts" element={<Attendance role="Manager" onNotify={notify} initialSection="shifts" />} />
+                  {/* ADDED: Biometrics for Manager */}
+                  <Route path="/biometrics" element={<Biometrics onNotify={notify} role={user.role} />} />
+                  {/* ADDED: Settings for Manager (was missing before, but consistent with others) */}
+                  <Route path="/settings" element={<Settings onNotify={notify} />} />
                 </>
               )}
               {/* EMPLOYEE */}
@@ -221,6 +170,8 @@ function App() {
                   <Route path="/dashboard" element={<EmployeeDashboard onNotify={notify} />} />
                   <Route path="/attendance" element={<Attendance role="Employee" onNotify={notify} />} />
                   <Route path="/settings" element={<Settings onNotify={notify} />} />
+                  {/* ADDED: Biometrics for Employee */}
+                  <Route path="/biometrics" element={<Biometrics onNotify={notify} role={user.role} />} />
                 </>
               )}
               <Route path="*" element={<Navigate to="/dashboard" replace />} />

@@ -74,7 +74,11 @@ async function refreshAccessToken() {
 }
 
 async function request(path, options = {}) {
-  const url = path.startsWith('http') ? path : `${API_BASE_URL}${path}`;
+  if (/^https?:\/\//i.test(path)) {
+    throw new Error('Invalid API path');
+  }
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const url = `${API_BASE_URL}${normalizedPath}`;
 
   const config = {
     credentials: 'include',
@@ -171,7 +175,11 @@ export const api = {
 
   // For multipart/form-data (e.g. file uploads)
   postForm: async (path, formData, options = {}) => {
-    const url = path.startsWith('http') ? path : `${API_BASE_URL}${path}`;
+    if (/^https?:\/\//i.test(path)) {
+      throw new Error('Invalid API path');
+    }
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    const url = `${API_BASE_URL}${normalizedPath}`;
 
     const config = {
       method: 'POST',
@@ -232,6 +240,7 @@ export const api = {
     }
   },
 
+  // --- Auth Methods ---
   login: async (email, password) => {
     const data = await request('/auth/login/', {
       method: 'POST',
@@ -253,4 +262,80 @@ export const api = {
 
   // Optional: expose current tokens (for debugging or custom use)
   getTokens: () => ({ accessToken, refreshToken }),
+
+  getCurrentUser: async () => {
+    return await request('/accounts/users/me/', { method: 'GET' });
+  },
+
+  /**
+   * Determine user role from user data
+   * @param {Object} userData 
+   * @returns {string} Role name (Admin, HR, Manager, Employee)
+   */
+  getUserRole: (userData) => {
+    console.log('User data from backend:', JSON.stringify(userData, null, 2));
+    const rawRoles = userData.roles || userData.user?.roles || [];
+    
+    const roleNames = rawRoles
+      .map((r) => {
+        if (typeof r === 'string') return r;
+        if (r && typeof r === 'object' && r.name) return r.name;
+        return null;
+      })
+      .filter(Boolean)
+      .map((r) => r.toUpperCase());
+   
+    console.log('Processed role names:', roleNames);
+    
+    if (roleNames.length > 0) {
+      if (roleNames.includes('ADMIN')) return 'Admin';
+      if (roleNames.includes('HR')) return 'HR';
+      if (roleNames.includes('MANAGER')) return 'Manager';
+      if (roleNames.includes('EMPLOYEE')) return 'Employee';
+    }
+    
+    if (userData.role) {
+      const role = String(userData.role).trim();
+      if (['Admin', 'HR', 'Manager', 'Employee'].includes(role)) {
+        return role;
+      }
+    }
+    
+    return 'Employee'; // Default
+  },
+
+  /**
+   * Get display name from user data
+   * @param {Object} userData 
+   * @returns {string}
+   */
+  getUserDisplayName: (userData) => {
+    return userData.full_name ||
+           userData.name ||
+           (userData.first_name && userData.last_name
+             ? `${userData.first_name} ${userData.last_name}`
+             : userData.email?.split('@')[0] || 'User');
+  },
+
+  // --- Biometrics Methods ---
+  getAllProfiles: async () => {
+    return await api.get('/biometrics/profiles/');
+  },
+
+  enrollFace: async (data) => {
+    if (data instanceof FormData) {
+      return await api.postForm('/biometrics/face/enroll/', data);
+    }
+    return await api.post('/biometrics/face/enroll/', data);
+  },
+
+  updateProfileStatus: async (id, isActive) => {
+    return await api.patch(`/biometrics/profiles/${id}/`, {
+      is_active: isActive,
+    });
+  },
+
+  deleteProfile: async (id) => {
+    return await api.delete(`/biometrics/profiles/${id}/`);
+  }
 };
