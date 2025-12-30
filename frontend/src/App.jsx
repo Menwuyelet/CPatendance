@@ -8,7 +8,9 @@ import HRDashboard from './pages/HRPanel.jsx';
 import ManagerDashboard from './pages/ManagerDashboard.jsx';
 import EmployeeDashboard from './pages/EmployeeDashboard.jsx';
 import UserManagement from './pages/UserManagement.jsx';
-import Attendance from './pages/Attendance.jsx';
+import AttendanceOverview from './pages/AttendanceOverview.jsx';
+import Shifts from './pages/Shifts.jsx';
+import AttendanceSessions from './pages/AttendanceSessions.jsx';
 import Departments from './pages/Departments.jsx';
 import Settings from './pages/Settings.jsx';
 import Sidebar from './components/Sidebar.jsx';
@@ -135,8 +137,9 @@ function App() {
                   <Route path="/config" element={<Config onNotify={notify} />} />
                   <Route path="/users" element={<UserManagement scope="admin" onNotify={notify} />} />
                   <Route path="/companies" element={<Departments onNotify={notify} />} />
-                  <Route path="/attendance" element={<Attendance role="Admin" onNotify={notify} />} />
-                  <Route path="/attendance/shifts" element={<Attendance role="Admin" onNotify={notify} initialSection="shifts" />} />
+                  <Route path="/attendance" element={<AttendanceOverview role="Admin" onNotify={notify} />} />
+                  <Route path="/attendance/shifts" element={<Shifts role="Admin" onNotify={notify} />} />
+                  <Route path="/attendance/sessions" element={<AttendanceSessions role="Admin" onNotify={notify} />} />
                   <Route path="/settings" element={<Settings onNotify={notify} />} />
                 </>
               )}
@@ -146,8 +149,9 @@ function App() {
                   <Route path="/dashboard" element={<HRDashboard onNotify={notify} />} />
                   <Route path="/employees" element={<UserManagement scope="hr" onNotify={notify} />} />
                   <Route path="/companies" element={<Departments onNotify={notify} />} />
-                  <Route path="/attendance" element={<Attendance role="HR" onNotify={notify} />} />
-                  <Route path="/attendance/shifts" element={<Attendance role="HR" onNotify={notify} initialSection="shifts" />} />
+                  <Route path="/attendance" element={<AttendanceOverview role="HR" onNotify={notify} />} />
+                  <Route path="/attendance/shifts" element={<Shifts role="HR" onNotify={notify} />} />
+                  <Route path="/attendance/sessions" element={<AttendanceSessions role="HR" onNotify={notify} />} />
                   <Route path="/biometrics" element={<Biometrics onNotify={notify} role={user.role} />} />
                   <Route path="/settings" element={<Settings onNotify={notify} />} />
                 </>
@@ -156,8 +160,9 @@ function App() {
               {user.role === 'Manager' && (
                 <>
                   <Route path="/manager/*" element={<ManagerDashboard onNotify={notify} />} />
-                  <Route path="/attendance" element={<Attendance role="Manager" onNotify={notify} />} />
-                  <Route path="/attendance/shifts" element={<Attendance role="Manager" onNotify={notify} initialSection="shifts" />} />
+                  <Route path="/attendance" element={<AttendanceOverview role="Manager" onNotify={notify} />} />
+                  <Route path="/attendance/shifts" element={<Shifts role="Manager" onNotify={notify} />} />
+                  <Route path="/attendance/sessions" element={<AttendanceSessions role="Manager" onNotify={notify} />} />
                   {/* ADDED: Biometrics for Manager */}
                   <Route path="/biometrics" element={<Biometrics onNotify={notify} role={user.role} />} />
                   {/* ADDED: Settings for Manager (was missing before, but consistent with others) */}
@@ -168,7 +173,7 @@ function App() {
               {user.role === 'Employee' && (
                 <>
                   <Route path="/dashboard" element={<EmployeeDashboard onNotify={notify} />} />
-                  <Route path="/attendance" element={<Attendance role="Employee" onNotify={notify} />} />
+                  <Route path="/attendance" element={<AttendanceOverview role="Employee" onNotify={notify} />} />
                   <Route path="/settings" element={<Settings onNotify={notify} />} />
                   {/* ADDED: Biometrics for Employee */}
                   <Route path="/biometrics" element={<Biometrics onNotify={notify} role={user.role} />} />

@@ -7,7 +7,6 @@ import { format } from 'date-fns';
 
 const EmployeeDashboard = ({ onNotify }) => {
   const [loading, setLoading] = useState(true);
-  const [clockedIn, setClockedIn] = useState(false);
   const [attendanceToday, setAttendanceToday] = useState(null);
   const [userData, setUserData] = useState(null);
   const [error, setError] = useState('');
@@ -34,10 +33,6 @@ const EmployeeDashboard = ({ onNotify }) => {
       
       if (todayAttendance) {
         setAttendanceToday(todayAttendance);
-        // Check if clocked in (has check_in_time but no check_out_time)
-        setClockedIn(!!todayAttendance.check_in_time && !todayAttendance.check_out_time);
-      } else {
-        setClockedIn(false);
       }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
@@ -48,51 +43,6 @@ const EmployeeDashboard = ({ onNotify }) => {
     }
   };
 
-  const handleClockToggle = async () => {
-    try {
-      setError('');
-      setSuccess('');
-
-      if (clockedIn) {
-        // Clock Out - Update the attendance record using its ID
-        if (!attendanceToday?.id) {
-          // Get today's attendance record first
-          const today = new Date().toISOString().slice(0, 10);
-          const attendance = await api.get(`/attendance/attendance/?date=${today}`);
-          const todayRecord = Array.isArray(attendance) ? attendance.find(a => a.date === today) : null;
-          
-          if (!todayRecord?.id) {
-            throw new Error('No attendance record found to check out');
-          }
-          
-          await api.put(`/attendance/attendance/${todayRecord.id}/`, {});
-        } else {
-          await api.put(`/attendance/attendance/${attendanceToday.id}/`, {});
-        }
-        setClockedIn(false);
-        setSuccess('Clocked out successfully!');
-        onNotify?.('Clocked out successfully!', 'success');
-      } else {
-        // Clock In - Create new attendance record
-        const newAttendance = await api.post('/attendance/attendance/', {});
-        setAttendanceToday(newAttendance);
-        setClockedIn(true);
-        setSuccess('Clocked in successfully!');
-        onNotify?.('Clocked in successfully!', 'success');
-      }
-      
-      // Reload data to get updated times
-      await loadDashboardData();
-      
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (error) {
-      console.error('Clock action failed:', error);
-      const message = error.message || 'Failed to clock in/out. Please try again.';
-      setError(message);
-      onNotify?.(message, 'error');
-      setTimeout(() => setError(''), 5000);
-    }
-  };
 
   if (loading) {
     return (
@@ -123,14 +73,14 @@ const EmployeeDashboard = ({ onNotify }) => {
       )}
 
       <Grid container spacing={2}>
-        {/* Clock In/Out Card */}
+        {/* Today's Attendance Info Card */}
         <Grid item xs={12} md={4}>
           <Card sx={{ height: '100%', borderRadius: 2 }}>
             <CardContent>
               <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
                 <AccessTime color="primary" />
                 <Typography variant="h6" fontWeight="bold">
-                  Attendance
+                  Today's Attendance
                 </Typography>
               </Stack>
 
@@ -139,34 +89,31 @@ const EmployeeDashboard = ({ onNotify }) => {
               </Typography>
 
               <Box sx={{ mb: 2 }}>
-                <Chip
-                  icon={clockedIn ? <CheckCircle /> : <EventNote />}
-                  label={clockedIn ? 'Clocked In' : 'Not Clocked In'}
-                  color={clockedIn ? 'success' : 'default'}
-                  sx={{ mb: 1 }}
-                />
-                {attendanceToday?.check_in_time && (
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    In: {new Date(attendanceToday.check_in_time).toLocaleTimeString()}
-                  </Typography>
-                )}
-                {attendanceToday?.check_out_time && (
-                  <Typography variant="body2">
-                    Out: {new Date(attendanceToday.check_out_time).toLocaleTimeString()}
+                {attendanceToday ? (
+                  <>
+                    <Chip
+                      icon={<CheckCircle />}
+                      label={attendanceToday.check_in_time && !attendanceToday.check_out_time ? 'Clocked In' : 'Completed'}
+                      color={attendanceToday.check_in_time && !attendanceToday.check_out_time ? 'success' : 'default'}
+                      sx={{ mb: 1 }}
+                    />
+                    {attendanceToday.check_in_time && (
+                      <Typography variant="body2" sx={{ mt: 1 }}>
+                        In: {new Date(attendanceToday.check_in_time).toLocaleTimeString()}
+                      </Typography>
+                    )}
+                    {attendanceToday.check_out_time && (
+                      <Typography variant="body2">
+                        Out: {new Date(attendanceToday.check_out_time).toLocaleTimeString()}
+                      </Typography>
+                    )}
+                  </>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    No attendance record for today
                   </Typography>
                 )}
               </Box>
-
-              <Button
-                variant="contained"
-                color={clockedIn ? 'error' : 'success'}
-                fullWidth
-                onClick={handleClockToggle}
-                size="large"
-                sx={{ mb: 2 }}
-              >
-                {clockedIn ? 'Clock Out' : 'Clock In'}
-              </Button>
 
               <Stack direction="row" spacing={1}>
                 <Button

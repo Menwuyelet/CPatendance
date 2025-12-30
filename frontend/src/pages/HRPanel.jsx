@@ -70,6 +70,12 @@ const HRDashboard = ({ onNotify }) => {
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  
+  // Clock-in state
+  const [isClockedIn, setIsClockedIn] = useState(false);
+  const [lastActionTime, setLastActionTime] = useState(null);
+  const [activeSession, setActiveSession] = useState(null);
+  const [userEmployeeId, setUserEmployeeId] = useState(null);
 
   useEffect(() => {
     const fetchHRData = async () => {
@@ -198,7 +204,100 @@ const HRDashboard = ({ onNotify }) => {
     };
 
     fetchHRData();
+    
+    // Load clock-in state and active session
+    loadClockInState();
   }, []);
+  
+  const loadClockInState = async () => {
+    try {
+      // Get current user and employee ID
+      const user = await api.getCurrentUser();
+      if (user?.employee?.id) {
+        setUserEmployeeId(user.employee.id);
+      }
+      
+      // Check active sessions
+      const sessions = await api.listAttendanceSessions({ active: 'true' });
+      const activeSessions = Array.isArray(sessions) ? sessions.filter(s => s.is_active) : [];
+      
+      if (activeSessions.length > 0) {
+        // Check if user's employee has a shift assigned to any active session's shift
+        const userShifts = await api.listEmployeeShifts(user?.employee?.id);
+        const userShiftsList = Array.isArray(userShifts) ? userShifts : [];
+        const userShiftIds = userShiftsList.map(us => us.shift?.id);
+        
+        const belongsToSession = activeSessions.some(session => 
+          userShiftIds.includes(session.shift?.id)
+        );
+        
+        if (belongsToSession) {
+          setActiveSession(activeSessions[0]);
+        }
+      }
+      
+      // Check if already clocked in today
+      const today = new Date().toISOString().slice(0, 10);
+      const attendance = await api.get(`/attendance/attendance/?date=${today}`);
+      const todayRecords = Array.isArray(attendance) ? attendance : [];
+      const userRecord = todayRecords.find(r => r.employee?.id === user?.employee?.id);
+      if (userRecord && userRecord.check_in_time && !userRecord.check_out_time) {
+        setIsClockedIn(true);
+        if (userRecord.check_in_time) {
+          setLastActionTime(new Date(userRecord.check_in_time).toLocaleTimeString());
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load clock-in state:', err);
+    }
+  };
+  
+  const handleClockToggle = async () => {
+    const action = isClockedIn ? 'out' : 'in';
+    const now = new Date().toLocaleTimeString();
+    
+    try {
+      if (!isClockedIn) {
+        // Check if there's an active session and user belongs to it
+        if (!activeSession) {
+          onNotify?.('No active attendance session available or you are not assigned to any active session.', 'error');
+          return;
+        }
+        
+        // Use attendance-check-in endpoint
+        await api.checkInAttendance();
+        setIsClockedIn(true);
+        setLastActionTime(now);
+        onNotify?.(`Successfully clocked ${action}.`, 'success');
+      } else {
+        // Clock out - update the attendance record
+        const today = new Date().toISOString().slice(0, 10);
+        const records = await api.get(`/attendance/attendance/?date=${today}`);
+        const todayRecords = Array.isArray(records) ? records : [];
+        const user = await api.getCurrentUser();
+        const activeRecord = todayRecords.find(
+          (r) => r.employee?.id === user?.employee?.id && r.check_in_time && !r.check_out_time
+        );
+
+        if (activeRecord && activeRecord.id) {
+          await api.put(`/attendance/attendance/${activeRecord.id}/`, {
+            check_out_time: new Date().toISOString(),
+          });
+          setIsClockedIn(false);
+          setLastActionTime(now);
+          onNotify?.(`Successfully clocked ${action}.`, 'success');
+        } else {
+          throw new Error('No active attendance record found');
+        }
+      }
+      
+      // Reload state
+      await loadClockInState();
+    } catch (err) {
+      console.error('Clock action failed:', err);
+      onNotify?.(`Failed to clock ${action}. ${err.message || 'Please try again.'}`, 'error');
+    }
+  };
 
   const features = [
     {
@@ -260,6 +359,40 @@ const HRDashboard = ({ onNotify }) => {
           {error}
         </Alert>
       )}
+
+      {/* Clock In/Out Card for HR */}
+      <Card sx={{ mb: 3, bgcolor: 'primary.light', color: 'primary.contrastText' }}>
+        <CardContent>
+          <Stack direction="row" spacing={3} alignItems="center">
+            <Box>
+              <Typography variant="h6" gutterBottom>
+                Daily Clock-In
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                {activeSession 
+                  ? `Active session: ${activeSession.shift?.name || 'Unknown'}`
+                  : 'No active session available'}
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              size="large"
+              color={isClockedIn ? 'error' : 'success'}
+              onClick={handleClockToggle}
+              disabled={!activeSession && !isClockedIn}
+              sx={{ ml: 'auto', px: 4 }}
+            >
+              {isClockedIn ? 'Clock Out' : 'Clock In'}
+            </Button>
+            <Box>
+              <Typography variant="body2">
+                Status: <strong>{isClockedIn ? 'Clocked In' : 'Clocked Out'}</strong>
+              </Typography>
+              {lastActionTime && <Typography variant="caption">Last: {lastActionTime}</Typography>}
+            </Box>
+          </Stack>
+        </CardContent>
+      </Card>
 
       {/* Key Statistics Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
