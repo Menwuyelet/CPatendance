@@ -131,21 +131,12 @@ const ManagerDashboardHome = ({ onNotify }) => {
   const navigate = useNavigate();
   
   // Clock-in state
-  const [isClockedIn, setIsClockedIn] = useState(false);
   const [lastActionTime, setLastActionTime] = useState(null);
   const [activeSession, setActiveSession] = useState(null);
 
   useEffect(() => {
     fetchStats();
     loadClockInState();
-  }, []);
-  
-  // Reload clock-in state periodically
-  useEffect(() => {
-    const interval = setInterval(() => {
-      loadClockInState();
-    }, 30000);
-    return () => clearInterval(interval);
   }, []);
   
   const loadClockInState = async () => {
@@ -182,20 +173,15 @@ const ManagerDashboardHome = ({ onNotify }) => {
         setActiveSession(null);
       }
       
-      // Check if already clocked in today
+      // Get last check-in time if any
       if (user?.employee?.id) {
         const today = new Date().toISOString().slice(0, 10);
         try {
           const attendance = await api.get(`/attendance/attendance/?date=${today}`);
           const todayRecords = Array.isArray(attendance) ? attendance : [];
           const userRecord = todayRecords.find(r => r.employee?.id === user.employee.id);
-          if (userRecord && userRecord.check_in_time && !userRecord.check_out_time) {
-            setIsClockedIn(true);
-            if (userRecord.check_in_time) {
-              setLastActionTime(new Date(userRecord.check_in_time).toLocaleTimeString());
-            }
-          } else {
-            setIsClockedIn(false);
+          if (userRecord && userRecord.check_in_time) {
+            setLastActionTime(new Date(userRecord.check_in_time).toLocaleTimeString());
           }
         } catch (attendanceErr) {
           console.error('Failed to load attendance:', attendanceErr);
@@ -206,46 +192,20 @@ const ManagerDashboardHome = ({ onNotify }) => {
     }
   };
   
-  const handleClockToggle = async () => {
-    const action = isClockedIn ? 'out' : 'in';
-    const now = new Date().toLocaleTimeString();
+  const handleClockIn = async () => {
+    if (!activeSession) {
+      onNotify?.('No active attendance session available or you are not assigned to any active session.', 'error');
+      return;
+    }
     
     try {
-      if (!isClockedIn) {
-        if (!activeSession) {
-          onNotify?.('No active attendance session available or you are not assigned to any active session.', 'error');
-          return;
-        }
-        
-        await api.checkInAttendance();
-        setIsClockedIn(true);
-        setLastActionTime(now);
-        onNotify?.(`Successfully clocked ${action}.`, 'success');
-      } else {
-        const today = new Date().toISOString().slice(0, 10);
-        const records = await api.get(`/attendance/attendance/?date=${today}`);
-        const todayRecords = Array.isArray(records) ? records : [];
-        const user = await api.getCurrentUser();
-        const activeRecord = todayRecords.find(
-          (r) => r.employee?.id === user?.employee?.id && r.check_in_time && !r.check_out_time
-        );
-
-        if (activeRecord && activeRecord.id) {
-          await api.put(`/attendance/attendance/${activeRecord.id}/`, {
-            check_out_time: new Date().toISOString(),
-          });
-          setIsClockedIn(false);
-          setLastActionTime(now);
-          onNotify?.(`Successfully clocked ${action}.`, 'success');
-        } else {
-          throw new Error('No active attendance record found');
-        }
-      }
-      
-      await loadClockInState();
+      await api.checkInAttendance();
+      const now = new Date().toLocaleTimeString();
+      setLastActionTime(now);
+      onNotify?.('Successfully clocked in.', 'success');
     } catch (err) {
-      console.error('Clock action failed:', err);
-      onNotify?.(`Failed to clock ${action}. ${err.message || 'Please try again.'}`, 'error');
+      console.error('Clock in failed:', err);
+      onNotify?.(`Failed to clock in. ${err.message || 'Please try again.'}`, 'error');
     }
   };
 
@@ -342,20 +302,20 @@ const ManagerDashboardHome = ({ onNotify }) => {
             <Button
               variant="contained"
               size="large"
-              color={isClockedIn ? 'error' : 'success'}
-              onClick={handleClockToggle}
-              disabled={!activeSession && !isClockedIn}
+              color="success"
+              onClick={handleClockIn}
+              disabled={!activeSession}
               sx={{ px: 4, minWidth: 150 }}
             >
-              {isClockedIn ? 'Clock Out' : 'Clock In'}
+              Clock In
             </Button>
             <Box sx={{ textAlign: { xs: 'left', md: 'right' } }}>
               <Typography variant="body2" fontWeight="medium">
-                Status: <strong>{isClockedIn ? 'Clocked In' : 'Clocked Out'}</strong>
+                {activeSession ? 'Session Active' : 'No Active Session'}
               </Typography>
               {lastActionTime && (
                 <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>
-                  Last: {lastActionTime}
+                  Last check-in: {lastActionTime}
                 </Typography>
               )}
             </Box>
