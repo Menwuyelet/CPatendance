@@ -216,7 +216,7 @@ const Biometrics = ({ onNotify, role }) => {
       // Auto clock-in after successful enrollment
       if (enrollmentSuccess) {
         try {
-          await api.post('/attendance/attendance-check-in/', {}); // ← CORRECT ENDPOINT
+          await api.checkInAttendance();
           onNotify?.('Clocked in successfully! ✅', 'success');
         } catch (attendanceErr) {
           console.error('Auto clock-in failed:', attendanceErr);
