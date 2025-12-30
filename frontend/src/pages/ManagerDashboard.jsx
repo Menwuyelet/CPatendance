@@ -36,6 +36,7 @@ import {
   FormControl,
   InputLabel,
 } from '@mui/material';
+import { api } from '../services/api.service.js';
 import {
   People,
   EventNote,
@@ -127,21 +128,148 @@ const ManagerDashboardHome = ({ onNotify }) => {
     attendanceRate: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [department, setDepartment] = useState(null);
   const navigate = useNavigate();
+  
+  // Clock-in state
+  const [isClockedIn, setIsClockedIn] = useState(false);
+  const [lastActionTime, setLastActionTime] = useState(null);
+  const [activeSession, setActiveSession] = useState(null);
 
   useEffect(() => {
     fetchStats();
+    loadClockInState();
   }, []);
+  
+  // Reload clock-in state periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadClockInState();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+  
+  const loadClockInState = async () => {
+    try {
+      const user = await api.getCurrentUser();
+      if (user?.employee?.department) {
+        setDepartment(user.employee.department);
+      }
+      
+      // Check active sessions
+      try {
+        const sessions = await api.listAttendanceSessions({ active: 'true' });
+        const activeSessions = Array.isArray(sessions) ? sessions.filter(s => s.is_active) : [];
+        
+        if (activeSessions.length > 0 && user?.employee?.id) {
+          const userShifts = await api.listEmployeeShifts(user.employee.id);
+          const userShiftsList = Array.isArray(userShifts) ? userShifts : [];
+          const userShiftIds = userShiftsList.map(us => us.shift?.id);
+          
+          const belongsToSession = activeSessions.some(session => 
+            userShiftIds.includes(session.shift?.id)
+          );
+          
+          if (belongsToSession) {
+            setActiveSession(activeSessions[0]);
+          } else {
+            setActiveSession(activeSessions[0]); // Manager can see active sessions
+          }
+        } else {
+          setActiveSession(null);
+        }
+      } catch (sessionErr) {
+        console.error('Failed to load sessions:', sessionErr);
+        setActiveSession(null);
+      }
+      
+      // Check if already clocked in today
+      if (user?.employee?.id) {
+        const today = new Date().toISOString().slice(0, 10);
+        try {
+          const attendance = await api.get(`/attendance/attendance/?date=${today}`);
+          const todayRecords = Array.isArray(attendance) ? attendance : [];
+          const userRecord = todayRecords.find(r => r.employee?.id === user.employee.id);
+          if (userRecord && userRecord.check_in_time && !userRecord.check_out_time) {
+            setIsClockedIn(true);
+            if (userRecord.check_in_time) {
+              setLastActionTime(new Date(userRecord.check_in_time).toLocaleTimeString());
+            }
+          } else {
+            setIsClockedIn(false);
+          }
+        } catch (attendanceErr) {
+          console.error('Failed to load attendance:', attendanceErr);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load clock-in state:', err);
+    }
+  };
+  
+  const handleClockToggle = async () => {
+    const action = isClockedIn ? 'out' : 'in';
+    const now = new Date().toLocaleTimeString();
+    
+    try {
+      if (!isClockedIn) {
+        if (!activeSession) {
+          onNotify?.('No active attendance session available or you are not assigned to any active session.', 'error');
+          return;
+        }
+        
+        await api.checkInAttendance();
+        setIsClockedIn(true);
+        setLastActionTime(now);
+        onNotify?.(`Successfully clocked ${action}.`, 'success');
+      } else {
+        const today = new Date().toISOString().slice(0, 10);
+        const records = await api.get(`/attendance/attendance/?date=${today}`);
+        const todayRecords = Array.isArray(records) ? records : [];
+        const user = await api.getCurrentUser();
+        const activeRecord = todayRecords.find(
+          (r) => r.employee?.id === user?.employee?.id && r.check_in_time && !r.check_out_time
+        );
+
+        if (activeRecord && activeRecord.id) {
+          await api.put(`/attendance/attendance/${activeRecord.id}/`, {
+            check_out_time: new Date().toISOString(),
+          });
+          setIsClockedIn(false);
+          setLastActionTime(now);
+          onNotify?.(`Successfully clocked ${action}.`, 'success');
+        } else {
+          throw new Error('No active attendance record found');
+        }
+      }
+      
+      await loadClockInState();
+    } catch (err) {
+      console.error('Clock action failed:', err);
+      onNotify?.(`Failed to clock ${action}. ${err.message || 'Please try again.'}`, 'error');
+    }
+  };
 
   const fetchStats = async () => {
     try {
       setLoading(true);
-      const [employeesRes, attendanceRes] = await Promise.all([
-        api.get('/employees/employees/').catch(() => ({ data: [] })),
-        api.get('/attendance/attendance/').catch(() => ({ data: [] })),
-      ]);
-
-      const employees = Array.isArray(employeesRes) ? employeesRes : employeesRes.data || [];
+      // Get manager's department employees
+      const user = await api.getCurrentUser();
+      let employees = [];
+      
+      if (user?.employee?.department?.id) {
+        // Get employees from manager's department
+        const allEmployees = await api.get('/employees/employees/').catch(() => []);
+        const employeesList = Array.isArray(allEmployees) ? allEmployees : allEmployees?.data || [];
+        employees = employeesList.filter(emp => emp.department?.id === user.employee.department.id);
+        setDepartment(user.employee.department);
+      } else {
+        // Fallback to all employees if no department
+        const employeesRes = await api.get('/employees/employees/').catch(() => ({ data: [] }));
+        employees = Array.isArray(employeesRes) ? employeesRes : employeesRes.data || [];
+      }
+      
+      const attendanceRes = await api.get('/attendance/attendance/').catch(() => ({ data: [] }));
       const attendance = Array.isArray(attendanceRes) ? attendanceRes : attendanceRes.data || [];
 
       const teamCount = employees.length;
@@ -190,6 +318,45 @@ const ManagerDashboardHome = ({ onNotify }) => {
 
   return (
     <DashboardLayout title="Manager Dashboard">
+      {/* Clock In/Out Card for Manager */}
+      <Card sx={{ mb: 3, bgcolor: 'primary.main', color: 'primary.contrastText', boxShadow: 3 }}>
+        <CardContent>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems={{ xs: 'flex-start', md: 'center' }}>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="h6" gutterBottom fontWeight="bold">
+                Daily Clock-In
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                {activeSession 
+                  ? `Active session: ${activeSession.shift?.name || 'Unknown'}`
+                  : 'No active session available'}
+                {department && ` • Department: ${department.name || 'N/A'}`}
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              size="large"
+              color={isClockedIn ? 'error' : 'success'}
+              onClick={handleClockToggle}
+              disabled={!activeSession && !isClockedIn}
+              sx={{ px: 4, minWidth: 150 }}
+            >
+              {isClockedIn ? 'Clock Out' : 'Clock In'}
+            </Button>
+            <Box sx={{ textAlign: { xs: 'left', md: 'right' } }}>
+              <Typography variant="body2" fontWeight="medium">
+                Status: <strong>{isClockedIn ? 'Clocked In' : 'Clocked Out'}</strong>
+              </Typography>
+              {lastActionTime && (
+                <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>
+                  Last: {lastActionTime}
+                </Typography>
+              )}
+            </Box>
+          </Stack>
+        </CardContent>
+      </Card>
+
       <Grid container spacing={4} sx={{ mb: 6 }}>
         {[
           { label: 'Team Size', value: stats.teamCount, icon: <Group />, color: 'primary', desc: 'Total members' },
@@ -308,8 +475,20 @@ const TeamOverviewPage = () => {
   const fetchTeam = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/employees/employees/');
-      const employees = Array.isArray(res) ? res : res.data || [];
+      // Get manager's department employees
+      const user = await api.getCurrentUser();
+      let employees = [];
+      
+      if (user?.employee?.department?.id) {
+        // Get employees from manager's department
+        const allEmployees = await api.get('/employees/employees/').catch(() => []);
+        const employeesList = Array.isArray(allEmployees) ? allEmployees : allEmployees?.data || [];
+        employees = employeesList.filter(emp => emp.department?.id === user.employee.department.id);
+      } else {
+        // Fallback to all employees if no department
+        const res = await api.get('/employees/employees/').catch(() => ({ data: [] }));
+        employees = Array.isArray(res) ? res : res.data || [];
+      }
 
       const mapped = employees.map(emp => ({
         id: emp.id,
