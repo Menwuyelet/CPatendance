@@ -60,6 +60,7 @@ import {
 import { api } from '../services/api.service.js';
 
 const Biometrics = ({ onNotify, role }) => {
+  const isEmployee = role === 'Employee';
   const [tabValue, setTabValue] = useState(0);
   const [employeeId, setEmployeeId] = useState('');
   const [imageFile, setImageFile] = useState(null);
@@ -121,8 +122,11 @@ const Biometrics = ({ onNotify, role }) => {
   };
 
   useEffect(() => {
-    loadProfiles();
-  }, []);
+    // Only load profiles for Admin/HR (higher users)
+    if (!isEmployee) {
+      loadProfiles();
+    }
+  }, [isEmployee]);
 
   useEffect(() => {
     return () => {
@@ -188,17 +192,13 @@ const Biometrics = ({ onNotify, role }) => {
   };
 
   const handleEnrollClick = async () => {
-    if (!employeeId.trim()) {
-      onNotify?.('Employee ID not detected. Please refresh and try again.', 'warning');
-      return;
-    }
+    // Employee ID is taken from backend - no need to ask
     setSubmitting(true);
     try {
       let enrollmentSuccess = false;
 
       if (imageFile) {
         const form = new FormData();
-        form.append('employee_id', employeeId);
         form.append('biometric_type', 'FACE');
         form.append('image', imageFile, 'capture.jpg');
         await api.postForm('/biometrics/face/enroll/', form);
@@ -206,25 +206,16 @@ const Biometrics = ({ onNotify, role }) => {
         enrollmentSuccess = true;
       } else {
         await api.post('/biometrics/face/enroll/', {
-          employee_id: employeeId,
           biometric_type: 'FACE',
         });
         onNotify?.('Face enrollment started successfully!', 'success');
         enrollmentSuccess = true;
       }
 
-      // Auto clock-in after successful enrollment
-      if (enrollmentSuccess) {
-        try {
-          await api.checkInAttendance();
-          onNotify?.('Clocked in successfully! ✅', 'success');
-        } catch (attendanceErr) {
-          console.error('Auto clock-in failed:', attendanceErr);
-          onNotify?.('Face enrolled, but auto clock-in failed. Please clock in manually.', 'warning');
-        }
+      // Reload profiles only for higher users
+      if (!isEmployee) {
+        await loadProfiles();
       }
-
-      await loadProfiles();
 
       // Reset preview
       setImageFile(null);
@@ -335,13 +326,13 @@ const Biometrics = ({ onNotify, role }) => {
             '& .Mui-selected': { color: 'white', opacity: 1, fontWeight: 'bold' },
           }}
         >
-          <Tab label="Overview" />
+          {!isEmployee && <Tab label="Overview" />}
           <Tab label="Enrollment Process" />
-          <Tab label="Security & Privacy" />
+          {!isEmployee && <Tab label="Security & Privacy" />}
         </Tabs>
 
         <Box sx={{ p: { xs: 4, md: 6 } }}>
-          {tabValue === 0 && (
+          {!isEmployee && tabValue === 0 && (
             <>
               {/* Overview content – unchanged except better empty state */}
               <Grid container spacing={6}>
@@ -486,7 +477,7 @@ const Biometrics = ({ onNotify, role }) => {
             </>
           )}
 
-          {tabValue === 1 && (
+          {(isEmployee ? tabValue === 0 : tabValue === 1) && (
             <Grid container spacing={6}>
               <Grid size={{ xs: 12, lg: 7 }}>
                 <Card sx={{ borderRadius: 4, boxShadow: 6 }}>
@@ -543,28 +534,21 @@ const Biometrics = ({ onNotify, role }) => {
                           </Box>
                         )}
                       </Paper>
-                      <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="end">
-                        <TextField
-                          fullWidth
-                          label="Employee ID"
-                          value={employeeId || 'Loading...'}
-                          disabled
-                          helperText="Automatically uses your account ID for secure self-enrollment"
-                          InputProps={{
-                            startAdornment: <PersonAdd sx={{ color: 'action.disabled', mr: 2 }} />,
-                          }}
-                        />
+                      <Box sx={{ textAlign: 'center', mt: 2 }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          Your employee ID is automatically retrieved from your account
+                        </Typography>
                         <Button
                           variant="contained"
                           size="large"
                           startIcon={<Fingerprint />}
                           sx={{ px: 4, py: 1.8, borderRadius: 3 }}
                           onClick={handleEnrollClick}
-                          disabled={submitting || !employeeId}
+                          disabled={submitting}
                         >
                           {submitting ? 'Submitting…' : 'Enroll My Face'}
                         </Button>
-                      </Stack>
+                      </Box>
                     </Stack>
                   </CardContent>
                 </Card>
@@ -594,7 +578,7 @@ const Biometrics = ({ onNotify, role }) => {
             </Grid>
           )}
 
-          {tabValue === 2 && (
+          {!isEmployee && tabValue === 2 && (
             <Grid container spacing={6}>
               <Grid size={{ xs: 12 }}>
                 <Paper

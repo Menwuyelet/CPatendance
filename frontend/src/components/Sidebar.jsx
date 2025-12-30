@@ -24,6 +24,7 @@ const Sidebar = ({ role, userName, onLogout }) => {
       { text: 'Departments', icon: <DomainIcon />, path: '/companies' },
       { text: 'Attendance', icon: <CalendarTodayIcon />, path: '/attendance' },
       { text: 'Shifts', icon: <ScheduleIcon />, path: '/attendance/shifts' },
+      { text: 'Sessions', icon: <EventNoteIcon />, path: '/attendance/sessions' },
       { text: 'Biometrics', icon: <FingerprintIcon />, path: '/biometrics' },
       { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
     ],
@@ -32,6 +33,7 @@ const Sidebar = ({ role, userName, onLogout }) => {
       { text: 'Employees', icon: <PeopleIcon />, path: '/employees' },
       { text: 'Attendance', icon: <CalendarTodayIcon />, path: '/attendance' },
       { text: 'Shifts', icon: <ScheduleIcon />, path: '/attendance/shifts' },
+      { text: 'Sessions', icon: <EventNoteIcon />, path: '/attendance/sessions' },
       { text: 'Biometrics', icon: <FingerprintIcon />, path: '/biometrics' },
       { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
     ],
@@ -40,8 +42,9 @@ const Sidebar = ({ role, userName, onLogout }) => {
       { text: 'Team', icon: <GroupsIcon />, path: '/manager/team' },
       { text: 'Attendance', icon: <CalendarTodayIcon />, path: '/attendance' },
       { text: 'Shifts', icon: <ScheduleIcon />, path: '/attendance/shifts' },
-      { text: 'Biometrics', icon: <FingerprintIcon />, path: '/biometrics' }, // Fixed path + added for all
-      { text: 'Settings', icon: <SettingsIcon />, path: '/settings' }, // Unified path
+      { text: 'Sessions', icon: <EventNoteIcon />, path: '/attendance/sessions' },
+      { text: 'Biometrics', icon: <FingerprintIcon />, path: '/biometrics' },
+      { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
     ],
     Employee: [
       { text: 'My Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
