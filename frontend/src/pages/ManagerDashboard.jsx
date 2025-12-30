@@ -53,7 +53,6 @@ import {
   ChevronRight,
 } from '@mui/icons-material';
 import SettingsIcon from '@mui/icons-material/Settings';
-import { api } from '../services/api.service.js';
 import { format, subDays } from 'date-fns';
 import Reports from './Reports.jsx';
 import Biometrics from './Biometrics.jsx';
