@@ -285,43 +285,50 @@ const ManagerDashboardHome = ({ onNotify }) => {
   return (
     <DashboardLayout title="Manager Dashboard">
       {/* Clock In/Out Card for Manager */}
-      <Card sx={{ mb: 3, bgcolor: 'primary.main', color: 'primary.contrastText', boxShadow: 3 }}>
-        <CardContent>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems={{ xs: 'flex-start', md: 'center' }}>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="h6" gutterBottom fontWeight="bold">
-                Daily Clock-In
-              </Typography>
-              <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                {activeSession 
-                  ? `Active session: ${activeSession.shift?.name || 'Unknown'}`
-                  : 'No active session available'}
-                {department && ` • Department: ${department.name || 'N/A'}`}
-              </Typography>
-            </Box>
-            <Button
-              variant="contained"
-              size="large"
-              color="success"
-              onClick={handleClockIn}
-              disabled={!activeSession}
-              sx={{ px: 4, minWidth: 150 }}
+      <Box sx={{ mb: 3 }}>
+        <Card sx={{ bgcolor: 'primary.main', color: 'primary.contrastText', boxShadow: 3, borderRadius: 2 }}>
+          <CardContent>
+            <Stack 
+              direction={{ xs: 'column', sm: 'row' }} 
+              spacing={3} 
+              alignItems={{ xs: 'flex-start', sm: 'center' }}
+              sx={{ flexWrap: 'wrap' }}
             >
-              Clock In
-            </Button>
-            <Box sx={{ textAlign: { xs: 'left', md: 'right' } }}>
-              <Typography variant="body2" fontWeight="medium">
-                {activeSession ? 'Session Active' : 'No Active Session'}
-              </Typography>
-              {lastActionTime && (
-                <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>
-                  Last check-in: {lastActionTime}
+              <Box sx={{ flex: 1, minWidth: 200 }}>
+                <Typography variant="h6" gutterBottom fontWeight="bold">
+                  Daily Clock-In
                 </Typography>
-              )}
-            </Box>
-          </Stack>
-        </CardContent>
-      </Card>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  {activeSession 
+                    ? `Active session: ${activeSession.shift?.name || 'Unknown'}`
+                    : 'No active session available'}
+                  {department && ` • Department: ${department.name || 'N/A'}`}
+                </Typography>
+              </Box>
+              <Button
+                variant="contained"
+                size="large"
+                color="success"
+                onClick={handleClockIn}
+                disabled={!activeSession}
+                sx={{ px: 4, minWidth: 150, flexShrink: 0 }}
+              >
+                Clock In
+              </Button>
+              <Box sx={{ textAlign: { xs: 'left', sm: 'right' }, minWidth: 150, flexShrink: 0 }}>
+                <Typography variant="body2" fontWeight="medium">
+                  {activeSession ? 'Session Active' : 'No Active Session'}
+                </Typography>
+                {lastActionTime && (
+                  <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>
+                    Last check-in: {lastActionTime}
+                  </Typography>
+                )}
+              </Box>
+            </Stack>
+          </CardContent>
+        </Card>
+      </Box>
 
       <Grid container spacing={4} sx={{ mb: 6 }}>
         {[
