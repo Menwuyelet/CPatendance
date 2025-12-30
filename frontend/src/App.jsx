@@ -1,6 +1,6 @@
 // src/App.jsx
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Login from './pages/Login.jsx';
 import AdminPanel from './pages/AdminPanel.jsx';
 import Biometrics from './pages/Biometrics.jsx';
@@ -30,7 +30,7 @@ function App() {
   const [toast, setToast] = useState({ message: '', type: 'success' });
   const [notifications, setNotifications] = useState([]); // recent notifications for header
 
-  const notify = (message, type = 'success') => {
+  const notify = useCallback((message, type = 'success') => {
     if (!message) return;
     setToast({ message, type });
     // Store last 20 notifications (newest first)
@@ -39,7 +39,7 @@ function App() {
       ...prev,
     ].slice(0, 20));
     setTimeout(() => setToast({ message: '', type: 'success' }), 3000);
-  };
+  }, []);
 
   // Check auth on load/refresh
   useEffect(() => {
