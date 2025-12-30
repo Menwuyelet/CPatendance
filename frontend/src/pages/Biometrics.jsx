@@ -74,7 +74,6 @@ const Biometrics = ({ onNotify, role }) => {
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
-  // New: Search & Filter
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
 
@@ -87,10 +86,15 @@ const Biometrics = ({ onNotify, role }) => {
   useEffect(() => {
     (async () => {
       try {
-        const me = await api.get('/accounts/users/me/');
-        if (me?.employee?.id) setEmployeeId(String(me.employee.id));
-        else if (me?.id) setEmployeeId(String(me.id));
-      } catch (e) {}
+        const me = await api.getCurrentUser();
+        if (me?.employee?.id) {
+          setEmployeeId(String(me.employee.id));
+        } else if (me?.id) {
+          setEmployeeId(String(me.id));
+        }
+      } catch (e) {
+        console.error("Failed to load current user for employee ID", e);
+      }
     })();
   }, []);
 
@@ -98,38 +102,19 @@ const Biometrics = ({ onNotify, role }) => {
     setProfilesLoading(true);
     setProfilesError('');
     try {
-      const res = await api.get('/biometrics/profiles/');
+      const res = await api.getAllProfiles();
       const list = Array.isArray(res) ? res : res?.results || [];
 
       if (list.length === 0) {
-        setProfiles([
-          {
-            id: 1,
-            employee_name: 'admin@gmail.com',
-            employee: 'admin@gmail.com',
-            biometric_type: 'FACE',
-            created_at: '2025-12-29T00:29:47Z',
-            last_used: '2025-12-29T00:29:49Z',
-            is_active: true,
-          },
-        ]);
+        setProfiles([]); // Show empty state instead of demo
       } else {
         setProfiles(list);
       }
     } catch (err) {
       console.error('Failed to load biometric profiles:', err);
-      setProfiles([
-        {
-          id: 1,
-          employee_name: 'admin@gmail.com',
-          employee: 'admin@gmail.com',
-          biometric_type: 'FACE',
-          created_at: '2025-12-29T00:29:47Z',
-          last_used: '2025-12-29T00:29:49Z',
-          is_active: true,
-        },
-      ]);
-      setProfilesError('Unable to load from server – showing demo profile.');
+      setProfiles([]); // Empty on error
+      setProfilesError('Unable to load profiles from server. Please try again later.');
+      onNotify?.('Failed to load biometric profiles.', 'error');
     } finally {
       setProfilesLoading(false);
     }
@@ -146,7 +131,6 @@ const Biometrics = ({ onNotify, role }) => {
     };
   }, [imagePreview]);
 
-  // Filtered profiles
   const filteredProfiles = profiles.filter((p) => {
     const matchesSearch = !search || (p.employee_name || p.employee || '').toLowerCase().includes(search.toLowerCase());
     const matchesStatus =
@@ -173,7 +157,7 @@ const Biometrics = ({ onNotify, role }) => {
       if (videoRef.current) videoRef.current.srcObject = stream;
       setCameraOpen(true);
     } catch (e) {
-      onNotify?.('Unable to access camera. Check permissions.', 'error');
+      onNotify?.('Unable to access camera. Please check permissions.', 'error');
     }
   };
 
@@ -205,28 +189,51 @@ const Biometrics = ({ onNotify, role }) => {
 
   const handleEnrollClick = async () => {
     if (!employeeId.trim()) {
-      onNotify?.('Please enter an Employee ID', 'warning');
+      onNotify?.('Employee ID not detected. Please refresh and try again.', 'warning');
       return;
     }
     setSubmitting(true);
     try {
+      let enrollmentSuccess = false;
+
       if (imageFile) {
         const form = new FormData();
         form.append('employee_id', employeeId);
         form.append('biometric_type', 'FACE');
         form.append('image', imageFile, 'capture.jpg');
         await api.postForm('/biometrics/face/enroll/', form);
-        onNotify?.('Face enrollment (from camera) completed.', 'success');
+        onNotify?.('Face enrollment completed successfully!', 'success');
+        enrollmentSuccess = true;
       } else {
         await api.post('/biometrics/face/enroll/', {
           employee_id: employeeId,
           biometric_type: 'FACE',
         });
-        onNotify?.('Face enrollment started successfully.', 'success');
+        onNotify?.('Face enrollment started successfully!', 'success');
+        enrollmentSuccess = true;
       }
+
+      // Auto clock-in after successful enrollment
+      if (enrollmentSuccess) {
+        try {
+          await api.post('/attendance/attendance-check-in/', {}); // ← CORRECT ENDPOINT
+          onNotify?.('Clocked in successfully! ✅', 'success');
+        } catch (attendanceErr) {
+          console.error('Auto clock-in failed:', attendanceErr);
+          onNotify?.('Face enrolled, but auto clock-in failed. Please clock in manually.', 'warning');
+        }
+      }
+
       await loadProfiles();
+
+      // Reset preview
+      setImageFile(null);
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+        setImagePreview(null);
+      }
     } catch (err) {
-      onNotify?.(err.message || 'Enrollment failed', 'error');
+      onNotify?.(err.message || 'Enrollment failed. Please try again.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -245,14 +252,14 @@ const Biometrics = ({ onNotify, role }) => {
         'success'
       );
     } catch (err) {
-      onNotify?.(err.message || 'Failed to update biometric profile.', 'error');
+      onNotify?.(err.message || 'Failed to update profile status.', 'error');
     }
   };
 
   const deleteProfile = async (id) => {
     if (!window.confirm('Delete this biometric profile? This cannot be undone.')) return;
     try {
-      await api.delete(`/biometrics/profiles/${id}/`);
+      await api.deleteProfile(id);
       setProfiles((prev) => prev.filter((p) => p.id !== id));
       onNotify?.('Biometric profile deleted.', 'info');
     } catch (err) {
@@ -329,14 +336,14 @@ const Biometrics = ({ onNotify, role }) => {
           }}
         >
           <Tab label="Overview" />
-          <Tab label="Enrollment Process" disabled={!isAdmin} />
+          <Tab label="Enrollment Process" />
           <Tab label="Security & Privacy" />
         </Tabs>
 
         <Box sx={{ p: { xs: 4, md: 6 } }}>
-          {/* Overview */}
           {tabValue === 0 && (
             <>
+              {/* Overview content – unchanged except better empty state */}
               <Grid container spacing={6}>
                 <Grid size={{ xs: 12, md: 6 }}>
                   <Paper elevation={3} sx={{ p: 5, borderRadius: 4, height: '100%', bgcolor: 'grey.50' }}>
@@ -377,7 +384,6 @@ const Biometrics = ({ onNotify, role }) => {
                 </Grid>
               </Grid>
 
-              {/* Search & Filter */}
               <Box sx={{ mt: 6, mb: 4 }}>
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
                   <TextField
@@ -413,16 +419,17 @@ const Biometrics = ({ onNotify, role }) => {
                 </Stack>
               </Box>
 
-              {/* Enrolled Profiles Table */}
               <Card>
                 <CardHeader title={<Typography variant="h6">Enrolled Biometric Profiles ({filteredProfiles.length})</Typography>} />
                 <Divider />
                 <CardContent>
                   {profilesLoading ? (
                     <Box sx={{ py: 6, textAlign: 'center' }}><CircularProgress /></Box>
+                  ) : profilesError ? (
+                    <Alert severity="error">{profilesError}</Alert>
                   ) : filteredProfiles.length === 0 ? (
                     <Alert severity="info">
-                      {search || statusFilter !== 'ALL' ? 'No profiles match your search/filter.' : 'No biometric profiles enrolled yet.'}
+                      {search || statusFilter !== 'ALL' ? 'No profiles match your search/filter.' : 'No biometric profiles enrolled yet. Enroll your face to get started!'}
                     </Alert>
                   ) : (
                     <Table size="small">
@@ -439,7 +446,7 @@ const Biometrics = ({ onNotify, role }) => {
                       <TableBody>
                         {filteredProfiles.map((p) => (
                           <TableRow key={p.id} hover sx={{ cursor: 'pointer' }}>
-                            <TableCell onClick={() => openDetails(p)}>{p.employee_name || p.employee}</TableCell>
+                            <TableCell onClick={() => openDetails(p)}>{p.employee_name || p.employee || 'Unknown'}</TableCell>
                             <TableCell onClick={() => openDetails(p)}>{p.biometric_type}</TableCell>
                             <TableCell onClick={() => openDetails(p)}>{p.created_at ? new Date(p.created_at).toLocaleString() : '-'}</TableCell>
                             <TableCell onClick={() => openDetails(p)}>{p.last_used ? new Date(p.last_used).toLocaleString() : '-'}</TableCell>
@@ -479,124 +486,114 @@ const Biometrics = ({ onNotify, role }) => {
             </>
           )}
 
-          {/* Enrollment Process */}
           {tabValue === 1 && (
-            isAdmin ? (
-              <Grid container spacing={6}>
-                <Grid size={{ xs: 12, lg: 7 }}>
-                  <Card sx={{ borderRadius: 4, boxShadow: 6 }}>
-                    <CardHeader
-                      title={<Typography variant="h5" fontWeight="bold">Enroll New Employee</Typography>}
-                      subheader="Secure facial recognition setup"
-                    />
-                    <Divider />
-                    <CardContent sx={{ pt: 4 }}>
-                      <Stack spacing={5}>
-                        <Paper
-                          sx={{
-                            height: 420,
-                            borderRadius: 4,
-                            bgcolor: 'grey.100',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            border: '3px dashed',
-                            borderColor: 'grey.400',
+            <Grid container spacing={6}>
+              <Grid size={{ xs: 12, lg: 7 }}>
+                <Card sx={{ borderRadius: 4, boxShadow: 6 }}>
+                  <CardHeader
+                    title={<Typography variant="h5" fontWeight="bold">Enroll Your Face</Typography>}
+                    subheader="Set up secure touchless attendance for your account"
+                  />
+                  <Divider />
+                  <CardContent sx={{ pt: 4 }}>
+                    <Stack spacing={5}>
+                      <Paper
+                        sx={{
+                          height: 420,
+                          borderRadius: 4,
+                          bgcolor: 'grey.100',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: '3px dashed',
+                          borderColor: 'grey.400',
+                        }}
+                      >
+                        {cameraOpen ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            <video ref={videoRef} autoPlay playsInline style={{ width: 540, maxWidth: '100%' }} />
+                            <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
+                              <Button variant="contained" onClick={captureFrame}>Capture</Button>
+                              <Button variant="outlined" onClick={stopCamera}>Stop Camera</Button>
+                            </Stack>
+                            <canvas ref={canvasRef} style={{ display: 'none' }} />
+                          </div>
+                        ) : (
+                          <div style={{ textAlign: 'center' }}>
+                            <CameraAlt sx={{ fontSize: 100, color: 'grey.600', mb: 3 }} />
+                            <Typography variant="h5" fontWeight="medium" color="text.secondary">Camera Preview</Typography>
+                            <Typography variant="body1" color="text.secondary" sx={{ mt: 2, textAlign: 'center', maxWidth: 400 }}>
+                              Live face detection and alignment guide will appear here during real enrollment. Use the camera below to capture a photo for enrollment.
+                            </Typography>
+                            <Button variant="contained" sx={{ mt: 3 }} onClick={startCamera}>Open Camera</Button>
+                          </div>
+                        )}
+                        {imagePreview && (
+                          <Box sx={{ mt: 2 }}>
+                            <Typography variant="subtitle2">Captured preview</Typography>
+                            <img src={imagePreview} alt="capture" style={{ width: 220, borderRadius: 6, marginTop: 8 }} />
+                            <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
+                              <Button size="small" onClick={() => {
+                                setImageFile(null);
+                                URL.revokeObjectURL(imagePreview);
+                                setImagePreview(null);
+                              }}>Retake</Button>
+                            </Stack>
+                          </Box>
+                        )}
+                      </Paper>
+                      <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="end">
+                        <TextField
+                          fullWidth
+                          label="Employee ID"
+                          value={employeeId || 'Loading...'}
+                          disabled
+                          helperText="Automatically uses your account ID for secure self-enrollment"
+                          InputProps={{
+                            startAdornment: <PersonAdd sx={{ color: 'action.disabled', mr: 2 }} />,
                           }}
+                        />
+                        <Button
+                          variant="contained"
+                          size="large"
+                          startIcon={<Fingerprint />}
+                          sx={{ px: 4, py: 1.8, borderRadius: 3 }}
+                          onClick={handleEnrollClick}
+                          disabled={submitting || !employeeId}
                         >
-                          {cameraOpen ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                              <video ref={videoRef} autoPlay playsInline style={{ width: 540, maxWidth: '100%' }} />
-                              <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
-                                <Button variant="contained" onClick={captureFrame}>Capture</Button>
-                                <Button variant="outlined" onClick={stopCamera}>Stop Camera</Button>
-                              </Stack>
-                              <canvas ref={canvasRef} style={{ display: 'none' }} />
-                            </div>
-                          ) : (
-                            <div style={{ textAlign: 'center' }}>
-                              <CameraAlt sx={{ fontSize: 100, color: 'grey.600', mb: 3 }} />
-                              <Typography variant="h5" fontWeight="medium" color="text.secondary">Camera Preview</Typography>
-                              <Typography variant="body1" color="text.secondary" sx={{ mt: 2, textAlign: 'center', maxWidth: 400 }}>
-                                Live face detection and alignment guide will appear here during real enrollment. Use the camera below to capture a photo for enrollment.
-                              </Typography>
-                              <Button variant="contained" sx={{ mt: 3 }} onClick={startCamera}>Open Camera</Button>
-                            </div>
-                          )}
-                          {imagePreview && (
-                            <Box sx={{ mt: 2 }}>
-                              <Typography variant="subtitle2">Captured preview</Typography>
-                              <img src={imagePreview} alt="capture" style={{ width: 220, borderRadius: 6, marginTop: 8 }} />
-                              <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
-                                <Button size="small" onClick={() => {
-                                  setImageFile(null);
-                                  URL.revokeObjectURL(imagePreview);
-                                  setImagePreview(null);
-                                }}>Retake</Button>
-                              </Stack>
-                            </Box>
-                          )}
-                        </Paper>
-                        <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="end">
-                          <TextField
-                            fullWidth
-                            label="Employee ID"
-                            placeholder="Paste user UUID from Users page"
-                            value={employeeId}
-                            onChange={(e) => setEmployeeId(e.target.value)}
-                            helperText="Uses the same ID as the user in the system"
-                            InputProps={{
-                              startAdornment: <PersonAdd sx={{ color: 'action.disabled', mr: 2 }} />,
-                            }}
-                          />
-                          <Button
-                            variant="contained"
-                            size="large"
-                            startIcon={<Fingerprint />}
-                            sx={{ px: 4, py: 1.8, borderRadius: 3 }}
-                            onClick={handleEnrollClick}
-                            disabled={submitting}
-                          >
-                            {submitting ? 'Submitting…' : 'Enroll Face'}
-                          </Button>
-                        </Stack>
+                          {submitting ? 'Submitting…' : 'Enroll My Face'}
+                        </Button>
                       </Stack>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid size={{ xs: 12, lg: 5 }}>
-                  <Card sx={{ borderRadius: 4, boxShadow: 6, height: '100%' }}>
-                    <CardHeader title={<Typography variant="h5" fontWeight="bold">Enrollment Steps</Typography>} />
-                    <Divider />
-                    <CardContent sx={{ pt: 4 }}>
-                      <Stack spacing={4}>
-                        {[
-                          'Enter registered Employee ID',
-                          'Position face in camera view',
-                          'System captures multiple angles',
-                          'AI generates encrypted template',
-                          'Raw images deleted permanently',
-                          'Employee ready for touchless clock-in',
-                        ].map((step, i) => (
-                          <Stack direction="row" spacing={3} key={i} alignItems="center">
-                            <Avatar sx={{ bgcolor: 'primary.main', width: 48, height: 48, fontWeight: 'bold' }}>{i + 1}</Avatar>
-                            <Typography variant="body1">{step}</Typography>
-                          </Stack>
-                        ))}
-                      </Stack>
-                    </CardContent>
-                  </Card>
-                </Grid>
+                    </Stack>
+                  </CardContent>
+                </Card>
               </Grid>
-            ) : (
-              <Alert severity="info">
-                Only administrators can enroll biometric profiles. HR and managers can view and activate/deactivate profiles from the Overview tab.
-              </Alert>
-            )
+              <Grid size={{ xs: 12, lg: 5 }}>
+                <Card sx={{ borderRadius: 4, boxShadow: 6, height: '100%' }}>
+                  <CardHeader title={<Typography variant="h5" fontWeight="bold">Enrollment Steps</Typography>} />
+                  <Divider />
+                  <CardContent sx={{ pt: 4 }}>
+                    <Stack spacing={4}>
+                      {[
+                        'Position face in camera view',
+                        'System captures multiple angles',
+                        'AI generates encrypted template',
+                        'Raw images deleted permanently',
+                        'You’re ready for touchless clock-in',
+                      ].map((step, i) => (
+                        <Stack direction="row" spacing={3} key={i} alignItems="center">
+                          <Avatar sx={{ bgcolor: 'primary.main', width: 48, height: 48, fontWeight: 'bold' }}>{i + 1}</Avatar>
+                          <Typography variant="body1">{step}</Typography>
+                        </Stack>
+                      ))}
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
           )}
 
-          {/* Security & Privacy - Mint-green like your image */}
           {tabValue === 2 && (
             <Grid container spacing={6}>
               <Grid size={{ xs: 12 }}>
@@ -644,7 +641,6 @@ const Biometrics = ({ onNotify, role }) => {
         </Box>
       </Paper>
 
-      {/* Details Modal - Beautiful and working */}
       <MUIModal open={detailsOpen} onClose={() => setDetailsOpen(false)}>
         <Box
           sx={{
@@ -666,7 +662,7 @@ const Biometrics = ({ onNotify, role }) => {
                   <Fingerprint sx={{ fontSize: 60 }} />
                 </Avatar>
                 <Typography variant="h5" fontWeight="bold">
-                  {selectedProfile.employee_name || selectedProfile.employee}
+                  {selectedProfile.employee_name || selectedProfile.employee || 'Unknown'}
                 </Typography>
                 <Chip
                   label={selectedProfile.is_active ? 'ACTIVE' : 'INACTIVE'}

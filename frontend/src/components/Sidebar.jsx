@@ -13,6 +13,7 @@ import EventNoteIcon from '@mui/icons-material/EventNote';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import FingerprintIcon from '@mui/icons-material/Fingerprint';
+
 const Sidebar = ({ role, userName, onLogout }) => {
   const location = useLocation();
 
@@ -21,7 +22,6 @@ const Sidebar = ({ role, userName, onLogout }) => {
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
       { text: 'User Management', icon: <PeopleIcon />, path: '/users' },
       { text: 'Departments', icon: <DomainIcon />, path: '/companies' },
-      // Admin: Attendance (read‑only shifts UI)
       { text: 'Attendance', icon: <CalendarTodayIcon />, path: '/attendance' },
       { text: 'Shifts', icon: <ScheduleIcon />, path: '/attendance/shifts' },
       { text: 'Biometrics', icon: <FingerprintIcon />, path: '/biometrics' },
@@ -30,7 +30,6 @@ const Sidebar = ({ role, userName, onLogout }) => {
     HR: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
       { text: 'Employees', icon: <PeopleIcon />, path: '/employees' },
-      // HR: full access to Attendance & Shifts
       { text: 'Attendance', icon: <CalendarTodayIcon />, path: '/attendance' },
       { text: 'Shifts', icon: <ScheduleIcon />, path: '/attendance/shifts' },
       { text: 'Biometrics', icon: <FingerprintIcon />, path: '/biometrics' },
@@ -39,14 +38,15 @@ const Sidebar = ({ role, userName, onLogout }) => {
     Manager: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/manager/dashboard' },
       { text: 'Team', icon: <GroupsIcon />, path: '/manager/team' },
-      // Manager: Attendance view (shifts managed on Attendance page)
       { text: 'Attendance', icon: <CalendarTodayIcon />, path: '/attendance' },
       { text: 'Shifts', icon: <ScheduleIcon />, path: '/attendance/shifts' },
-      { text: 'Biometrics', icon: <FingerprintIcon />, path: '/manager/biometrics' },
-      { text: 'Settings', icon: <SettingsIcon />, path: '/manager/settings' },
+      { text: 'Biometrics', icon: <FingerprintIcon />, path: '/biometrics' }, // Fixed path + added for all
+      { text: 'Settings', icon: <SettingsIcon />, path: '/settings' }, // Unified path
     ],
     Employee: [
+      { text: 'My Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
       { text: 'My Attendance', icon: <EventNoteIcon />, path: '/attendance' },
+      { text: 'Biometrics', icon: <FingerprintIcon />, path: '/biometrics' }, // NOW ADDED FOR EMPLOYEES!
       { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
     ],
   };
@@ -167,7 +167,7 @@ const Sidebar = ({ role, userName, onLogout }) => {
         })}
       </nav>
 
-      {/* Bottom Section - Only Logout & Status */}
+      {/* Bottom Section - Logout & Status */}
       <div
         style={{
           marginTop: 'auto',
