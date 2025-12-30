@@ -209,6 +209,14 @@ const HRDashboard = ({ onNotify }) => {
     loadClockInState();
   }, []);
   
+  // Reload clock-in state when needed
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadClockInState();
+    }, 30000); // Check every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
+  
   const loadClockInState = async () => {
     try {
       // Get current user and employee ID
@@ -217,34 +225,57 @@ const HRDashboard = ({ onNotify }) => {
         setUserEmployeeId(user.employee.id);
       }
       
-      // Check active sessions
-      const sessions = await api.listAttendanceSessions({ active: 'true' });
-      const activeSessions = Array.isArray(sessions) ? sessions.filter(s => s.is_active) : [];
-      
-      if (activeSessions.length > 0) {
-        // Check if user's employee has a shift assigned to any active session's shift
-        const userShifts = await api.listEmployeeShifts(user?.employee?.id);
-        const userShiftsList = Array.isArray(userShifts) ? userShifts : [];
-        const userShiftIds = userShiftsList.map(us => us.shift?.id);
+      // Check active sessions - get all active sessions
+      try {
+        const sessions = await api.listAttendanceSessions({ active: 'true' });
+        const activeSessions = Array.isArray(sessions) ? sessions.filter(s => s.is_active) : [];
         
-        const belongsToSession = activeSessions.some(session => 
-          userShiftIds.includes(session.shift?.id)
-        );
-        
-        if (belongsToSession) {
-          setActiveSession(activeSessions[0]);
+        if (activeSessions.length > 0) {
+          // For HR/Manager, check if user's employee has a shift assigned to any active session's shift
+          if (user?.employee?.id) {
+            const userShifts = await api.listEmployeeShifts(user.employee.id);
+            const userShiftsList = Array.isArray(userShifts) ? userShifts : [];
+            const userShiftIds = userShiftsList.map(us => us.shift?.id);
+            
+            const belongsToSession = activeSessions.some(session => 
+              userShiftIds.includes(session.shift?.id)
+            );
+            
+            if (belongsToSession) {
+              setActiveSession(activeSessions[0]);
+            } else {
+              // If no shift assigned, still allow HR/Manager to see active session (they can start sessions)
+              setActiveSession(activeSessions[0]);
+            }
+          } else {
+            // No employee profile, but still show active session for HR/Manager
+            setActiveSession(activeSessions[0]);
+          }
+        } else {
+          setActiveSession(null);
         }
+      } catch (sessionErr) {
+        console.error('Failed to load sessions:', sessionErr);
+        setActiveSession(null);
       }
       
       // Check if already clocked in today
-      const today = new Date().toISOString().slice(0, 10);
-      const attendance = await api.get(`/attendance/attendance/?date=${today}`);
-      const todayRecords = Array.isArray(attendance) ? attendance : [];
-      const userRecord = todayRecords.find(r => r.employee?.id === user?.employee?.id);
-      if (userRecord && userRecord.check_in_time && !userRecord.check_out_time) {
-        setIsClockedIn(true);
-        if (userRecord.check_in_time) {
-          setLastActionTime(new Date(userRecord.check_in_time).toLocaleTimeString());
+      if (user?.employee?.id) {
+        const today = new Date().toISOString().slice(0, 10);
+        try {
+          const attendance = await api.get(`/attendance/attendance/?date=${today}`);
+          const todayRecords = Array.isArray(attendance) ? attendance : [];
+          const userRecord = todayRecords.find(r => r.employee?.id === user.employee.id);
+          if (userRecord && userRecord.check_in_time && !userRecord.check_out_time) {
+            setIsClockedIn(true);
+            if (userRecord.check_in_time) {
+              setLastActionTime(new Date(userRecord.check_in_time).toLocaleTimeString());
+            }
+          } else {
+            setIsClockedIn(false);
+          }
+        } catch (attendanceErr) {
+          console.error('Failed to load attendance:', attendanceErr);
         }
       }
     } catch (err) {
@@ -361,11 +392,11 @@ const HRDashboard = ({ onNotify }) => {
       )}
 
       {/* Clock In/Out Card for HR */}
-      <Card sx={{ mb: 3, bgcolor: 'primary.light', color: 'primary.contrastText' }}>
+      <Card sx={{ mb: 3, bgcolor: 'primary.main', color: 'primary.contrastText', boxShadow: 3 }}>
         <CardContent>
-          <Stack direction="row" spacing={3} alignItems="center">
-            <Box>
-              <Typography variant="h6" gutterBottom>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems={{ xs: 'flex-start', md: 'center' }}>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="h6" gutterBottom fontWeight="bold">
                 Daily Clock-In
               </Typography>
               <Typography variant="body2" sx={{ opacity: 0.9 }}>
@@ -380,15 +411,19 @@ const HRDashboard = ({ onNotify }) => {
               color={isClockedIn ? 'error' : 'success'}
               onClick={handleClockToggle}
               disabled={!activeSession && !isClockedIn}
-              sx={{ ml: 'auto', px: 4 }}
+              sx={{ px: 4, minWidth: 150 }}
             >
               {isClockedIn ? 'Clock Out' : 'Clock In'}
             </Button>
-            <Box>
-              <Typography variant="body2">
+            <Box sx={{ textAlign: { xs: 'left', md: 'right' } }}>
+              <Typography variant="body2" fontWeight="medium">
                 Status: <strong>{isClockedIn ? 'Clocked In' : 'Clocked Out'}</strong>
               </Typography>
-              {lastActionTime && <Typography variant="caption">Last: {lastActionTime}</Typography>}
+              {lastActionTime && (
+                <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>
+                  Last: {lastActionTime}
+                </Typography>
+              )}
             </Box>
           </Stack>
         </CardContent>
