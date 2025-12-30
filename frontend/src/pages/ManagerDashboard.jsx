@@ -66,6 +66,25 @@ const getStatusColor = (status) => {
   return 'default';
 };
 
+// Helper to safely extract shift id from either a plain id or nested object
+const getShiftId = (shift) => {
+  if (!shift) return null;
+  if (typeof shift === 'object') return shift.id ?? null;
+  return shift; // assume it's already an id
+};
+
+// Helper to get a display name for a session's shift
+const getSessionShiftName = (session) => {
+  if (!session || !session.shift) return 'Unknown';
+
+  if (typeof session.shift === 'object') {
+    return session.shift.name || `Shift #${session.shift.id ?? ''}` || 'Unknown';
+  }
+
+  // When backend returns only an id we cannot resolve the real name here
+  return `Shift #${session.shift}`;
+};
+
 // ====================== LAYOUT WRAPPER ======================
 const DashboardLayout = ({ children, title, breadcrumbs = [] }) => {
   const navigate = useNavigate();
@@ -154,16 +173,20 @@ const ManagerDashboardHome = ({ onNotify }) => {
         if (activeSessions.length > 0 && user?.employee?.id) {
           const userShifts = await api.listEmployeeShifts(user.employee.id);
           const userShiftsList = Array.isArray(userShifts) ? userShifts : [];
-          const userShiftIds = userShiftsList.map(us => us.shift?.id);
+          const userShiftIds = userShiftsList
+            .map(us => getShiftId(us.shift))
+            .filter(Boolean);
           
-          const belongsToSession = activeSessions.some(session => 
-            userShiftIds.includes(session.shift?.id)
-          );
+          const matchingSession = activeSessions.find(session => {
+            const sessionShiftId = getShiftId(session.shift);
+            return sessionShiftId && userShiftIds.includes(sessionShiftId);
+          });
           
-          if (belongsToSession) {
-            setActiveSession(activeSessions[0]);
+          if (matchingSession) {
+            setActiveSession(matchingSession);
           } else {
-            setActiveSession(activeSessions[0]); // Manager can see active sessions
+            // No session for this manager's assigned shifts → disable clock-in
+            setActiveSession(null);
           }
         } else {
           setActiveSession(null);
@@ -300,9 +323,9 @@ const ManagerDashboardHome = ({ onNotify }) => {
                 </Typography>
                 <Typography variant="body2" sx={{ opacity: 0.9 }}>
                   {activeSession 
-                    ? `Active session: ${activeSession.shift?.name || 'Unknown'}`
-                    : 'No active session available'}
-                  {department && ` • Department: ${department.name || 'N/A'}`}
+                    ? `Active session: ${getSessionShiftName(activeSession)}`
+                    : 'No active session available or you are not assigned to it'}
+                  {department && `  b7 Department: ${department.name || 'N/A'}`}
                 </Typography>
               </Box>
               <Button
