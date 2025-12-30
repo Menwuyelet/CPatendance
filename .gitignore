@@ -2,3 +2,5 @@ frontend/node_modules/
 **/*:Zone.Identifier
 AICALL.md
 AI/
+backend/*.sqlite3
+backend/db.sqlite3
