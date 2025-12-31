@@ -168,6 +168,35 @@ const Shifts = ({ role, onNotify }) => {
     });
   }, [employees, employeeSearch]);
 
+  // Enrich employee shifts with employee and shift details
+  const enrichedEmployeeShifts = useMemo(() => {
+    if (!employeeShifts.length || !employees.length || !shifts.length) {
+      return employeeShifts;
+    }
+    
+    return employeeShifts.map((assignment) => {
+      // Extract employee ID (could be object with id, or just the id number)
+      const employeeId = typeof assignment.employee === 'object' && assignment.employee !== null
+        ? assignment.employee.id
+        : assignment.employee;
+      
+      // Extract shift ID (could be object with id, or just the id number)
+      const shiftId = typeof assignment.shift === 'object' && assignment.shift !== null
+        ? assignment.shift.id
+        : assignment.shift;
+      
+      // Find matching employee and shift (convert to string for comparison to handle type mismatches)
+      const employee = employees.find((emp) => String(emp.id) === String(employeeId));
+      const shift = shifts.find((s) => String(s.id) === String(shiftId));
+      
+      return {
+        ...assignment,
+        employee: employee || assignment.employee,
+        shift: shift || assignment.shift,
+      };
+    });
+  }, [employeeShifts, employees, shifts]);
+
   const handleShiftFieldChange = (field, value) => {
     setShiftForm((prev) => ({ ...prev, [field]: value }));
   };
@@ -514,7 +543,7 @@ const Shifts = ({ role, onNotify }) => {
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                   <CircularProgress size={32} />
                 </Box>
-              ) : employeeShifts.length === 0 ? (
+              ) : enrichedEmployeeShifts.length === 0 ? (
                 <Alert severity="info">No employee shift assignments found.</Alert>
               ) : (
                 <Table size="small">
@@ -527,7 +556,7 @@ const Shifts = ({ role, onNotify }) => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {employeeShifts.map((assignment) => (
+                    {enrichedEmployeeShifts.map((assignment) => (
                       <TableRow key={assignment.id} hover>
                         <TableCell>
                           {assignment.employee?.full_name || assignment.employee?.employee_code || 'Unknown'}
