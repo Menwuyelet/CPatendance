@@ -112,14 +112,33 @@ const AttendanceSessions = ({ role, onNotify }) => {
       setEmployeeShiftsError('');
       try {
         const [employeesData, employeeShiftsData, shiftsData] = await Promise.all([
-          api.get('/employees/employees/').catch(() => []),
-          api.listEmployeeShifts(),
-          api.get('/attendance/shifts/').catch(() => []),
+          api.get('/employees/employees/').catch((err) => {
+            console.error('Error loading employees:', err);
+            return [];
+          }),
+          api.listEmployeeShifts().catch((err) => {
+            console.error('Error loading employee shifts:', err);
+            return [];
+          }),
+          api.get('/attendance/shifts/').catch((err) => {
+            console.error('Error loading shifts:', err);
+            return [];
+          }),
         ]);
 
-        const employeesList = Array.isArray(employeesData) ? employeesData : employeesData?.data || [];
-        const employeeShiftsList = Array.isArray(employeeShiftsData) ? employeeShiftsData : [];
-        const shiftsList = Array.isArray(shiftsData) ? shiftsData : [];
+        // Handle paginated response (results field) or direct array
+        const employeesList = Array.isArray(employeesData)
+          ? employeesData
+          : employeesData?.results || employeesData?.data || [];
+        const employeeShiftsList = Array.isArray(employeeShiftsData)
+          ? employeeShiftsData
+          : employeeShiftsData?.results || employeeShiftsData?.data || [];
+        const shiftsList = Array.isArray(shiftsData)
+          ? shiftsData
+          : shiftsData?.results || shiftsData?.data || [];
+
+        console.log('Loaded employees:', employeesList.length, employeesList);
+        console.log('Loaded employee shifts:', employeeShiftsList.length);
 
         setEmployees(employeesList);
         setEmployeeShifts(employeeShiftsList);
@@ -470,13 +489,25 @@ const AttendanceSessions = ({ role, onNotify }) => {
                   value={employeeShiftForm.employee}
                   label="Select Employee"
                   onChange={(e) => setEmployeeShiftForm((prev) => ({ ...prev, employee: e.target.value }))}
+                  disabled={employeeShiftsLoading || filteredEmployees.length === 0}
                 >
-                  {filteredEmployees.map((emp) => (
-                    <MenuItem key={emp.id} value={emp.id}>
-                      {emp.full_name || emp.employee_code || 'Unknown'} ({emp.user?.email || 'No email'})
+                  {filteredEmployees.length === 0 ? (
+                    <MenuItem disabled value="">
+                      {employeeShiftsLoading ? 'Loading employees...' : 'No employees found'}
                     </MenuItem>
-                  ))}
+                  ) : (
+                    filteredEmployees.map((emp) => (
+                      <MenuItem key={emp.id} value={emp.id}>
+                        {emp.full_name || emp.employee_code || 'Unknown'} ({emp.user?.email || 'No email'})
+                      </MenuItem>
+                    ))
+                  )}
                 </Select>
+                {filteredEmployees.length === 0 && !employeeShiftsLoading && (
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, ml: 1.75 }}>
+                    No employees available. Make sure employees are created and assigned to your department.
+                  </Typography>
+                )}
               </FormControl>
               <FormControl fullWidth sx={{ mt: 2 }}>
                 <InputLabel>Select Shift</InputLabel>
