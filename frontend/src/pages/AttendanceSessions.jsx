@@ -54,7 +54,7 @@ const AttendanceSessions = ({ role, onNotify }) => {
   const [employeeShiftsError, setEmployeeShiftsError] = useState('');
   const [employeeShiftDialogOpen, setEmployeeShiftDialogOpen] = useState(false);
   const [employees, setEmployees] = useState([]);
-  const [employeeShiftForm, setEmployeeShiftForm] = useState({ employeeEmail: '', shift: '' });
+  const [employeeShiftForm, setEmployeeShiftForm] = useState({ employee: '', shift: '' });
   const [employeeSearch, setEmployeeSearch] = useState('');
 
   // Load shifts for session creation
@@ -190,21 +190,15 @@ const AttendanceSessions = ({ role, onNotify }) => {
 
   // Employee Shifts handlers
   const handleAssignEmployeeShift = async () => {
-    if (!employeeShiftForm.employeeEmail || !employeeShiftForm.shift) {
+    if (!employeeShiftForm.employee || !employeeShiftForm.shift) {
       onNotify?.('Please select both employee and shift.', 'warning');
       return;
     }
     try {
-      // Find employee by email
-      const employee = employees.find((emp) => emp.user?.email === employeeShiftForm.employeeEmail);
-      if (!employee) {
-        onNotify?.('Employee not found.', 'error');
-        return;
-      }
-      await api.assignEmployeeShift(employee.id, employeeShiftForm.shift);
+      await api.assignEmployeeShift(employeeShiftForm.employee, employeeShiftForm.shift);
       onNotify?.('Shift assigned to employee successfully.', 'success');
       setEmployeeShiftDialogOpen(false);
-      setEmployeeShiftForm({ employeeEmail: '', shift: '' });
+      setEmployeeShiftForm({ employee: '', shift: '' });
       setEmployeeSearch('');
       // Reload employee shifts
       const data = await api.listEmployeeShifts();
@@ -443,7 +437,7 @@ const AttendanceSessions = ({ role, onNotify }) => {
             onClose={() => {
               setEmployeeShiftDialogOpen(false);
               setEmployeeSearch('');
-              setEmployeeShiftForm({ employeeEmail: '', shift: '' });
+              setEmployeeShiftForm({ employee: '', shift: '' });
             }}
             fullWidth
             maxWidth="sm"
@@ -471,15 +465,15 @@ const AttendanceSessions = ({ role, onNotify }) => {
                 }}
               />
               <FormControl fullWidth sx={{ mt: 2 }}>
-                <InputLabel>Select Employee (by Email)</InputLabel>
+                <InputLabel>Select Employee</InputLabel>
                 <Select
-                  value={employeeShiftForm.employeeEmail}
-                  label="Select Employee (by Email)"
-                  onChange={(e) => setEmployeeShiftForm((prev) => ({ ...prev, employeeEmail: e.target.value }))}
+                  value={employeeShiftForm.employee}
+                  label="Select Employee"
+                  onChange={(e) => setEmployeeShiftForm((prev) => ({ ...prev, employee: e.target.value }))}
                 >
                   {filteredEmployees.map((emp) => (
-                    <MenuItem key={emp.id} value={emp.user?.email || ''}>
-                      {emp.user?.email || 'No email'} - {emp.full_name || emp.employee_code}
+                    <MenuItem key={emp.id} value={emp.id}>
+                      {emp.full_name || emp.employee_code || 'Unknown'} ({emp.user?.email || 'No email'})
                     </MenuItem>
                   ))}
                 </Select>
@@ -504,7 +498,7 @@ const AttendanceSessions = ({ role, onNotify }) => {
                 onClick={() => {
                   setEmployeeShiftDialogOpen(false);
                   setEmployeeSearch('');
-                  setEmployeeShiftForm({ employeeEmail: '', shift: '' });
+                  setEmployeeShiftForm({ employee: '', shift: '' });
                 }}
               >
                 Cancel
