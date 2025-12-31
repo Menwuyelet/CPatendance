@@ -19,6 +19,12 @@ class AttendanceSession(models.Model):
 
     is_active = models.BooleanField(default=True)
     is_processed = models.BooleanField(default=False)
+    
+    @property
+    def date(self):
+        """Return the date of the session (date of started_at)"""
+        return self.started_at.date() if self.started_at else timezone.now().date()
+    
     def close(self):
         self.is_active = False
         self.ended_at = timezone.now()

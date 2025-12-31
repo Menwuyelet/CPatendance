@@ -212,7 +212,7 @@ class AttendanceSessionViewSet(ViewSet):
 
 class AttendanceTakingViewSet(ViewSet):
     """
-    One button click → one worker check-in
+    One button click → one worker check-in (via facial recognition)
     """
 
     def create(self, request):

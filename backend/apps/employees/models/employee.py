@@ -38,12 +38,29 @@ class Employee(models.Model):
     def get_today_shift(self):
         today = timezone.localdate()
         assignment = (
-            self.shift_assignments
+            self.shifts
             .select_related("shift")
-            .filter(date=today)
             .first()
         )
         return assignment.shift if assignment else None
+    
+    def get_shift_for_date(self, date):
+        """Get the first EmployeeShift assignment for the given date (if shift applies on that date)"""
+        from attendance.models import EmployeeShift
+        from attendance.services.shift_resolution_service import ShiftResolutionService
+        
+        try:
+            shifts = ShiftResolutionService.get_employee_shifts_for_date(self, date)
+            if shifts:
+                # Return the first matching EmployeeShift object
+                employee_shift = EmployeeShift.objects.filter(
+                    employee=self,
+                    shift__in=shifts
+                ).select_related('shift').first()
+                return employee_shift
+        except Exception:
+            pass
+        return None
 
     class Meta:
         indexes = [
