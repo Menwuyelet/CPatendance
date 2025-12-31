@@ -1,5 +1,5 @@
 // src/pages/Shifts.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   Box,
   Card,
@@ -24,8 +24,13 @@ import {
   Checkbox,
   IconButton,
   Tooltip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  InputAdornment,
 } from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Search, Clear } from '@mui/icons-material';
 import { api } from '../services/api.service.js';
 
 const Shifts = ({ role, onNotify }) => {
@@ -36,12 +41,22 @@ const Shifts = ({ role, onNotify }) => {
   // Permissions - based on backend views
   const canViewShifts = isAdmin || isHR || isManager;
   const canManageShifts = isHR; // Only HR can create/update/delete shifts
+  const canManageEmployeeShifts = isHR || isManager; // HR and Manager can assign shifts to employees
 
   const [shifts, setShifts] = useState([]);
   const [shiftsLoading, setShiftsLoading] = useState(false);
   const [shiftError, setShiftError] = useState('');
   const [shiftDialogOpen, setShiftDialogOpen] = useState(false);
   const [editingShift, setEditingShift] = useState(null);
+
+  // Employee Shift Assignment state
+  const [employeeShifts, setEmployeeShifts] = useState([]);
+  const [employeeShiftsLoading, setEmployeeShiftsLoading] = useState(false);
+  const [employeeShiftsError, setEmployeeShiftsError] = useState('');
+  const [employees, setEmployees] = useState([]);
+  const [employeeShiftDialogOpen, setEmployeeShiftDialogOpen] = useState(false);
+  const [employeeShiftForm, setEmployeeShiftForm] = useState({ employee: '', shift: '' });
+  const [employeeSearch, setEmployeeSearch] = useState('');
 
   const emptyShiftForm = {
     name: '',
@@ -86,6 +101,57 @@ const Shifts = ({ role, onNotify }) => {
 
     loadShifts();
   }, [canViewShifts, onNotify]);
+
+  // Load employee shifts and employees
+  useEffect(() => {
+    if (!canManageEmployeeShifts) {
+      setEmployeeShifts([]);
+      setEmployeeShiftsLoading(false);
+      return;
+    }
+
+    const loadEmployeeShifts = async () => {
+      setEmployeeShiftsLoading(true);
+      setEmployeeShiftsError('');
+      try {
+        const [employeesData, employeeShiftsData] = await Promise.all([
+          api.get('/employees/employees/').catch(() => []),
+          api.listEmployeeShifts(),
+        ]);
+
+        const employeesList = Array.isArray(employeesData) ? employeesData : employeesData?.data || [];
+        const employeeShiftsList = Array.isArray(employeeShiftsData) ? employeeShiftsData : [];
+
+        setEmployees(employeesList);
+        setEmployeeShifts(employeeShiftsList);
+      } catch (err) {
+        console.error('Unable to load employee shifts:', err);
+        setEmployeeShifts([]);
+        setEmployeeShiftsError('Unable to load employee shifts.');
+        onNotify?.('Failed to fetch employee shifts.', 'error');
+      } finally {
+        setEmployeeShiftsLoading(false);
+      }
+    };
+
+    loadEmployeeShifts();
+  }, [canManageEmployeeShifts, onNotify]);
+
+  // Filter employees based on search
+  const filteredEmployees = useMemo(() => {
+    if (!employeeSearch.trim()) return employees;
+    const searchLower = employeeSearch.toLowerCase();
+    return employees.filter((emp) => {
+      const email = emp.user?.email || '';
+      const name = emp.full_name || '';
+      const code = emp.employee_code || '';
+      return (
+        email.toLowerCase().includes(searchLower) ||
+        name.toLowerCase().includes(searchLower) ||
+        code.toLowerCase().includes(searchLower)
+      );
+    });
+  }, [employees, employeeSearch]);
 
   const handleShiftFieldChange = (field, value) => {
     setShiftForm((prev) => ({ ...prev, [field]: value }));
@@ -177,6 +243,42 @@ const Shifts = ({ role, onNotify }) => {
       console.error('Failed to delete shift:', err);
       setShiftError('Failed to delete shift.');
       onNotify?.('Failed to delete shift.', 'error');
+    }
+  };
+
+  // Employee Shift Assignment handlers
+  const handleAssignEmployeeShift = async () => {
+    if (!employeeShiftForm.employee || !employeeShiftForm.shift) {
+      onNotify?.('Please select both employee and shift.', 'warning');
+      return;
+    }
+    try {
+      await api.assignEmployeeShift(employeeShiftForm.employee, employeeShiftForm.shift);
+      onNotify?.('Shift assigned to employee successfully.', 'success');
+      setEmployeeShiftDialogOpen(false);
+      setEmployeeShiftForm({ employee: '', shift: '' });
+      setEmployeeSearch('');
+      // Reload employee shifts
+      const data = await api.listEmployeeShifts();
+      setEmployeeShifts(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to assign shift:', err);
+      onNotify?.(err.message || 'Failed to assign shift to employee.', 'error');
+    }
+  };
+
+  const handleRemoveEmployeeShift = async (assignmentId) => {
+    const confirmed = window.confirm('Are you sure you want to remove this shift assignment?');
+    if (!confirmed) return;
+    try {
+      await api.removeEmployeeShift(assignmentId);
+      onNotify?.('Shift assignment removed successfully.', 'success');
+      // Reload employee shifts
+      const data = await api.listEmployeeShifts();
+      setEmployeeShifts(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to remove shift assignment:', err);
+      onNotify?.(err.message || 'Failed to remove shift assignment.', 'error');
     }
   };
 
@@ -357,6 +459,161 @@ const Shifts = ({ role, onNotify }) => {
           )}
         </DialogActions>
       </Dialog>
+
+      {/* Employee Shift Assignments Section */}
+      {canManageEmployeeShifts && (
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h5" gutterBottom>
+            Employee Shift Assignments
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Assign shifts to employees. Search by email, name, or employee code.
+          </Typography>
+          <Card>
+            <CardContent>
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={2}
+                justifyContent="space-between"
+                alignItems={{ xs: 'flex-start', sm: 'center' }}
+                sx={{ mb: 2 }}
+              >
+                <Typography variant="h6">Assignments</Typography>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={() => setEmployeeShiftDialogOpen(true)}
+                  size="small"
+                >
+                  Assign Shift
+                </Button>
+              </Stack>
+
+              {employeeShiftsError && (
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setEmployeeShiftsError('')}>
+                  {employeeShiftsError}
+                </Alert>
+              )}
+
+              {employeeShiftsLoading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                  <CircularProgress size={32} />
+                </Box>
+              ) : employeeShifts.length === 0 ? (
+                <Alert severity="info">No employee shift assignments found.</Alert>
+              ) : (
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell><strong>Employee</strong></TableCell>
+                      <TableCell><strong>Email</strong></TableCell>
+                      <TableCell><strong>Shift</strong></TableCell>
+                      <TableCell align="right"><strong>Actions</strong></TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {employeeShifts.map((assignment) => (
+                      <TableRow key={assignment.id} hover>
+                        <TableCell>
+                          {assignment.employee?.full_name || assignment.employee?.employee_code || 'Unknown'}
+                        </TableCell>
+                        <TableCell>{assignment.employee?.user?.email || '-'}</TableCell>
+                        <TableCell>{assignment.shift?.name || 'Unknown'}</TableCell>
+                        <TableCell align="right">
+                          <Tooltip title="Remove Assignment">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleRemoveEmployeeShift(assignment.id)}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          <Dialog
+            open={employeeShiftDialogOpen}
+            onClose={() => {
+              setEmployeeShiftDialogOpen(false);
+              setEmployeeSearch('');
+              setEmployeeShiftForm({ employee: '', shift: '' });
+            }}
+            fullWidth
+            maxWidth="sm"
+          >
+            <DialogTitle>Assign Shift to Employee</DialogTitle>
+            <DialogContent dividers>
+              <TextField
+                fullWidth
+                sx={{ mt: 2 }}
+                label="Search Employee"
+                placeholder="Search by email, name, or employee code..."
+                value={employeeSearch}
+                onChange={(e) => setEmployeeSearch(e.target.value)}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
+                  endAdornment: employeeSearch && (
+                    <InputAdornment position="end">
+                      <IconButton size="small" onClick={() => setEmployeeSearch('')}>
+                        <Clear />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <FormControl fullWidth sx={{ mt: 2 }}>
+                <InputLabel>Select Employee</InputLabel>
+                <Select
+                  value={employeeShiftForm.employee}
+                  label="Select Employee"
+                  onChange={(e) => setEmployeeShiftForm((prev) => ({ ...prev, employee: e.target.value }))}
+                >
+                  {filteredEmployees.map((emp) => (
+                    <MenuItem key={emp.id} value={emp.id}>
+                      {emp.full_name || emp.employee_code || 'Unknown'} ({emp.user?.email || 'No email'})
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl fullWidth sx={{ mt: 2 }}>
+                <InputLabel>Select Shift</InputLabel>
+                <Select
+                  value={employeeShiftForm.shift}
+                  label="Select Shift"
+                  onChange={(e) => setEmployeeShiftForm((prev) => ({ ...prev, shift: e.target.value }))}
+                >
+                  {shifts.map((shift) => (
+                    <MenuItem key={shift.id} value={shift.id}>
+                      {shift.name} ({shift.start_time} - {shift.end_time})
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </DialogContent>
+            <DialogActions>
+              <Button
+                onClick={() => {
+                  setEmployeeShiftDialogOpen(false);
+                  setEmployeeSearch('');
+                  setEmployeeShiftForm({ employee: '', shift: '' });
+                }}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleAssignEmployeeShift} variant="contained">
+                Assign
+              </Button>
+            </DialogActions>
+          </Dialog>
+        </Box>
+      )}
     </Box>
   );
 };
