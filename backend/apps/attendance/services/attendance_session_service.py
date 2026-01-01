@@ -2,7 +2,7 @@ from django.utils import timezone
 from attendance.models import AttendanceSessionEntry
 from biometrics.services.matching_service import BiometricMatchingService
 from AI.controller.recognition_loop import run_recognition_loop
-
+from attendance.services.attendance_service import AttendanceAbsenceService
 
 # class AttendanceSessionService:
 #     def __init__(self, session):
@@ -42,7 +42,9 @@ class AttendanceSessionService:
         self.session = session
 
     def process_embedding(self, embedding):
+        print("Processing embedding in AttendanceSessionService")
         if not self.session.is_active:
+            print("[WARN] Session is not active")
             return "STOP_UNKNOWN"
 
         employee_id = BiometricMatchingService.match_face(
@@ -50,6 +52,7 @@ class AttendanceSessionService:
         )
 
         if not employee_id:
+            print("[INFO] No matching employee found")
             return "CONTINUE"
 
         entry, created = AttendanceSessionEntry.objects.get_or_create(
@@ -57,8 +60,10 @@ class AttendanceSessionService:
             employee_id=employee_id,
             defaults={"recognized_at": timezone.now()},
         )
-
+        print("Created entry:", entry, "Created:", created)
+        print()
         if not created:
+            print(f"[WARN] Duplicate entry for {entry.employee}")
             return "STOP_DUPLICATE"
 
         return "STOP_SUCCESS"
@@ -74,7 +79,7 @@ class AttendanceSessionService:
         """
         if not self.session.is_active:
             return []
-
+        AttendanceAbsenceService.mark_absent_for_session(self.session)
         self.session.is_active = False
         self.session.ended_at = timezone.now()
         self.session.save(update_fields=["is_active", "ended_at"])

@@ -37,7 +37,7 @@ class AttendanceCheckOutSerializer(serializers.Serializer):
 class AttendanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = AttendanceRecord
-        fields = "__all__"
+        fields = ["id", "employee", "employee_shift", "date", "check_in_time", "check_out_time","status", "taken_by", "created_at"]
         read_only_fields = fields
 
 

@@ -40,7 +40,7 @@ class AttendanceRecord(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("employee", "date")
+        unique_together = ("employee_shift", "employee", "date")
         indexes = [
             models.Index(fields=["employee", "date"]),
             models.Index(fields=["date"]),

@@ -19,6 +19,7 @@ from accounts.policies.biometric import BiometricPolicy
 from .permissions import (
     CanEnrollFace
 )
+from employees.models import Employee
 
 class FaceEnrollmentViewSet(ViewSet):
     permission_classes = [IsAuthenticated, CanEnrollFace]
@@ -28,8 +29,8 @@ class FaceEnrollmentViewSet(ViewSet):
         serializer.is_valid(raise_exception=True)
 
         employee = get_object_or_404(
-            User,
-            id=request.user.id
+            Employee,
+            user__id=request.user.id
         )
 
         service = BiometricEnrollmentService(employee)

@@ -59,7 +59,7 @@ import numpy as np
 from django.utils import timezone
 from biometrics.models import BiometricProfile
 from biometrics.services.encryption_service import encrypt_template
-
+from employees.models import Employee   
 
 class BiometricEnrollmentService:
     """
