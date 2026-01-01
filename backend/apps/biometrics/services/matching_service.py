@@ -65,11 +65,14 @@ class BiometricMatchingService:
             None if no match
         """
         if embedding is None:
+            print("[WARN] Received None embedding for matching")
             return None
 
         # Load {employee_id: embedding} for the shift
         stored_embeddings = ShiftEmbeddingLoader.load_for_shift(shift=shift)
+        print(f"[INFO] Loaded {len(stored_embeddings) if stored_embeddings else 0} stored embeddings for shift")
         if not stored_embeddings:
+            print("[INFO] No stored embeddings found for shift")
             return None
 
         normalized_embedding = BiometricMatchingService._normalize(embedding)
@@ -77,6 +80,7 @@ class BiometricMatchingService:
             return None
 
         for employee_id, stored_embedding in stored_embeddings.items():
+            print(f"[DEBUG] Comparing embedding of employee {employee_id}")
             normalized_stored = BiometricMatchingService._normalize(stored_embedding)
             if normalized_stored is None:
                 continue
@@ -107,7 +111,7 @@ class BiometricMatchingService:
         return vector / norm
 
     @staticmethod
-    def _is_match(embedding, stored_embedding, threshold=0.65):
+    def _is_match(embedding, stored_embedding, threshold=0.6):
         """
         Compare two normalized embeddings using cosine similarity.
 
