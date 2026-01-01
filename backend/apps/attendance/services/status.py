@@ -1,5 +1,5 @@
-from datetime import datetime, timedelta, timezone    
-
+from django.utils import timezone    
+from datetime import datetime, timedelta
 
 def combine_date_time(date, time):
     return timezone.make_aware(datetime.combine(date, time))
@@ -11,7 +11,7 @@ def evaluate_status(record):
         shift.start_time
     )
 
-    grace = timedelta(minutes=shift.grace_period_minutes)
+    grace = timedelta(minutes=15)
 
     if record.check_in_time <= shift_start + grace:
         return "PRESENT"
