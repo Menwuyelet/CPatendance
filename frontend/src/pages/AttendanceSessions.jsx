@@ -83,9 +83,52 @@ const AttendanceSessions = ({ role, onNotify }) => {
       setSessionsLoading(true);
       setSessionError('');
       try {
-        const data = await api.listAttendanceSessions();
-        const list = Array.isArray(data) ? data : [];
-        setSessions(list);
+        // Fetch sessions, shifts, users, and employees in parallel
+        const [sessionsData, shiftsData, usersData, employeesData] = await Promise.all([
+          api.listAttendanceSessions().catch(() => []),
+          api.get('/attendance/shifts/').catch(() => []),
+          api.get('/accounts/users/').catch(() => []),
+          api.get('/employees/employees/').catch(() => []),
+        ]);
+
+        const sessionsList = Array.isArray(sessionsData) ? sessionsData : [];
+        const shiftsList = Array.isArray(shiftsData) ? shiftsData : shiftsData?.results || [];
+        const usersList = Array.isArray(usersData) ? usersData : usersData?.results || [];
+        const employeesList = Array.isArray(employeesData) ? employeesData : employeesData?.results || [];
+
+        // Enrich sessions with shift and user data
+        const enrichedSessions = sessionsList.map((session) => {
+          // Get shift ID (could be object with id, or just the id number)
+          const shiftId = typeof session.shift === 'object' && session.shift !== null
+            ? session.shift.id
+            : session.shift;
+          
+          // Get started_by ID (could be object with id, or just the id/UUID)
+          const startedById = typeof session.started_by === 'object' && session.started_by !== null
+            ? session.started_by.id
+            : session.started_by;
+
+          // Find matching shift and user
+          const shift = shiftsList.find((s) => String(s.id) === String(shiftId));
+          const user = usersList.find((u) => String(u.id) === String(startedById));
+          
+          // Find employee for this user to get full_name
+          const employee = employeesList.find((e) => e.user?.id === String(startedById));
+          
+          // Combine user and employee data
+          const enrichedUser = user ? {
+            ...user,
+            full_name: employee?.full_name || user.full_name,
+          } : null;
+
+          return {
+            ...session,
+            shift: shift || session.shift,
+            started_by: enrichedUser || session.started_by,
+          };
+        });
+
+        setSessions(enrichedSessions);
       } catch (err) {
         console.error('Unable to load attendance sessions:', err);
         setSessions([]);
@@ -212,9 +255,27 @@ const AttendanceSessions = ({ role, onNotify }) => {
       onNotify?.('Attendance session started successfully.', 'success');
       setSessionDialogOpen(false);
       setSelectedShiftForSession('');
-      // Reload sessions
-      const data = await api.listAttendanceSessions();
-      setSessions(Array.isArray(data) ? data : []);
+      // Reload sessions with enrichment
+      const [sessionsData, shiftsData, usersData, employeesData] = await Promise.all([
+        api.listAttendanceSessions().catch(() => []),
+        api.get('/attendance/shifts/').catch(() => []),
+        api.get('/accounts/users/').catch(() => []),
+        api.get('/employees/employees/').catch(() => []),
+      ]);
+      const sessionsList = Array.isArray(sessionsData) ? sessionsData : [];
+      const shiftsList = Array.isArray(shiftsData) ? shiftsData : shiftsData?.results || [];
+      const usersList = Array.isArray(usersData) ? usersData : usersData?.results || [];
+      const employeesList = Array.isArray(employeesData) ? employeesData : employeesData?.results || [];
+      const enrichedSessions = sessionsList.map((session) => {
+        const shiftId = typeof session.shift === 'object' && session.shift !== null ? session.shift.id : session.shift;
+        const startedById = typeof session.started_by === 'object' && session.started_by !== null ? session.started_by.id : session.started_by;
+        const shift = shiftsList.find((s) => String(s.id) === String(shiftId));
+        const user = usersList.find((u) => String(u.id) === String(startedById));
+        const employee = employeesList.find((e) => e.user?.id === String(startedById));
+        const enrichedUser = user ? { ...user, full_name: employee?.full_name || user.full_name } : null;
+        return { ...session, shift: shift || session.shift, started_by: enrichedUser || session.started_by };
+      });
+      setSessions(enrichedSessions);
     } catch (err) {
       console.error('Failed to start session:', err);
       onNotify?.(err.message || 'Failed to start attendance session.', 'error');
@@ -227,9 +288,27 @@ const AttendanceSessions = ({ role, onNotify }) => {
     try {
       await api.closeAttendanceSession(sessionId);
       onNotify?.('Attendance session closed successfully.', 'success');
-      // Reload sessions
-      const data = await api.listAttendanceSessions();
-      setSessions(Array.isArray(data) ? data : []);
+      // Reload sessions with enrichment
+      const [sessionsData, shiftsData, usersData, employeesData] = await Promise.all([
+        api.listAttendanceSessions().catch(() => []),
+        api.get('/attendance/shifts/').catch(() => []),
+        api.get('/accounts/users/').catch(() => []),
+        api.get('/employees/employees/').catch(() => []),
+      ]);
+      const sessionsList = Array.isArray(sessionsData) ? sessionsData : [];
+      const shiftsList = Array.isArray(shiftsData) ? shiftsData : shiftsData?.results || [];
+      const usersList = Array.isArray(usersData) ? usersData : usersData?.results || [];
+      const employeesList = Array.isArray(employeesData) ? employeesData : employeesData?.results || [];
+      const enrichedSessions = sessionsList.map((session) => {
+        const shiftId = typeof session.shift === 'object' && session.shift !== null ? session.shift.id : session.shift;
+        const startedById = typeof session.started_by === 'object' && session.started_by !== null ? session.started_by.id : session.started_by;
+        const shift = shiftsList.find((s) => String(s.id) === String(shiftId));
+        const user = usersList.find((u) => String(u.id) === String(startedById));
+        const employee = employeesList.find((e) => e.user?.id === String(startedById));
+        const enrichedUser = user ? { ...user, full_name: employee?.full_name || user.full_name } : null;
+        return { ...session, shift: shift || session.shift, started_by: enrichedUser || session.started_by };
+      });
+      setSessions(enrichedSessions);
     } catch (err) {
       console.error('Failed to close session:', err);
       onNotify?.(err.message || 'Failed to close attendance session.', 'error');
