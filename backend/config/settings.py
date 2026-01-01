@@ -201,4 +201,4 @@ SPECTACULAR_SETTINGS = {
 }
 
 from cryptography.fernet import Fernet
-BIOMETRIC_SECRET_KEY = Fernet.generate_key()
+BIOMETRIC_SECRET_KEY = "-iXAOkcJoFyq58EXoeskOOfltPP6qrm_4vCnTbc_o-c="
