@@ -1,0 +1,15 @@
+{
+    "grammarly.userWords": [
+        "dj",
+        "flyctl",
+        "helloruby",
+        "microVM",
+        "toc",
+        "winbuild"
+    ],
+    "editor.formatOnSave": true,
+    "go.buildFlags": [
+        "-tags",
+        "integration"
+    ]
+}

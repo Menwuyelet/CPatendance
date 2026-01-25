@@ -5,17 +5,28 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework import serializers
-from accounts.models import User
+from accounts.models import User, Role
 from accounts.constants import Roles
-from .serializers import UserSerializer, UserCreateSerializer, UserUpdateSerializer
+from .serializers import (
+    CustomTokenObtainPairSerializer,
+    RoleSerializer,
+    UserSerializer,
+    UserCreateSerializer,
+    UserUpdateSerializer,
+)
 from accounts.services.user_service import create_user, update_user, get_users_for_user
 from accounts.permissions import IsAdmin
-from .serializers import CustomTokenObtainPairSerializer
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     """Custom login view that returns user data"""
     serializer_class = CustomTokenObtainPairSerializer
+
+class RoleViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Role.objects.all().order_by('id')
+    serializer_class = RoleSerializer
+    permission_classes = [IsAuthenticated]
+
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()

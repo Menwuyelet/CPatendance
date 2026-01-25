@@ -13,7 +13,10 @@ from biometrics.models import BiometricProfile
 from biometrics.services.enrollment_service import (
     BiometricEnrollmentService
 )
-from AI.enrollment_controller import enroll_face
+import numpy as np
+import cv2
+
+from biometrics.services.face_app import get_face_app
 
 from accounts.policies.biometric import BiometricPolicy
 from .permissions import (
@@ -23,6 +26,7 @@ from employees.models import Employee
 
 class FaceEnrollmentViewSet(ViewSet):
     permission_classes = [IsAuthenticated, CanEnrollFace]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def create(self, request):
         serializer = BiometricEnrollmentSerializer(data=request.data)
@@ -35,7 +39,44 @@ class FaceEnrollmentViewSet(ViewSet):
 
         service = BiometricEnrollmentService(employee)
 
-        result = enroll_face(service.handle_embedding)
+        # If client uploaded an image file (multipart/form-data)
+        image_file = request.FILES.get('image')
+        img = None
+        if image_file is not None:
+            try:
+                img_bytes = image_file.read()
+                nparr = np.frombuffer(img_bytes, dtype=np.uint8)
+                img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                if img is None:
+                    raise ValueError("Could not decode image file")
+            except Exception as e:
+                return Response({"detail": f"Invalid image uploaded: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            # Fallback: accept base64 JSON payload { image: '<base64>' }
+            b64 = request.data.get('image')
+            if not b64:
+                return Response({"detail": "Image file or base64 'image' field is required for enrollment."}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                if b64.startswith('data:'):
+                    b64 = b64.split(',', 1)[1]
+                import base64 as _base64
+                img_bytes = _base64.b64decode(b64)
+                nparr = np.frombuffer(img_bytes, dtype=np.uint8)
+                img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                if img is None:
+                    raise ValueError('Could not decode base64 image')
+            except Exception as e:
+                return Response({"detail": f"Invalid base64 image: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Convert BGR->RGB for insightface
+        rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        app = get_face_app()
+        faces = app.get(rgb)
+        if not faces:
+            return Response({"detail": "No face detected in uploaded image."}, status=status.HTTP_400_BAD_REQUEST)
+
+        embedding = faces[0].embedding.tolist()
+        result = service.handle_embedding(embedding)
         if not result.get("success", True):
             return Response(
                 {"detail": result.get("reason", "Enrollment failed Try Again")},

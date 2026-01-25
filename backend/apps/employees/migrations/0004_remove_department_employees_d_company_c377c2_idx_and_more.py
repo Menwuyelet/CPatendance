@@ -10,12 +10,34 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveIndex(
-            model_name='department',
-            name='employees_d_company_c377c2_idx',
+        migrations.SeparateDatabaseAndState(
+            # Some DBs (or manually edited schemas) may not have these indexes.
+            # Use DROP INDEX IF EXISTS to avoid crashing migrations on SQLite.
+            database_operations=[
+                migrations.RunSQL(
+                    "DROP INDEX IF EXISTS employees_d_company_c377c2_idx",
+                    reverse_sql=migrations.RunSQL.noop,
+                ),
+            ],
+            state_operations=[
+                migrations.RemoveIndex(
+                    model_name='department',
+                    name='employees_d_company_c377c2_idx',
+                ),
+            ],
         ),
-        migrations.RemoveIndex(
-            model_name='employee',
-            name='employees_e_company_9ab43a_idx',
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                migrations.RunSQL(
+                    "DROP INDEX IF EXISTS employees_e_company_9ab43a_idx",
+                    reverse_sql=migrations.RunSQL.noop,
+                ),
+            ],
+            state_operations=[
+                migrations.RemoveIndex(
+                    model_name='employee',
+                    name='employees_e_company_9ab43a_idx',
+                ),
+            ],
         ),
     ]

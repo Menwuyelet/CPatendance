@@ -1,0 +1,29 @@
+Django==5.1.7
+
+djangorestframework
+
+djangorestframework-simplejwt
+
+drf-spectacular
+
+django-cors-headers
+
+whitenoise
+
+gunicorn
+
+cryptography
+
+numpy
+opencv-python-headless
+
+# Face recognition
+insightface
+onnxruntime
+
+# Image handling
+Pillow
+
+# PythonAnywhere compatibility
+python-dotenv
+mysqlclient

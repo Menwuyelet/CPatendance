@@ -40,14 +40,9 @@ import {
 } from '@mui/icons-material';
 import { api } from '../services/api.service.js';
 
-// Base roles and their fixed ids (1-4). We merge these with any roles
-// discovered from existing users so the dropdown always offers all four.
-const BASE_ROLES = [
-  { id: 1, name: 'ADMIN' },
-  { id: 2, name: 'HR' },
-  { id: 3, name: 'MANAGER' },
-  { id: 4, name: 'EMPLOYEE' },
-];
+// Base role names we always want to show.
+// Real role IDs are loaded from the backend (/api/accounts/roles/).
+const BASE_ROLE_NAMES = ['ADMIN', 'HR', 'MANAGER', 'EMPLOYEE'];
 
 const emptyForm = {
   id: null,
@@ -94,6 +89,18 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
     const loadData = async () => {
       try {
         setLoading(true);
+
+        // Load roles (so we have correct DB IDs for create/update)
+        let rolesList = [];
+        try {
+          const rolesRes = await api.get('/accounts/roles/');
+          rolesList = Array.isArray(rolesRes)
+            ? rolesRes
+            : rolesRes?.results || rolesRes?.data || [];
+        } catch (e) {
+          // Fallback: if roles endpoint isn't available, we will try to infer roles from users.
+          rolesList = [];
+        }
 
         const usersRes = await api.get('/accounts/users/');
         const usersList = Array.isArray(usersRes)
@@ -162,8 +169,25 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           setUsers(mapped);
 
           const merged = new Map();
-          BASE_ROLES.forEach((r) => merged.set(r.name, r));
-          roleMap.forEach((val, key) => merged.set(key, val));
+
+          // 1) Roles from backend (authoritative IDs)
+          if (Array.isArray(rolesList)) {
+            rolesList.forEach((r) => {
+              const name = (r?.name || '').toUpperCase();
+              if (name && r?.id != null) merged.set(name, { id: r.id, name });
+            });
+          }
+
+          // 2) Ensure base names exist (even if backend is empty)
+          BASE_ROLE_NAMES.forEach((name) => {
+            if (!merged.has(name)) merged.set(name, { id: null, name });
+          });
+
+          // 3) Also merge any roles discovered from existing users
+          roleMap.forEach((val, key) => {
+            if (!merged.has(key)) merged.set(key, val);
+          });
+
           setRoleOptions(Array.from(merged.values()));
         }
 
@@ -235,7 +259,11 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           roleOptions.find((r) => String(r.id) === String(form.roleId)) ||
           roleOptions.find((r) => r.name === form.role.toUpperCase());
 
-        if (roleOption) payload.roles = [roleOption.id];
+        if (!roleOption || roleOption.id == null) {
+          onNotify?.('Roles not loaded correctly. Please refresh the page and try again.', 'error');
+          return;
+        }
+        payload.roles = [roleOption.id];
 
         await api.patch(`/accounts/users/${form.id}/`, payload);
 
@@ -275,8 +303,8 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           roleOptions.find((r) => String(r.id) === String(form.roleId)) ||
           roleOptions.find((r) => r.name === form.role.toUpperCase());
 
-        if (!roleOption) {
-          onNotify?.('Selected role not available', 'error');
+        if (!roleOption || roleOption.id == null) {
+          onNotify?.('Roles not loaded correctly. Please refresh the page and try again.', 'error');
           return;
         }
 

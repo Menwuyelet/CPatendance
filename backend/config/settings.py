@@ -11,21 +11,33 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+import os
+import sys
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Allow importing apps as `accounts`, `employees`, etc. (located under BASE_DIR/apps)
+sys.path.insert(0, str(BASE_DIR / 'apps'))
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-!a!tp1qlsw$th46=(6c4o96p=2ck=oyd%r&r8hgvbp^-7ku&*6'
+SECRET_KEY = os.getenv(
+    "DJANGO_SECRET_KEY",
+    "django-insecure-!a!tp1qlsw$th46=(6c4o96p=2ck=oyd%r&r8hgvbp^-7ku&*6",
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DJANGO_DEBUG", "1") in ("1", "true", "True")
 
-ALLOWED_HOSTS = []
+# Fly / Netlify / PythonAnywhere / local
+ALLOWED_HOSTS = [h.strip() for h in os.getenv(
+    "DJANGO_ALLOWED_HOSTS",
+    "localhost,127.0.0.1,cpat-backend.fly.dev,.pythonanywhere.com",
+).split(",") if h.strip()]
 
 
 # Application definition
@@ -35,7 +47,7 @@ INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
-    # 'django.contrib.sessions',
+    'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'corsheaders',
@@ -46,7 +58,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     
     ## custom
-    'accounts',
+    'accounts.apps.AccountsConfig',
     'attendance',
     'employees',
     'biometrics',
@@ -58,6 +70,13 @@ AUTH_USER_MODEL = 'accounts.User'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+
+    # Serve static files (admin, etc.) directly from the app
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+
+    # CORS must be as high as possible, especially before CommonMiddleware
+    'corsheaders.middleware.CorsMiddleware',
+
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -93,7 +112,8 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        # On Fly: set DJANGO_DB_PATH=/data/db.sqlite3 (Fly volume)
+        'NAME': os.getenv('DJANGO_DB_PATH', str(BASE_DIR / 'db.sqlite3')),
     }
 }
 
@@ -133,6 +153,11 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Media files (uploads)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
@@ -168,9 +193,25 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 25,
 } 
 
-# Media files (uploads)
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media' 
+# CORS (Netlify frontend -> Backend: Fly/PythonAnywhere)
+CORS_ALLOWED_ORIGINS = [
+    # Netlify production
+    "https://amnaystemcam.netlify.app",
+
+    # Local dev
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+CORS_ALLOW_CREDENTIALS = True
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://amnaystemcam.netlify.app",
+    # Add your PythonAnywhere domain here, e.g.:
+    # "https://yourusername.pythonanywhere.com",
+]
+
+# If behind a proxy/load balancer (Fly terminates TLS)
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # Auth User Model
 AUTH_USER_MODEL = "accounts.User"
@@ -201,4 +242,7 @@ SPECTACULAR_SETTINGS = {
 }
 
 from cryptography.fernet import Fernet
-BIOMETRIC_SECRET_KEY = "-iXAOkcJoFyq58EXoeskOOfltPP6qrm_4vCnTbc_o-c="
+BIOMETRIC_SECRET_KEY = os.getenv(
+    "BIOMETRIC_SECRET_KEY",
+    "-iXAOkcJoFyq58EXoeskOOfltPP6qrm_4vCnTbc_o-c=",
+)

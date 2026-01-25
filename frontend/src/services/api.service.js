@@ -2,27 +2,64 @@
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
-let accessToken = localStorage.getItem('accessToken') || null;
-let refreshToken = localStorage.getItem('refreshToken') || null;
+// Some browsers / privacy settings can block access to storage.
+// Keep tokens in memory even if storage is unavailable.
+const storage = (() => {
+  try {
+    if (!('localStorage' in window)) return null;
+    window.localStorage.setItem('__cpat_test__', '1');
+    window.localStorage.removeItem('__cpat_test__');
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+})();
+
+function storageGet(key) {
+  try {
+    return storage ? storage.getItem(key) : null;
+  } catch {
+    return null;
+  }
+}
+
+function storageSet(key, value) {
+  try {
+    if (storage) storage.setItem(key, value);
+  } catch {
+    // ignore
+  }
+}
+
+function storageRemove(key) {
+  try {
+    if (storage) storage.removeItem(key);
+  } catch {
+    // ignore
+  }
+}
+
+let accessToken = storageGet('accessToken');
+let refreshToken = storageGet('refreshToken');
 
 // Flag to prevent multiple simultaneous refresh attempts
 let isRefreshing = false;
 let refreshPromise = null;
 
-function setTokens({ access, refresh }) {
-  accessToken = access || null;
-  refreshToken = refresh || null;
+function setTokens({ access, refresh } = {}) {
+  // Only overwrite when caller explicitly passes a value.
+  // This prevents wiping refreshToken when only rotating accessToken.
+  if (access !== undefined) accessToken = access || null;
+  if (refresh !== undefined) refreshToken = refresh || null;
 
-  if (access) {
-    localStorage.setItem('accessToken', access);
-  } else {
-    localStorage.removeItem('accessToken');
+  if (access !== undefined) {
+    if (access) storageSet('accessToken', access);
+    else storageRemove('accessToken');
   }
 
-  if (refresh) {
-    localStorage.setItem('refreshToken', refresh);
-  } else {
-    localStorage.removeItem('refreshToken');
+  if (refresh !== undefined) {
+    if (refresh) storageSet('refreshToken', refresh);
+    else storageRemove('refreshToken');
   }
 }
 
@@ -31,6 +68,8 @@ function authHeader() {
 }
 
 async function refreshAccessToken() {
+  if (!refreshToken) return false;
+
   // If already refreshing, wait for the existing promise
   if (isRefreshing) {
     return refreshPromise;

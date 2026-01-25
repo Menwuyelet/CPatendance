@@ -21,6 +21,7 @@ from django.utils import timezone
 from attendance.services.shift_service import ShiftService
 from attendance.services.employee_shift_service import EmployeeShiftService
 from attendance.permissions.employee_shift_permission import CanManageEmployeeShift
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
 class AttendanceSessionCreateViewSet(ViewSet):
     """
@@ -214,8 +215,15 @@ class AttendanceTakingViewSet(ViewSet):
     """
     One button click → one worker check-in (via facial recognition)
     """
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def create(self, request):
+        """
+        If an image is provided (multipart/form-data `image` file or base64 `image` field),
+        decode it, compute embedding and attempt to match against the active session's shift.
+
+        If no image provided, fall back to previous behavior which triggers camera-driven check-in.
+        """
         session = (
             AttendanceSession.objects
             .filter(is_active=True)
@@ -229,13 +237,78 @@ class AttendanceTakingViewSet(ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        service = AttendanceSessionService(session)
-        service.check_in_next_worker()
+        # Try to get uploaded file first
+        image_file = request.FILES.get('image')
+        img = None
 
-        return Response(
-            {"detail": "Attendance attempt completed"},
-            status=status.HTTP_200_OK,
+        if image_file is not None:
+            try:
+                img_bytes = image_file.read()
+                import numpy as _np
+                nparr = _np.frombuffer(img_bytes, dtype=_np.uint8)
+                import cv2 as _cv2
+                img = _cv2.imdecode(nparr, _cv2.IMREAD_COLOR)
+                if img is None:
+                    raise ValueError('Could not decode uploaded image')
+            except Exception as e:
+                return Response({"detail": f"Invalid uploaded image: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            # Fallback to base64 JSON field
+            b64 = request.data.get('image')
+            if b64:
+                try:
+                    if b64.startswith('data:'):
+                        b64 = b64.split(',', 1)[1]
+                    import base64 as _b64
+                    import numpy as _np
+                    import cv2 as _cv2
+                    img_bytes = _b64.b64decode(b64)
+                    nparr = _np.frombuffer(img_bytes, dtype=_np.uint8)
+                    img = _cv2.imdecode(nparr, _cv2.IMREAD_COLOR)
+                    if img is None:
+                        raise ValueError('Could not decode base64 image')
+                except Exception as e:
+                    return Response({"detail": f"Invalid base64 image: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if img is None:
+            # On deployed servers there is no camera device, so an image is required.
+            return Response(
+                {"detail": "Image is required for check-in. Please capture a photo from the frontend camera."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Convert BGR -> RGB for insightface
+        import cv2 as _cv2
+        rgb = _cv2.cvtColor(img, _cv2.COLOR_BGR2RGB)
+
+        # Use cached FaceAnalysis (avoid heavy init per request)
+        from biometrics.services.face_app import get_face_app
+        app = get_face_app()
+
+        try:
+            faces = app.get(rgb)
+        except Exception as e:
+            return Response({"detail": f"Face detection failed: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        if not faces:
+            return Response({"detail": "No face detected in image"}, status=status.HTTP_400_BAD_REQUEST)
+
+        embedding = faces[0].embedding.tolist()
+
+        # Match against embeddings for the session's shift
+        from biometrics.services.matching_service import BiometricMatchingService
+
+        employee_id = BiometricMatchingService.match_face(embedding, session.shift)
+        if not employee_id:
+            return Response({"detail": "No matching employee found"}, status=status.HTTP_200_OK)
+
+        # Record attendance in session entries
+        entry, created = AttendanceSessionEntry.objects.get_or_create(
+            session=session,
+            employee_id=employee_id,
+            defaults={"recognized_at": timezone.now()},
         )
+
+        return Response({"detail": "Attendance recorded", "employee_id": str(employee_id), "created": created}, status=status.HTTP_200_OK)
 
     
 class AttendanceRecordViewSet(ViewSet):

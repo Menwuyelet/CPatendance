@@ -15,6 +15,7 @@
     "@mui/material": "^7.3.6",
     "@mui/x-date-pickers": "^8.23.0",
     "@rolldown/pluginutils": "^1.0.0-beta.57",
+    "cors": "^2.8.6",
     "date-fns": "^4.1.0",
     "dayjs": "^1.11.19",
     "jspdf": "^3.0.4",
