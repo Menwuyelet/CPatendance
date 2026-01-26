@@ -5,6 +5,7 @@ from .status import evaluate_status
 from django.db import transaction
 from attendance.models import EmployeeShift
 from employees.models import Employee
+
 def mark_attendance(employee, user, session, check_in_time=None):
     if not AttendancePolicy.can_take_attendance(user, employee):
         return None

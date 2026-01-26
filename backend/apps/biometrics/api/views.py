@@ -3,8 +3,6 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from accounts.models import User
 from biometrics.api.serializers import (
         BiometricEnrollmentSerializer,
         BiometricProfileSerializer
@@ -13,13 +11,14 @@ from biometrics.models import BiometricProfile
 from biometrics.services.enrollment_service import (
     BiometricEnrollmentService
 )
-from AI.enrollment_controller import enroll_face
 
 from accounts.policies.biometric import BiometricPolicy
 from .permissions import (
     CanEnrollFace
 )
-from employees.models import Employee
+# from employees.models import Employee
+from accounts.models.user import User
+from biometrics.services.face_engine import FaceEngine
 
 class FaceEnrollmentViewSet(ViewSet):
     permission_classes = [IsAuthenticated, CanEnrollFace]
@@ -28,26 +27,30 @@ class FaceEnrollmentViewSet(ViewSet):
         serializer = BiometricEnrollmentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        employee = get_object_or_404(
-            Employee,
-            user__id=request.user.id
-        )
+        # employee = get_object_or_404(User, user=request.user)
+        employee = request.user
+        image = request.FILES.get("image")
+
+        if not image:
+            return Response({"detail": "Image required"}, status=400)
+
+        embedding = FaceEngine.image_to_embedding(image.read())
+
+        if embedding is None:
+            return Response({"detail": "No face detected"}, status=400)
+        print(embedding)
 
         service = BiometricEnrollmentService(employee)
 
-        result = enroll_face(service.handle_embedding)
-        if not result.get("success", True):
-            return Response(
-                {"detail": result.get("reason", "Enrollment failed Try Again")},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        result = service.handle_embedding(embedding)
+
         return Response(
             {
                 "status": "created" if result["created"] else "updated",
                 "employee_id": result["employee_id"],
                 "biometric_type": "FACE",
             },
-            status=status.HTTP_201_CREATED
+            status=201,
         )
 
 # class FaceEnrollmentViewSet(ViewSet):

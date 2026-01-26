@@ -1,7 +1,7 @@
 from django.utils import timezone
 from attendance.models import AttendanceSessionEntry
 from biometrics.services.matching_service import BiometricMatchingService
-from AI.controller.recognition_loop import run_recognition_loop
+# from AI.controller.recognition_loop import run_recognition_loop
 from attendance.services.attendance_service import AttendanceAbsenceService
 
 # class AttendanceSessionService:
@@ -68,9 +68,20 @@ class AttendanceSessionService:
 
         return "STOP_SUCCESS"
 
-    def check_in_next_worker(self):
-        from AI.controller.recognizer import run_attendance_capture
-        run_attendance_capture(self.process_embedding)
+    # def check_in_next_worker(self):
+    #     from AI.controller.recognizer import run_attendance_capture
+    #     run_attendance_capture(self.process_embedding)
+
+    def check_in_next_worker(self, image_bytes):
+        from biometrics.services.face_engine import FaceEngine
+
+        embedding = FaceEngine.image_to_embedding(image_bytes)
+
+        if embedding is None:
+            print("[WARN] No face detected")
+            return "CONTINUE"
+
+        return self.process_embedding(embedding)
 
     def close(self):
         """

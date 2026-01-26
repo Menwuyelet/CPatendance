@@ -21,7 +21,7 @@ from django.utils import timezone
 from attendance.services.shift_service import ShiftService
 from attendance.services.employee_shift_service import EmployeeShiftService
 from attendance.permissions.employee_shift_permission import CanManageEmployeeShift
-
+from rest_framework.parsers import MultiPartParser
 class AttendanceSessionCreateViewSet(ViewSet):
     """
     HR / Manager starts attendance session
@@ -214,8 +214,16 @@ class AttendanceTakingViewSet(ViewSet):
     """
     One button click → one worker check-in (via facial recognition)
     """
+    parser_classes = [MultiPartParser]
+
 
     def create(self, request):
+
+        image = request.FILES.get("image")
+
+        if not image:
+            return Response({"detail": "Image required"}, status=400)
+        
         session = (
             AttendanceSession.objects
             .filter(is_active=True)
@@ -230,11 +238,10 @@ class AttendanceTakingViewSet(ViewSet):
             )
 
         service = AttendanceSessionService(session)
-        service.check_in_next_worker()
+        result = service.check_in_next_worker(image.read())
 
         return Response(
-            {"detail": "Attendance attempt completed"},
-            status=status.HTTP_200_OK,
+            {"result": result}
         )
 
     
