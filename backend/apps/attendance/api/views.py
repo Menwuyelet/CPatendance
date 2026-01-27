@@ -1,3 +1,8 @@
+"""Module backend/apps/attendance/api/views.py
+
+Auto-generated module docstring.
+"""
+
 from accounts.permissions.is_hr import IsHR
 from attendance.models.employee_shift import EmployeeShift
 from rest_framework.viewsets import ViewSet
@@ -30,6 +35,11 @@ class AttendanceSessionCreateViewSet(ViewSet):
     permission_classes = [IsAuthenticated, IsHRorManager | IsAdmin]  # set is later isHrorManager only
 
     def create(self, request):
+        """Start a new attendance session for a given shift.
+
+        Expects `shift_id` in the request data. Returns the created
+        session identifier on success.
+        """
         shift = get_object_or_404(Shift, id=request.data.get("shift_id"))
 
         session = AttendanceSession.objects.create(
@@ -73,6 +83,10 @@ class AttendanceSessionCreateViewSet(ViewSet):
     #     )
 
     def destroy(self, request, pk=None):
+        """Close an active attendance session identified by `pk`.
+
+        Processes session entries and triggers post-processing once closed.
+        """
         session = get_object_or_404(AttendanceSession, id=pk)
 
         if not session.is_active:
@@ -109,6 +123,7 @@ class AttendanceSessionViewSet(ViewSet):
     # LIST
     # -------------------------
     def list(self, request):
+        """List attendance sessions visible to the requesting user."""
         qs = AttendanceSession.objects.select_related(
             "shift",
             "started_by"
@@ -150,6 +165,7 @@ class AttendanceSessionViewSet(ViewSet):
     # RETRIEVE
     # -------------------------
     def retrieve(self, request, pk=None):
+        """Retrieve a single attendance session by id after permission checks."""
         session = get_object_or_404(AttendanceSession, id=pk)
         self._check_permission(request, session)
 
@@ -162,6 +178,7 @@ class AttendanceSessionViewSet(ViewSet):
     # UPDATE
     # -------------------------
     def update(self, request, pk=None):
+        """Partially update an attendance session (e.g., mark closed)."""
         session = get_object_or_404(AttendanceSession, id=pk)
         self._check_permission(request, session)
 
@@ -198,6 +215,12 @@ class AttendanceSessionViewSet(ViewSet):
     # INTERNAL PERMISSION CHECK
     # -------------------------
     def _check_permission(self, request, session):
+        """Internal helper that raises when the `request.user` cannot access `session`.
+
+        - Admins and HR bypass checks.
+        - Department managers may access sessions for their department.
+        - Otherwise raises `PermissionError`.
+        """
         if request.user.is_admin() or request.user.is_hr():
             return
 
@@ -218,7 +241,11 @@ class AttendanceTakingViewSet(ViewSet):
 
 
     def create(self, request):
+        """Handle POST with image to perform a single facial check-in.
 
+        Expects `image` in `request.FILES`. Returns a dictionary with a
+        `result` status string describing the outcome of processing.
+        """
         image = request.FILES.get("image")
 
         if not image:
@@ -257,6 +284,7 @@ class AttendanceRecordViewSet(ViewSet):
     # LIST
     # -------------------------
     def list(self, request):
+        """List attendance sessions visible to the requesting user."""
         qs = AttendanceRecord.objects.select_related(
             "employee",
             "employee_shift"
@@ -303,6 +331,7 @@ class AttendanceRecordViewSet(ViewSet):
     # RETRIEVE
     # -------------------------
     def retrieve(self, request, pk=None):
+        """Retrieve a single attendance session by id after permission checks."""
         record = get_object_or_404(AttendanceRecord, id=pk)
 
         self._check_object_permission(request, record)
@@ -316,6 +345,7 @@ class AttendanceRecordViewSet(ViewSet):
     # UPDATE (Manual correction)
     # -------------------------
     def update(self, request, pk=None):
+        """Partially update an attendance session (e.g., mark closed)."""
         record = get_object_or_404(AttendanceRecord, id=pk)
 
         # Only HR / Admin can manually modify attendance
@@ -342,6 +372,12 @@ class AttendanceRecordViewSet(ViewSet):
     # INTERNAL PERMISSION CHECK
     # -------------------------
     def _check_object_permission(self, request, record):
+        """Ensure `request.user` may access the given `AttendanceRecord`.
+
+        Raises `PermissionError` when access is not permitted. Admins and HR
+        bypass checks; department managers and the record's employee may
+        access as appropriate.
+        """
         if request.user.is_admin() or request.user.is_hr():
             return
 
@@ -360,19 +396,31 @@ class AttendanceRecordViewSet(ViewSet):
 ## Shift Logic
 
 class ShiftViewSet(ViewSet):
+    """API operations for managing shifts (list, create, update, delete).
+
+    Provides CRUD endpoints used by HR/admins to maintain shift
+    definitions used across attendance sessions.
+    """
     permission_classes = [IsAuthenticated, IsHRorManager | IsAdmin]
 
     def get_permissions(self):
+        """Return permission instances for the current action.
+
+        For mutating shift endpoints (create/update/destroy) restrict access
+        to authenticated HR users.
+        """
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             self.permission_classes = [IsAuthenticated, IsHR]
         return super().get_permissions()
     
     def list(self, request):
+        """Return all configured shifts serialized for clients."""
         shifts = ShiftService.list_shifts()
         serializer = ShiftSerializer(shifts, many=True)
         return Response(serializer.data)
 
     def create(self, request):
+        """Create a new `Shift` from validated request payload."""
         serializer = ShiftSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -383,6 +431,7 @@ class ShiftViewSet(ViewSet):
         )
 
     def update(self, request, pk=None):
+        """Update an existing `Shift` with provided partial data."""
         shift = Shift.objects.get(pk=pk)
         serializer = ShiftSerializer(shift, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -391,14 +440,22 @@ class ShiftViewSet(ViewSet):
         return Response(ShiftSerializer(shift).data)
 
     def destroy(self, request, pk=None):
+        """Delete the specified `Shift` instance permanently."""
         shift = Shift.objects.get(pk=pk)
         ShiftService.delete_shift(shift)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 class EmployeeShiftViewSet(ViewSet):
+    """Endpoints to assign or remove shifts for employees.
+
+    Allows listing assignments and creating/deleting employee-shift
+    relationships. Permission checks ensure only authorized users can
+    modify assignments.
+    """
     permission_classes = [CanManageEmployeeShift]
 
     def list(self, request):
+        """List employee-shift assignments, optionally filtered by employee."""
         employee_id = request.query_params.get("employee")
 
         assignments = EmployeeShiftService.list_employee_shifts(employee_id)
@@ -406,6 +463,7 @@ class EmployeeShiftViewSet(ViewSet):
         return Response(serializer.data)
 
     def create(self, request):
+        """Assign a `Shift` to an `Employee` based on the request payload."""
         serializer = EmployeeShiftSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -420,12 +478,16 @@ class EmployeeShiftViewSet(ViewSet):
         )
 
     def destroy(self, request, pk=None):
+        """Remove the specified employee-shift assignment from the system."""
         assignment = EmployeeShift.objects.get(pk=pk)
         EmployeeShiftService.remove_shift(assignment)
         return Response(status=status.HTTP_204_NO_CONTENT)
     
     def _can_manage_employee(self, user, employee):
-        # return True
+        """Return True when `user` is allowed to manage the given `employee`.
+
+        Considers HR role and department manager relationship.
+        """
         # HR
         if getattr(user, "role", None) == "HR":
             return True

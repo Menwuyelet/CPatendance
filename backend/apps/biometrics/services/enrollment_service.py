@@ -1,3 +1,8 @@
+"""Module backend/apps/biometrics/services/enrollment_service.py
+
+Auto-generated module docstring.
+"""
+
 # import numpy as np
 # from django.conf import settings
 # from django.utils import timezone
@@ -67,9 +72,21 @@ class BiometricEnrollmentService:
     """
 
     def __init__(self, employee):
+        """Create an enrollment service bound to the given employee.
+
+        The service instance uses `self.employee` to persist biometric
+        templates for that employee.
+        """
         self.employee = employee
 
     def handle_embedding(self, embedding):
+        """Encrypt and store `embedding` for the configured employee.
+
+        Inputs:
+        - `embedding` (iterable/array-like): numeric embedding vector
+
+        Returns a dict with keys `created` (bool) and `employee_id`.
+        """
         if not self.employee.is_active:
             raise ValueError("Inactive employee cannot be enrolled")
 

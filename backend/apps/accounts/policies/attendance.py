@@ -1,6 +1,16 @@
+"""Module backend/apps/accounts/policies/attendance.py
+
+Auto-generated module docstring.
+"""
+
 from .common import BasePolicy
 
 class AttendancePolicy(BasePolicy):
+    """Policies related to attendance operations.
+
+    Re-uses `BasePolicy` role helpers to determine whether a user may
+    take attendance, self check-in, or view another employee's records.
+    """
 
     @classmethod
     def can_take_attendance(cls, user, employee):
@@ -18,9 +28,7 @@ class AttendancePolicy(BasePolicy):
 
     @classmethod
     def can_self_check_in(cls, user):
-        """
-        Any worker (including HR & Manager) can self check-in
-        """
+        """Return True when `user` is permitted to perform self check-in."""
         return cls.is_worker(user) or cls.is_hr(user) or cls.is_manager(user)
 
     @classmethod

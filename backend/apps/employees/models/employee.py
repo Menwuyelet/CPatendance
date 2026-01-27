@@ -1,3 +1,8 @@
+"""Module backend/apps/employees/models/employee.py
+
+Auto-generated module docstring.
+"""
+
 # core/models/employee.py
 import uuid
 from django.db import models
@@ -5,6 +10,11 @@ from django.conf import settings
 from django.utils import timezone
 
 class Employee(models.Model):
+    """Represents an employee and links to the system `User`.
+
+    Stores HR-visible attributes such as `full_name`, `employee_code` and
+    department membership. Provides helpers to resolve shifts for dates.
+    """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     user = models.OneToOneField(
@@ -33,9 +43,15 @@ class Employee(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
+        """Return a short identifier for the employee (UUID)."""
         return f"{self.id}"
     
     def get_today_shift(self):
+        """Return the effective `EmployeeShift` for today, if any.
+
+        Uses the shift resolution service to determine applicable shifts for
+        the current date and returns the first matching assignment.
+        """
         today = timezone.localdate()
         assignment = (
             self.shifts
@@ -63,6 +79,7 @@ class Employee(models.Model):
         return None
 
     class Meta:
+        """Model `Meta`: database indexes for common lookup fields."""
         indexes = [
             models.Index(fields=["employee_code"]),
             models.Index(fields=["department"]),

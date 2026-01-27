@@ -1,6 +1,16 @@
+"""Module backend/apps/attendance/models/shift.py
+
+Auto-generated module docstring.
+"""
+
 from django.db import models
 
 class Shift(models.Model):
+    """Represents a work shift with schedule and day flags.
+
+    Stores start/end times and which weekdays the shift applies to. Used by
+    scheduling and attendance session logic.
+    """
     name = models.CharField(max_length=100)
     start_time = models.TimeField()
     end_time = models.TimeField()
@@ -17,9 +27,22 @@ class Shift(models.Model):
     sunday = models.BooleanField(default=False)
 
     class Meta:
+        """Model metadata for `Shift`.
+
+        Declares unique constraints to avoid duplicate named shifts with the
+        same time range.
+        """
         unique_together = ("name", "start_time", "end_time")
 
     def applies_today(self, date):
+        """Return whether this shift is active on the given date.
+
+        Parameters:
+        - `date` (datetime.date): the date to evaluate.
+
+        Returns:
+        - bool: True when the shift's weekday flag is set for `date`.
+        """
         weekday = date.weekday()  # 0 = Monday
         return [
             self.monday,
@@ -32,4 +55,5 @@ class Shift(models.Model):
         ][weekday]
 
     def __str__(self):
+        """Return the human-readable name for the shift."""
         return self.name

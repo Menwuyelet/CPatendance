@@ -1,3 +1,8 @@
+"""Module backend/apps/biometrics/services/matching_service.py
+
+Auto-generated module docstring.
+"""
+
 # ## the matching service will call an AI service to match the captured embedding with stored embeddings in db encrypted from biometric profile
 # ## by loading and decrypting them first and then call the ai for getting reading embedding and iterate through them to find a match by calculating cosine similarity
 # import numpy as np

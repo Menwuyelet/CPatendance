@@ -1,3 +1,8 @@
+"""Module backend/apps/attendance/api/urls.py
+
+Auto-generated module docstring.
+"""
+
 from rest_framework.routers import DefaultRouter
 from attendance.api.views import ( 
                             AttendanceTakingViewSet, 

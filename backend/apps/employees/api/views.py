@@ -1,3 +1,8 @@
+"""Module backend/apps/employees/api/views.py
+
+Auto-generated module docstring.
+"""
+
 from rest_framework import viewsets, filters, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -22,6 +27,10 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     """
     permission_classes = [IsAuthenticated, IsHRorManager | IsAdmin]
     def get_permissions(self):
+        """Adjust permissions for mutating department endpoints.
+
+        For update/partial_update/destroy only administrators are allowed.
+        """
         # Allow access if the user is admin OR HR/manager.
         if self.action in ['update', 'partial_update', 'destroy']:
             self.permission_classes = [IsAdmin]
@@ -36,6 +45,11 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     serializer_class = DepartmentSerializer
 
 class EmployeeViewSet(viewsets.ModelViewSet):
+    """ViewSet for listing and managing employee records.
+
+    Read operations are scoped according to the requesting user's role;
+    update operations are restricted to administrators.
+    """
     queryset = Employee.objects.all()
     serializer_class = EmployeeSerializer
     permission_classes = [IsAuthenticated]
@@ -47,19 +61,23 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     http_method_names = ['get', 'put', 'patch', 'delete']  # Disable POST (create)
 
     def get_queryset(self):
+        """Return the employee queryset appropriate for the requesting user."""
         return get_employees_for_user(self.request.user)
 
     def get_serializer_class(self):
+        """Return the serializer class appropriate for the current action."""
         if self.action in ['update', 'partial_update']:
             return EmployeeUpdateSerializer
         return EmployeeSerializer
 
     def get_permissions(self):
+        """Adjust permissions for mutating endpoints (admins only)."""
         if self.action in ['update', 'partial_update', 'destroy']:
             self.permission_classes = [IsAdmin]
         return super().get_permissions()
 
     def perform_update(self, serializer):
+        """Apply validated updates and persist employee changes via service."""
         data = serializer.validated_data
         employee = update_employee(self.get_object(), **data)
         serializer.instance = employee
@@ -79,6 +97,7 @@ class ManagerTeamView(APIView):
     permission_classes = [IsAuthenticated, IsHRorManager]
 
     def get(self, request):
+        """Return the list of employees visible to the current manager/HR."""
         employees_qs = get_employees_for_user(request.user)
         serializer = EmployeeSerializer(employees_qs, many=True)
         return Response(serializer.data)

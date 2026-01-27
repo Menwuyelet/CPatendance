@@ -1,0 +1,10 @@
+"""Module backend/apps/accounts/permissions/is_employee.py
+
+Auto-generated module docstring.
+"""
+
+from rest_framework.permissions import BasePermission
+
+class IsEmployee(BasePermission):
+    def has_permission(self, request, view):
+        return hasattr(request.user, "employee")

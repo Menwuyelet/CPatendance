@@ -1,11 +1,21 @@
+"""Module backend/apps/attendance/services/employee_shift_service.py
+
+Auto-generated module docstring.
+"""
+
 from attendance.models import EmployeeShift
 from django.core.exceptions import ValidationError
 from attendance.services.shift_resolution_service import ShiftResolutionService
 
 class EmployeeShiftService:
+    """Service helpers for assigning and querying EmployeeShift records."""
     @staticmethod
     def assign_shift(employee, shift):
-        # check max 2 shifts per applicable weekday
+        """Assign `shift` to `employee` enforcing business rules.
+
+        Raises `ValidationError` when assignment would violate constraints
+        (e.g. more than two applicable shifts for the same day).
+        """
         from django.utils import timezone
 
         today = timezone.now().date()
@@ -25,6 +35,11 @@ class EmployeeShiftService:
 
     @staticmethod
     def list_employee_shifts(employee=None):
+        """Return employee shift assignments, optionally filtered by employee.
+
+        Parameters:
+        - `employee`: optional `Employee` instance or id to filter assignments.
+        """
         qs = EmployeeShift.objects.select_related("employee", "shift")
         if employee:
             qs = qs.filter(employee=employee)
@@ -32,4 +47,5 @@ class EmployeeShiftService:
 
     @staticmethod
     def remove_shift(employee_shift):
+        """Remove the given `EmployeeShift` assignment from the database."""
         employee_shift.delete()

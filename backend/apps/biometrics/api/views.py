@@ -1,3 +1,8 @@
+"""Module backend/apps/biometrics/api/views.py
+
+Auto-generated module docstring.
+"""
+
 from rest_framework.viewsets import ViewSet
 from rest_framework.response import Response
 from rest_framework import status
@@ -21,9 +26,20 @@ from accounts.models.user import User
 from biometrics.services.face_engine import FaceEngine
 
 class FaceEnrollmentViewSet(ViewSet):
+    """Endpoint for enrolling or updating employee face templates.
+
+    Accepts an image upload and converts it to an embedding using the
+    face engine, then delegates persistence to the enrollment service.
+    """
     permission_classes = [IsAuthenticated, CanEnrollFace]
 
     def create(self, request):
+        """Handle a POST request with an image to enroll a face.
+
+        Expects `image` in `request.FILES`. Returns status indicating
+        whether a new biometric profile was created or an existing one
+        updated.
+        """
         serializer = BiometricEnrollmentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 

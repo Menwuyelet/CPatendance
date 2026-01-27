@@ -1,3 +1,8 @@
+"""Module backend/apps/attendance/services/daily_jobs.py
+
+Auto-generated module docstring.
+"""
+
 from django.utils import timezone
 from attendance.models import AttendanceRecord, EmployeeShift
 

@@ -1,3 +1,8 @@
+"""Module backend/apps/accounts/api/views.py
+
+Auto-generated module docstring.
+"""
+
 from accounts.permissions.hr_or_manager import IsHRorManager
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -18,14 +23,27 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
 class UserViewSet(viewsets.ModelViewSet):
+    """ViewSet for user management and self-service endpoints.
+
+    Supports listing, retrieving and updating users. Actions are scoped
+    based on the requesting user's role; creation and mutation endpoints
+    are restricted to administrators by `get_permissions`.
+    """
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated | IsAdmin | IsHRorManager]
 
     def get_queryset(self):
+        """Return the set of users visible to the requesting user."""
         return get_users_for_user(self.request.user)
 
     def get_serializer_class(self):
+        """Return an appropriate serializer class based on the action.
+
+        - `create`: `UserCreateSerializer`
+        - `update` / `partial_update`: `UserUpdateSerializer`
+        - default: `UserSerializer`
+        """
         if self.action == 'create':
             return UserCreateSerializer
         elif self.action in ['update', 'partial_update']:
@@ -33,11 +51,21 @@ class UserViewSet(viewsets.ModelViewSet):
         return UserSerializer
 
     def get_permissions(self):
+        """Adjust permission classes for mutating actions.
+
+        For create/update/destroy operations only authenticated admins are
+        permitted; read operations use the default class-level permissions.
+        """
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             self.permission_classes = [IsAuthenticated, IsAdmin]
         return super().get_permissions()
 
     def perform_create(self, serializer):
+        """Create a new `User` and associated employee when required.
+
+        Validates required employee fields when user roles include an
+        employee-type role, then delegates creation to the service layer.
+        """
         data = serializer.validated_data
         roles = data.get('roles', [])
         role_names = [role.name for role in roles]
@@ -64,11 +92,13 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer.instance = user
 
     def perform_update(self, serializer):
+        """Update an existing user via the service layer using validated data."""
         data = serializer.validated_data
         user = update_user(self.get_object(), **data)
         serializer.instance = user
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def me(self, request):
+        """Return the serialized current user (convenience endpoint)."""
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)

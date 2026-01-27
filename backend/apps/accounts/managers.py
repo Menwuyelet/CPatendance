@@ -1,8 +1,19 @@
+"""Module backend/apps/accounts/managers.py
+
+Auto-generated module docstring.
+"""
+
 # accounts/managers.py
 from django.contrib.auth.base_user import BaseUserManager
 
 class UserManager(BaseUserManager):
+    """Custom user manager using email as the unique identifier."""
+
     def create_user(self, email, password=None, **extra_fields):
+        """Create and persist a `User` given an email and optional extras.
+
+        Raises `ValueError` when `email` is missing.
+        """
         if not email:
             raise ValueError("Email is required")
 
@@ -13,6 +24,10 @@ class UserManager(BaseUserManager):
         return user
 
     def create_superuser(self, email, password=None, **extra_fields):
+        """Create a superuser with required admin flags set.
+
+        Ensures `is_staff` and `is_superuser` are True for superuser accounts.
+        """
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
 

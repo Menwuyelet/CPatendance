@@ -1,3 +1,8 @@
+"""Module backend/apps/attendance/services/attendance_session_service.py
+
+Auto-generated module docstring.
+"""
+
 from django.utils import timezone
 from attendance.models import AttendanceSessionEntry
 from biometrics.services.matching_service import BiometricMatchingService
@@ -39,9 +44,18 @@ class AttendanceSessionService:
     """
 
     def __init__(self, session):
+        """Initialize the service with an `AttendanceSession` instance."""
         self.session = session
 
     def process_embedding(self, embedding):
+        """Process a single face embedding and record a session entry.
+
+        Returns a status string indicating how the caller should proceed:
+        - "STOP_UNKNOWN" when session inactive or error
+        - "CONTINUE" when no matching employee
+        - "STOP_DUPLICATE" when the employee already has an entry
+        - "STOP_SUCCESS" when an entry was created
+        """
         print("Processing embedding in AttendanceSessionService")
         if not self.session.is_active:
             print("[WARN] Session is not active")
@@ -73,6 +87,10 @@ class AttendanceSessionService:
     #     run_attendance_capture(self.process_embedding)
 
     def check_in_next_worker(self, image_bytes):
+        """Convert an uploaded image to an embedding and process it.
+
+        Returns the same status strings as `process_embedding`.
+        """
         from biometrics.services.face_engine import FaceEngine
 
         embedding = FaceEngine.image_to_embedding(image_bytes)

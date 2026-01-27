@@ -1,3 +1,8 @@
+"""Module backend/apps/employees/api/urls.py
+
+Auto-generated module docstring.
+"""
+
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import EmployeeViewSet, DepartmentViewSet

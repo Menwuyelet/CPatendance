@@ -1,6 +1,16 @@
+"""Module backend/apps/attendance/models/atendance_record.py
+
+Auto-generated module docstring.
+"""
+
 from django.db import models
 
 class AttendanceRecord(models.Model):
+    """Stores a single employee attendance entry for a date and shift.
+
+    Includes check-in/check-out timestamps, status and who recorded the
+    entry. Used by reporting and manual correction endpoints.
+    """
     STATUS_CHOICES = (
         ("PRESENT", "Present"),
         ("LATE", "Late"),
@@ -40,6 +50,7 @@ class AttendanceRecord(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        """Model `Meta`: unique constraints and useful indexes for queries."""
         unique_together = ("employee_shift", "employee", "date")
         indexes = [
             models.Index(fields=["employee", "date"]),

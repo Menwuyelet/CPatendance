@@ -1,3 +1,8 @@
+"""Module backend/apps/biometrics/api/urls.py
+
+Auto-generated module docstring.
+"""
+
 from rest_framework.routers import DefaultRouter
 from biometrics.api.views import (
     FaceEnrollmentViewSet,

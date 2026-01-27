@@ -1,3 +1,8 @@
+"""Module backend/apps/accounts/services/user_service.py
+
+Auto-generated module docstring.
+"""
+
 from accounts.models import User, Role
 from employees.models import Employee
 

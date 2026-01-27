@@ -1,9 +1,20 @@
+"""Module backend/apps/biometrics/models/biometric_record.py
+
+Auto-generated module docstring.
+"""
+
 # apps/biometrics/models.py
 from django.db import models
 from django.core.validators import MinLengthValidator
 
 class BiometricProfile(models.Model):
+    """Stores encrypted biometric templates for an `Employee`.
+
+    `template_data` contains an encrypted embedding or template blob.
+    """
+
     class BiometricType(models.TextChoices):
+        """Enumeration of supported biometric types (FACE, FINGERPRINT)."""
         FACE = "FACE", "Face Recognition"
         FINGERPRINT = "FINGERPRINT", "Fingerprint"
 
@@ -33,10 +44,12 @@ class BiometricProfile(models.Model):
     last_used = models.DateTimeField(null=True, blank=True)
 
     class Meta:
+        """Meta information for `BiometricProfile` model."""
         unique_together = ("employee", "biometric_type")
         verbose_name = "Biometric Profile"
         verbose_name_plural = "Biometric Profiles"
         ordering = ['-created_at']
 
     def __str__(self):
+        """Return a readable representation combining employee and type."""
         return f"{self.employee} - {self.get_biometric_type_display()}"

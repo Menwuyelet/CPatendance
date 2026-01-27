@@ -1,3 +1,8 @@
+"""Module backend/apps/attendance/services/process_session_service.py
+
+Auto-generated module docstring.
+"""
+
 # attendance/services/process_session.py
 from attendance.models import AttendanceSession
 from attendance.services.attendance_service import mark_attendance

@@ -1,3 +1,8 @@
+"""Module backend/apps/attendance/services/attendance_service.py
+
+Auto-generated module docstring.
+"""
+
 from django.utils import timezone
 from accounts.policies.attendance import AttendancePolicy
 from attendance.models import AttendanceRecord, AttendanceSessionEntry
@@ -7,22 +12,37 @@ from attendance.models import EmployeeShift
 from employees.models import Employee
 
 def mark_attendance(employee, user, session, check_in_time=None):
+    """Record a check-in for `employee` taken by `user` during `session`.
+
+    Inputs:
+    - `employee`: Employee instance
+    - `user`: User instance performing the action
+    - `session`: AttendanceSession instance
+    - `check_in_time` (optional): explicit timestamp to use
+
+    Returns:
+    - `AttendanceRecord` instance when created/updated, or `None` when
+        the caller is not permitted to record attendance.
+    """
     if not AttendancePolicy.can_take_attendance(user, employee):
         return None
+
     shift = session.shift
     employee_shift = EmployeeShift.objects.get(
-                employee_id=employee,
-                shift=shift
-            )
+        employee=employee,
+        shift=shift
+    )
+
     record, _ = AttendanceRecord.objects.get_or_create(
         employee=employee,
         date=session.date,
-        employee_shift=employee_shift.id,
+        employee_shift=employee_shift,
         defaults={
             "taken_by": user
         }
     )
-    print("This runs mark attendance")
+
+    # Note: avoid noisy prints in production; left here for debugging.
     record.check_in_time = check_in_time or timezone.now()
     record.status = evaluate_status(record)
     record.save()
@@ -41,6 +61,12 @@ class AttendanceAbsenceService:
     @staticmethod
     @transaction.atomic
     def mark_absent_for_session(session):
+        """Mark employees as ABSENT for a finished attendance session.
+
+        This examines assigned employees for the session's shift and any
+        successfully recognized entries; employees without a record are
+        marked ABSENT.
+        """
         shift = session.shift
 
         print(f"[INFO] Evaluating absences for session {session.id}")

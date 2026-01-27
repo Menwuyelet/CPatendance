@@ -1,3 +1,8 @@
+"""Module backend/apps/employees/models/department.py
+
+Auto-generated module docstring.
+"""
+
 from django.db import models
 import uuid
 
@@ -32,9 +37,11 @@ class Department(models.Model):
     is_active = models.BooleanField(default=True)
 
     class Meta:
+        """Model `Meta`: database indexes for lookups on department code."""
         indexes = [
             models.Index(fields=["code"]),
         ]
 
     def __str__(self):
+        """Return the department's human-readable name."""
         return self.name

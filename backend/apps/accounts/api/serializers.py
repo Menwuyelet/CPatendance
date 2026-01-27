@@ -1,12 +1,30 @@
+"""Module backend/apps/accounts/api/serializers.py
+
+Auto-generated module docstring.
+"""
+
 from rest_framework import serializers
 from accounts.models import User, Role
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from employees.models import Department
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """Custom serializer that includes user info in token response"""
+    """Custom serializer that includes user info in token response.
+
+    This serializer extends SimpleJWT's `TokenObtainPairSerializer` and
+    augments the validated token response with a minimal `user` object
+    containing `id`, `email` and `roles`.
+    """
     
     def validate(self, attrs):
+        """Validate credentials and return token data with user info.
+
+        Inputs:
+        - `attrs` (dict): serializer input data (email/username, password)
+
+        Returns:
+        - dict: token pair and embedded `user` information.
+        """
         try:
             data = super().validate(attrs)
         except Exception as e:
@@ -28,21 +46,33 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 
 class RoleSerializer(serializers.ModelSerializer):
+    """Serializer for `Role` model exposing identifier and name."""
+
     class Meta:
         model = Role
         fields = ['id', 'name']
 
 
 class UserSerializer(serializers.ModelSerializer):
+    """Serializer for `User` model used for read operations.
+
+    Exposes basic user properties and nested `roles` for client consumption.
+    """
     roles = RoleSerializer(many=True, read_only=True)
 
     class Meta:
+        """Serializer `Meta`: maps model and output fields for `UserSerializer`."""
         model = User
         fields = ['id', 'email', 'is_active', 'is_staff', 'roles', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
+    """Serializer used when creating new users.
+
+    Handles password write-only field and related foreign keys required
+    during user creation.
+    """
     password = serializers.CharField(write_only=True)
     roles = serializers.PrimaryKeyRelatedField(queryset=Role.objects.all(), many=True)
     full_name = serializers.CharField(required=False)
@@ -50,14 +80,20 @@ class UserCreateSerializer(serializers.ModelSerializer):
     department = serializers.PrimaryKeyRelatedField(queryset=Department.objects.all(), required=False)
 
     class Meta:
+        """Serializer `Meta`: maps model and input fields for user creation."""
         model = User
         fields = ['email', 'password', 'roles', 'full_name', 'employee_code', 'department']
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):
+    """Serializer used for updating limited user attributes.
+
+    Restricts writable fields to allow safe partial updates from clients.
+    """
     roles = serializers.PrimaryKeyRelatedField(queryset=Role.objects.all(), many=True, required=False)
 
     class Meta:
+        """Serializer `Meta`: defines editable fields for updates."""
         model = User
         fields = ['email', 'is_active', 'roles']
         read_only_fields = ['email']

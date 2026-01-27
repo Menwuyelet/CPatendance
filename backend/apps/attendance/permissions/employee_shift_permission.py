@@ -1,3 +1,8 @@
+"""Module backend/apps/attendance/permissions/employee_shift_permission.py
+
+Auto-generated module docstring.
+"""
+
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 class CanManageEmployeeShift(BasePermission):
@@ -7,15 +12,24 @@ class CanManageEmployeeShift(BasePermission):
     """
 
     def has_permission(self, request, view):
-        # List / retrieve → authenticated users
+        """High-level permission check for list/create operations.
+
+        Safe methods (GET/HEAD/OPTIONS) allow any authenticated user.
+        Mutating methods require authentication and are further checked
+        at the object level.
+        """
         if request.method in SAFE_METHODS:
             return request.user.is_authenticated
 
-        # Create / update / delete → authenticated required
         return request.user.is_authenticated
 
     def has_object_permission(self, request, view, obj):
-        # SAFE METHODS → authenticated users
+        """Object-level permission check for a specific `EmployeeShift`.
+
+        - SAFE methods: authenticated users
+        - Mutating methods: allowed for HR or managers of the employee's
+          department.
+        """
         if request.method in SAFE_METHODS:
             return request.user.is_authenticated
 

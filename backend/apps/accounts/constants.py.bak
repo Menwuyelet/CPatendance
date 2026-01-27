@@ -1,0 +1,10 @@
+"""Module backend/apps/accounts/constants.py
+
+Auto-generated module docstring.
+"""
+
+class Roles:
+    ADMIN = "ADMIN" 
+    HR = "HR" 
+    MANAGER = "MANAGER" 
+    EMPLOYEE = "EMPLOYEE" 

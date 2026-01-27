@@ -1,3 +1,8 @@
+"""Module backend/apps/employees/services/employee_service.py
+
+Auto-generated module docstring.
+"""
+
 from employees.models import Employee, Department
 from accounts.models import User
 

@@ -1,3 +1,8 @@
+"""Module backend/apps/biometrics/services/employe_embedding_load_service.py
+
+Auto-generated module docstring.
+"""
+
 import numpy as np
 from django.utils import timezone
 
