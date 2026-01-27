@@ -1,5 +1,6 @@
 // src/pages/HRDashboard.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import FaceCaptureDialog from '../components/FaceCaptureDialog.jsx';
 import {
   Box,
   Grid,
@@ -92,9 +93,9 @@ const HRDashboard = ({ onNotify }) => {
           api.get('/employees/departments/').catch(() => []),
         ]);
 
-        const employees = Array.isArray(employeesRes) ? employeesRes : employeesRes?.data || [];
-        const attendance = Array.isArray(attendanceRes) ? attendanceRes : attendanceRes?.data || [];
-        const departmentsList = Array.isArray(departmentsRes) ? departmentsRes : departmentsRes?.data || [];
+        const employees = Array.isArray(employeesRes) ? employeesRes : employeesRes?.results || [];
+        const attendance = Array.isArray(attendanceRes) ? attendanceRes : attendanceRes?.results || [];
+        const departmentsList = Array.isArray(departmentsRes) ? departmentsRes : departmentsRes?.results || [];
 
         setDepartments(departmentsList);
 
@@ -210,10 +211,11 @@ const HRDashboard = ({ onNotify }) => {
   
   const loadClockInState = async () => {
     try {
-      // Get current user and employee ID
+      // Get current user + Employee profile (backend does not embed employee in /me)
       const user = await api.getCurrentUser();
-      if (user?.employee?.id) {
-        setUserEmployeeId(user.employee.id);
+      const emp = await api.getMyEmployee().catch(() => null);
+      if (emp?.id) {
+        setUserEmployeeId(emp.id);
       }
       
       // Check active sessions - get all active sessions
@@ -223,14 +225,19 @@ const HRDashboard = ({ onNotify }) => {
         
         if (activeSessions.length > 0) {
           // For HR/Manager, check if user's employee has a shift assigned to any active session's shift
-          if (user?.employee?.id) {
-            const userShifts = await api.listEmployeeShifts(user.employee.id);
+          if (emp?.id) {
+            const userShifts = await api.listEmployeeShifts(emp.id);
             const userShiftsList = Array.isArray(userShifts) ? userShifts : [];
-            const userShiftIds = userShiftsList.map(us => us.shift?.id);
+            const userShiftIds = userShiftsList
+              .map((us) => (typeof us.shift === 'object' && us.shift !== null ? us.shift.id : us.shift))
+              .filter(Boolean)
+              .map(String);
             
-            const belongsToSession = activeSessions.some(session => 
-              userShiftIds.includes(session.shift?.id)
-            );
+            const belongsToSession = activeSessions.some((session) => {
+              const sessionShiftId =
+                typeof session.shift === 'object' && session.shift !== null ? session.shift.id : session.shift;
+              return sessionShiftId && userShiftIds.includes(String(sessionShiftId));
+            });
             
             if (belongsToSession) {
               setActiveSession(activeSessions[0]);
@@ -251,12 +258,14 @@ const HRDashboard = ({ onNotify }) => {
       }
       
       // Get last check-in time if any
-      if (user?.employee?.id) {
+      if (emp?.id) {
         const today = new Date().toISOString().slice(0, 10);
         try {
           const attendance = await api.get(`/attendance/attendance/?date=${today}`);
           const todayRecords = Array.isArray(attendance) ? attendance : [];
-          const userRecord = todayRecords.find(r => r.employee?.id === user.employee.id);
+          const userRecord = todayRecords.find(
+            (r) => String(r.employee?.id || r.employee) === String(emp.id)
+          );
           if (userRecord && userRecord.check_in_time) {
             setLastActionTime(new Date(userRecord.check_in_time).toLocaleTimeString());
           }
@@ -269,20 +278,27 @@ const HRDashboard = ({ onNotify }) => {
     }
   };
   
-  const handleClockIn = async () => {
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanSubmitting, setScanSubmitting] = useState(false);
+
+  const handleClockIn = async (imageFile) => {
     if (!activeSession) {
       onNotify?.('No active attendance session available or you are not assigned to any active session.', 'error');
       return;
     }
-    
+
+    setScanSubmitting(true);
     try {
-      await api.checkInAttendance();
+      await api.checkInAttendance(imageFile);
       const now = new Date().toLocaleTimeString();
       setLastActionTime(now);
-      onNotify?.('Successfully clocked in.', 'success');
+      onNotify?.('Face scan submitted. If recognized, it will be recorded in the active session.', 'success');
+      setScanOpen(false);
     } catch (err) {
       console.error('Clock in failed:', err);
       onNotify?.(`Failed to clock in. ${err.message || 'Please try again.'}`, 'error');
+    } finally {
+      setScanSubmitting(false);
     }
   };
 
@@ -365,12 +381,19 @@ const HRDashboard = ({ onNotify }) => {
               variant="contained"
               size="large"
               color="success"
-              onClick={handleClockIn}
-              disabled={!activeSession}
+              onClick={() => setScanOpen(true)}
+              disabled={!activeSession || scanSubmitting}
               sx={{ px: 4, minWidth: 150 }}
             >
-              Clock In
+              {scanSubmitting ? 'Submitting…' : 'Scan Face'}
             </Button>
+
+            <FaceCaptureDialog
+              open={scanOpen}
+              title="Scan Face for Attendance"
+              onClose={() => setScanOpen(false)}
+              onCaptured={(file) => handleClockIn(file)}
+            />
             <Box sx={{ textAlign: { xs: 'left', md: 'right' } }}>
               <Typography variant="body2" fontWeight="medium">
                 {activeSession ? 'Session Active' : 'No Active Session'}

@@ -1,5 +1,6 @@
 // src/pages/Attendance.jsx
 import React, { useEffect, useState, useRef } from 'react';
+import FaceCaptureDialog from '../components/FaceCaptureDialog.jsx';
 import {
   Box,
   Grid,
@@ -103,6 +104,10 @@ const Attendance = ({ role, onNotify, initialSection }) => {
 
   const [isClockedIn, setIsClockedIn] = useState(false);
   const [lastActionTime, setLastActionTime] = useState(null);
+
+  // Face-scan capture state (attendance-check-in expects multipart image)
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanSubmitting, setScanSubmitting] = useState(false);
   const [from, setFrom] = useState('2025-12-01');
   const [to, setTo] = useState('2025-12-31');
   const [rows, setRows] = useState([]);
@@ -142,6 +147,7 @@ const Attendance = ({ role, onNotify, initialSection }) => {
 
   // --- Employee Shifts state ---
   const [employeeShifts, setEmployeeShifts] = useState([]);
+  const [employeeShiftsEnriched, setEmployeeShiftsEnriched] = useState([]);
   const [employeeShiftsLoading, setEmployeeShiftsLoading] = useState(false);
   const [employeeShiftsError, setEmployeeShiftsError] = useState('');
   const [employeeShiftDialogOpen, setEmployeeShiftDialogOpen] = useState(false);
@@ -173,9 +179,38 @@ const Attendance = ({ role, onNotify, initialSection }) => {
       setLoading(true);
       setError('');
       try {
+        // Attendance records
         const data = await api.get('/attendance/attendance/');
         const list = Array.isArray(data) ? data : [];
-        const filteredByDate = list.filter((row) => {
+
+        // Map employee IDs -> names (fixes search + display for HR/Manager/Admin)
+        let employeeMap = {};
+        if (!isEmployee) {
+          try {
+            const employeesRes = await api.get('/employees/employees/');
+            const employeesList = Array.isArray(employeesRes)
+              ? employeesRes
+              : employeesRes?.results || [];
+            employeeMap = Object.fromEntries(
+              employeesList.map((e) => [String(e.id), e.full_name || e.user?.email || String(e.id)])
+            );
+          } catch (_) {
+            employeeMap = {};
+          }
+        }
+
+        const normalized = list.map((row) => {
+          const empId = String(row.employee?.id || row.employee || '');
+          const employeeName = employeeMap[empId];
+          return {
+            ...row,
+            employee: row.employee?.id || row.employee,
+            employee_name: employeeName,
+            name: employeeName, // backwards-compat for existing search UI
+          };
+        });
+
+        const filteredByDate = normalized.filter((row) => {
           const d = row.date;
           if (!d) return false;
           const afterFrom = !from || d >= from;
@@ -187,9 +222,7 @@ const Attendance = ({ role, onNotify, initialSection }) => {
         if (isEmployee) {
           const today = new Date().toISOString().slice(0, 10);
           const todayRecords = filteredByDate.filter((r) => r.date === today);
-          const activeRecord = todayRecords.find(
-            (r) => r.check_in_time && !r.check_out_time
-          );
+          const activeRecord = todayRecords.find((r) => r.check_in_time && !r.check_out_time);
           if (activeRecord) {
             setIsClockedIn(true);
             if (activeRecord.check_in_time) {
@@ -209,7 +242,7 @@ const Attendance = ({ role, onNotify, initialSection }) => {
       }
     };
     loadAttendance();
-  }, [from, to, isEmployee]);
+  }, [from, to, isEmployee, onNotify]);
 
   useEffect(() => {
     if (!canViewShifts) {
@@ -291,11 +324,27 @@ const Attendance = ({ role, onNotify, initialSection }) => {
         ]);
 
         const shiftsList = Array.isArray(shiftsData) ? shiftsData : [];
-        const employeesList = Array.isArray(employeesData) ? employeesData : employeesData?.data || [];
+        const employeesList = Array.isArray(employeesData)
+          ? employeesData
+          : employeesData?.results || [];
         const employeeShiftsList = Array.isArray(employeeShiftsData) ? employeeShiftsData : [];
 
         setEmployees(employeesList);
         setEmployeeShifts(employeeShiftsList);
+
+        // Enrich assignments (API usually returns IDs for employee/shift)
+        const employeesById = Object.fromEntries(employeesList.map((e) => [String(e.id), e]));
+        const shiftsById = Object.fromEntries(shiftsList.map((s) => [String(s.id), s]));
+        const enriched = employeeShiftsList.map((a) => {
+          const employeeId = String(a.employee?.id || a.employee || '');
+          const shiftId = String(a.shift?.id || a.shift || '');
+          return {
+            ...a,
+            employee: employeesById[employeeId] || a.employee,
+            shift: shiftsById[shiftId] || a.shift,
+          };
+        });
+        setEmployeeShiftsEnriched(enriched);
       } catch (err) {
         console.error('Unable to load employee shifts:', err);
         setEmployeeShifts([]);
@@ -491,54 +540,37 @@ const Attendance = ({ role, onNotify, initialSection }) => {
   const lateCount = filteredRows.filter((r) => (r.status || '').toUpperCase() === 'LATE').length;
   const absentCount = filteredRows.filter((r) => (r.status || '').toUpperCase() === 'ABSENT').length;
 
-  const handleClockToggle = async () => {
-    const action = isClockedIn ? 'out' : 'in';
-    const now = new Date().toLocaleTimeString();
+  const handleClockToggle = async (imageFile) => {
+    // Backend endpoint /attendance/attendance-check-in/ requires multipart image.
+    setScanSubmitting(true);
     try {
-      if (!isClockedIn) {
-        // Use attendance-check-in endpoint for clocking in
-        await api.checkInAttendance();
-        setIsClockedIn(true);
-        setLastActionTime(now);
-        onNotify?.(`Successfully clocked ${action}.`, 'success');
-        // Reload attendance to update UI
-        const today = new Date().toISOString().slice(0, 10);
-        const records = await api.get(`/attendance/attendance/?date=${today}`);
-        const todayRecords = Array.isArray(records) ? records : [];
-        setRows((prev) => {
-          const filtered = prev.filter((r) => r.date !== today);
-          return [...filtered, ...todayRecords];
-        });
-      } else {
-        // Clock out - update the attendance record
-        const today = new Date().toISOString().slice(0, 10);
-        const records = await api.get(`/attendance/attendance/?date=${today}`);
-        const todayRecords = Array.isArray(records) ? records : [];
-        const activeRecord = todayRecords.find(
-          (r) => r.check_in_time && !r.check_out_time
-        );
+      const res = await api.checkInAttendance(imageFile);
+      const rawResult = res?.result ?? res;
+      const result = String(rawResult || '').toUpperCase();
 
-        if (activeRecord && activeRecord.id) {
-          await api.put(`/attendance/attendance/${activeRecord.id}/`, {
-            check_out_time: new Date().toISOString(),
-          });
-          setIsClockedIn(false);
-          setLastActionTime(now);
-          onNotify?.(`Successfully clocked ${action}.`, 'success');
-          // Reload attendance to update UI
-          const updatedRecords = await api.get(`/attendance/attendance/?date=${today}`);
-          const updatedTodayRecords = Array.isArray(updatedRecords) ? updatedRecords : [];
-          setRows((prev) => {
-            const filtered = prev.filter((r) => r.date !== today);
-            return [...filtered, ...updatedTodayRecords];
-          });
-        } else {
-          throw new Error('No active attendance record found');
-        }
+      if (result.includes('SUCCESS')) {
+        onNotify?.('Face recognized. Your check-in was recorded in the active session.', 'success');
+      } else if (result.includes('DUPLICATE')) {
+        onNotify?.('Already recorded in this session (duplicate scan).', 'warning');
+      } else {
+        onNotify?.('Face not recognized (or no active session). Please try again.', 'error');
       }
+
+      // Refresh today list (records may appear only after the session is closed/processed)
+      const today = new Date().toISOString().slice(0, 10);
+      const records = await api.get(`/attendance/attendance/?date=${today}`);
+      const todayRecords = Array.isArray(records) ? records : [];
+      setRows((prev) => {
+        const filtered = prev.filter((r) => r.date !== today);
+        return [...filtered, ...todayRecords];
+      });
+
+      setLastActionTime(new Date().toLocaleTimeString());
     } catch (err) {
-      console.error('Clock action failed:', err);
-      onNotify?.(`Failed to clock ${action}. ${err.message || 'Please try again.'}`, 'error');
+      console.error('Face scan failed:', err);
+      onNotify?.(err.message || 'Face scan failed. Please try again.', 'error');
+    } finally {
+      setScanSubmitting(false);
     }
   };
 
@@ -556,24 +588,34 @@ const Attendance = ({ role, onNotify, initialSection }) => {
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
-                  Time Clock
+                  Face Scan
                 </Typography>
                 <Button
                   variant="contained"
                   size="large"
                   fullWidth
-                  color={isClockedIn ? 'error' : 'success'}
-                  onClick={handleClockToggle}
+                  color={isClockedIn ? 'success' : 'success'}
+                  onClick={() => setScanOpen(true)}
+                  disabled={scanSubmitting}
                   sx={{ py: 2, fontSize: '1.1rem' }}
                 >
-                  {isClockedIn ? 'Clock Out' : 'Clock In'}
+                  {scanSubmitting ? 'Submitting…' : 'Scan Face (Check In)'}
                 </Button>
-                <Typography variant="body1" sx={{ mt: 2, textAlign: 'center' }}>
-                  Status: <strong>{isClockedIn ? 'Clocked In' : 'Clocked Out'}</strong>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
+                  Status: <strong>{isClockedIn ? 'Checked in (today)' : 'Not checked in (today)'}</strong>
                   {lastActionTime && <><br />Last: {lastActionTime}</>}
+                  <br />
+                  Records may appear after HR/Manager closes the active session.
                 </Typography>
               </CardContent>
             </Card>
+
+            <FaceCaptureDialog
+              open={scanOpen}
+              title="Scan Face for Attendance"
+              onClose={() => setScanOpen(false)}
+              onCaptured={(file) => handleClockToggle(file)}
+            />
           </Grid>
         )}
 
@@ -658,10 +700,14 @@ const Attendance = ({ role, onNotify, initialSection }) => {
                   <TableBody>
                     {filteredRows.map((row) => (
                       <TableRow key={row.id} hover>
-                        {!isEmployee && <TableCell>{row.employee}</TableCell>}
+                        {!isEmployee && <TableCell>{row.employee_name || row.employee}</TableCell>}
                         <TableCell>{row.date}</TableCell>
-                        <TableCell>{row.check_in_time || '-'}</TableCell>
-                        <TableCell>{row.check_out_time || '-'}</TableCell>
+                        <TableCell>
+                          {row.check_in_time ? new Date(row.check_in_time).toLocaleString() : '-'}
+                        </TableCell>
+                        <TableCell>
+                          {row.check_out_time ? new Date(row.check_out_time).toLocaleString() : '-'}
+                        </TableCell>
                         <TableCell>
                           {(() => {
                             const status = (row.status || '').toUpperCase();
@@ -1020,7 +1066,7 @@ const Attendance = ({ role, onNotify, initialSection }) => {
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                   <CircularProgress size={32} />
                 </Box>
-              ) : employeeShifts.length === 0 ? (
+              ) : employeeShiftsEnriched.length === 0 ? (
                 <Alert severity="info">No employee shift assignments found.</Alert>
               ) : (
                 <Table size="small">
@@ -1032,7 +1078,7 @@ const Attendance = ({ role, onNotify, initialSection }) => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {employeeShifts.map((assignment) => (
+                    {employeeShiftsEnriched.map((assignment) => (
                       <TableRow key={assignment.id} hover>
                         <TableCell>
                           {assignment.employee?.full_name || assignment.employee?.employee_code || 'Unknown'}

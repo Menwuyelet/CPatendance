@@ -1,6 +1,10 @@
 frontend/node_modules/
 **/*:Zone.Identifier
 AICALL.md
-AI/
+#AI/
 backend/*.sqlite3
 db.sqlite3
+
+# Local env overrides (do not commit)
+frontend/.env.local
+frontend/.env.*.local

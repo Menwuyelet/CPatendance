@@ -2,8 +2,9 @@ import { Grid, Card, CardContent, Typography, Button, Box, Chip, Stack, Alert, C
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api.service.js';
-import { AccessTime, CheckCircle, Schedule, EventNote } from '@mui/icons-material';
+import { AccessTime, CheckCircle, Schedule, EventNote, CameraAlt } from '@mui/icons-material';
 import { format } from 'date-fns';
+import FaceCaptureDialog from '../components/FaceCaptureDialog.jsx';
 
 const EmployeeDashboard = ({ onNotify }) => {
   const [loading, setLoading] = useState(true);
@@ -11,11 +12,41 @@ const EmployeeDashboard = ({ onNotify }) => {
   const [userData, setUserData] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanSubmitting, setScanSubmitting] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     loadDashboardData();
   }, []);
+
+  const submitFaceScan = async (imageFile) => {
+    setScanSubmitting(true);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await api.checkInAttendance(imageFile);
+      const rawResult = res?.result ?? res;
+      const result = String(rawResult || '').toUpperCase();
+
+      if (result.includes('SUCCESS')) {
+        setSuccess('Face recognized. Your check-in was recorded in the active session.');
+      } else if (result.includes('DUPLICATE')) {
+        setSuccess('Already recorded in this session (duplicate scan).');
+      } else {
+        setError('Face not recognized (or no active session). Please try again.');
+      }
+
+      // Refresh dashboard info
+      await loadDashboardData();
+    } catch (err) {
+      console.error('Face scan failed:', err);
+      setError(err.message || 'Face scan failed.');
+    } finally {
+      setScanSubmitting(false);
+      setScanOpen(false);
+    }
+  };
 
   const loadDashboardData = async () => {
     try {
@@ -188,6 +219,23 @@ const EmployeeDashboard = ({ onNotify }) => {
               <Stack spacing={1.5}>
                 <Button
                   variant="contained"
+                  fullWidth
+                  onClick={() => setScanOpen(true)}
+                  startIcon={<CameraAlt />}
+                  disabled={scanSubmitting}
+                >
+                  {scanSubmitting ? 'Submitting…' : 'Scan Face (Check In)'}
+                </Button>
+
+                <FaceCaptureDialog
+                  open={scanOpen}
+                  title="Scan Face for Attendance"
+                  onClose={() => setScanOpen(false)}
+                  onCaptured={(file) => submitFaceScan(file)}
+                />
+
+                <Button
+                  variant="outlined"
                   fullWidth
                   onClick={() => navigate('/attendance')}
                   startIcon={<EventNote />}

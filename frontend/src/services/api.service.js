@@ -268,6 +268,17 @@ export const api = {
   },
 
   /**
+   * Fetch the current user's Employee record.
+   * This avoids relying on /accounts/users/me/ containing embedded employee data.
+   */
+  getMyEmployee: async () => {
+    const res = await request('/employees/employees/', { method: 'GET' });
+    const list = Array.isArray(res) ? res : res?.results || [];
+    // For an Employee user, backend scopes this list to only "self".
+    return list[0] || null;
+  },
+
+  /**
    * Determine user role from user data
    * @param {Object} userData 
    * @returns {string} Role name (Admin, HR, Manager, Employee)
@@ -356,7 +367,7 @@ export const api = {
     }
     if (filters.shift_id) params.append('shift_id', filters.shift_id);
     const query = params.toString();
-    return await api.get(`/attendance/attendance-manage-sessions${query ? `?${query}` : ''}`);
+    return await api.get(`/attendance/attendance-manage-sessions/${query ? `?${query}` : ''}`);
   },
 
   getAttendanceSession: async (sessionId) => {
@@ -370,7 +381,7 @@ export const api = {
   // --- Employee Shifts Methods ---
   listEmployeeShifts: async (employeeId = null) => {
     const query = employeeId ? `?employee=${employeeId}` : '';
-    return await api.get(`/attendance/employee-shifts${query}`);
+    return await api.get(`/attendance/employee-shifts/${query}`);
   },
 
   assignEmployeeShift: async (employeeId, shiftId) => {
@@ -384,8 +395,10 @@ export const api = {
     return await api.delete(`/attendance/employee-shifts/${assignmentId}/`);
   },
 
-  // --- Attendance Check-in Method ---
-  checkInAttendance: async () => {
-    return await api.post('/attendance/attendance-check-in/', {});
+  // --- Attendance (Face scan via active session) ---
+  checkInAttendance: async (imageFile) => {
+    const form = new FormData();
+    form.append('image', imageFile);
+    return await api.postForm('/attendance/attendance-check-in/', form);
   },
 };

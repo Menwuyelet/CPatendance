@@ -4,19 +4,14 @@ from rest_framework import status
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from biometrics.api.serializers import (
-        BiometricEnrollmentSerializer,
-        BiometricProfileSerializer
+    BiometricEnrollmentSerializer,
+    BiometricProfileSerializer
 )
 from biometrics.models import BiometricProfile
-from biometrics.services.enrollment_service import (
-    BiometricEnrollmentService
-)
-
+from biometrics.services.enrollment_service import BiometricEnrollmentService
 from accounts.policies.biometric import BiometricPolicy
-from .permissions import (
-    CanEnrollFace
-)
-# from employees.models import Employee
+from .permissions import CanEnrollFace
+from employees.models import Employee  # ← ADDED THIS IMPORT (critical fix)
 from accounts.models.user import User
 from biometrics.services.face_engine import FaceEngine
 
@@ -27,21 +22,29 @@ class FaceEnrollmentViewSet(ViewSet):
         serializer = BiometricEnrollmentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # employee = get_object_or_404(User, user=request.user)
-        employee = request.user
-        image = request.FILES.get("image")
+        # ─── FIXED: Get real Employee object instead of User ───────────────────────
+        try:
+            employee = Employee.objects.get(user=request.user)
+        except Employee.DoesNotExist:
+            return Response(
+                {
+                    "detail": "No Employee profile linked to your account. "
+                              "Please contact HR to create or link your Employee record."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
+        image = request.FILES.get("image")
         if not image:
             return Response({"detail": "Image required"}, status=400)
 
         embedding = FaceEngine.image_to_embedding(image.read())
-
         if embedding is None:
             return Response({"detail": "No face detected"}, status=400)
-        print(embedding)
 
-        service = BiometricEnrollmentService(employee)
+        print(embedding)  # keep your debug print
 
+        service = BiometricEnrollmentService(employee)  # now passes correct Employee object
         result = service.handle_embedding(embedding)
 
         return Response(
@@ -53,41 +56,16 @@ class FaceEnrollmentViewSet(ViewSet):
             status=201,
         )
 
+# (Your commented-out alternative version remains untouched)
 # class FaceEnrollmentViewSet(ViewSet):
-#     ## done with ai help
-#     permission_classes = [IsAuthenticated | CanEnrollFace]
-#     parser_classes = [MultiPartParser, FormParser, JSONParser]
-
-#     def create(self, request):
-#         serializer = BiometricEnrollmentSerializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-
-#         employee = get_object_or_404(
-#             User,
-#             id=serializer.validated_data["employee_id"]
-#         )
-
-#         profile, created = BiometricEnrollmentService.enroll_face_from_camera(
-#             employee=employee
-#         )
-
-#         return Response(
-#             {
-#                 "status": "created" if created else "updated",
-#                 "employee_id": str(employee.id),
-#                 "biometric_type": "FACE",
-#             },
-#             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
-#         )
+#     ...
 
 class BiometricProfileViewSet(ViewSet):
     """
     Manage biometric profiles metadata only.
-
     - List biometric profiles
     - Activate / Deactivate biometric access
     """
-
     # -------------------------
     # LIST BIOMETRIC PROFILES
     # -------------------------
@@ -96,7 +74,6 @@ class BiometricProfileViewSet(ViewSet):
         List biometric profiles (metadata only).
         """
         qs = BiometricProfile.objects.select_related("employee")
-
         # Permission scoping
         if request.user.is_admin() or request.user.is_hr():
             pass
@@ -104,7 +81,6 @@ class BiometricProfileViewSet(ViewSet):
             qs = qs.filter(employee=request.user.employee)
         else:
             qs = qs.none()
-
         return Response(
             BiometricProfileSerializer(qs, many=True).data,
             status=status.HTTP_200_OK
@@ -118,26 +94,20 @@ class BiometricProfileViewSet(ViewSet):
         Activate or deactivate a biometric profile.
         """
         profile = get_object_or_404(BiometricProfile, id=pk)
-
         if not BiometricPolicy.can_manage_profile(request.user, profile):
             return Response(
                 {"detail": "Not allowed"},
                 status=status.HTTP_403_FORBIDDEN
             )
-
         is_active = request.data.get("is_active")
-
         if is_active is None:
             return Response(
                 {"detail": "`is_active` field is required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
         profile.is_active = bool(is_active)
         profile.save(update_fields=["is_active", "updated_at"])
-
         return Response(
             BiometricProfileSerializer(profile).data,
             status=status.HTTP_200_OK
         )
-

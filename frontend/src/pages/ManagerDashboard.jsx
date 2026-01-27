@@ -1,5 +1,6 @@
 // src/pages/ManagerDashboard.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import FaceCaptureDialog from '../components/FaceCaptureDialog.jsx';
 import { Routes, Route, Link, useNavigate } from 'react-router-dom';
 import Settings from './Settings.jsx';
 import {
@@ -161,8 +162,9 @@ const ManagerDashboardHome = ({ onNotify }) => {
   const loadClockInState = async () => {
     try {
       const user = await api.getCurrentUser();
-      if (user?.employee?.department) {
-        setDepartment(user.employee.department);
+      const emp = await api.getMyEmployee().catch(() => null);
+      if (emp?.department) {
+        setDepartment(emp.department);
       }
       
       // Check active sessions
@@ -170,8 +172,8 @@ const ManagerDashboardHome = ({ onNotify }) => {
         const sessions = await api.listAttendanceSessions({ active: true });
         const activeSessions = Array.isArray(sessions) ? sessions.filter(s => s.is_active) : [];
         
-        if (activeSessions.length > 0 && user?.employee?.id) {
-          const userShifts = await api.listEmployeeShifts(user.employee.id);
+        if (activeSessions.length > 0 && emp?.id) {
+          const userShifts = await api.listEmployeeShifts(emp.id);
           const userShiftsList = Array.isArray(userShifts) ? userShifts : [];
           const userShiftIds = userShiftsList
             .map(us => getShiftId(us.shift))
@@ -197,12 +199,14 @@ const ManagerDashboardHome = ({ onNotify }) => {
       }
       
       // Get last check-in time if any
-      if (user?.employee?.id) {
+      if (emp?.id) {
         const today = new Date().toISOString().slice(0, 10);
         try {
           const attendance = await api.get(`/attendance/attendance/?date=${today}`);
           const todayRecords = Array.isArray(attendance) ? attendance : [];
-          const userRecord = todayRecords.find(r => r.employee?.id === user.employee.id);
+          const userRecord = todayRecords.find(
+            (r) => String(r.employee?.id || r.employee) === String(emp.id)
+          );
           if (userRecord && userRecord.check_in_time) {
             setLastActionTime(new Date(userRecord.check_in_time).toLocaleTimeString());
           }
@@ -215,20 +219,27 @@ const ManagerDashboardHome = ({ onNotify }) => {
     }
   };
   
-  const handleClockIn = async () => {
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanSubmitting, setScanSubmitting] = useState(false);
+
+  const handleClockIn = async (imageFile) => {
     if (!activeSession) {
       onNotify?.('No active attendance session available or you are not assigned to any active session.', 'error');
       return;
     }
-    
+
+    setScanSubmitting(true);
     try {
-      await api.checkInAttendance();
+      await api.checkInAttendance(imageFile);
       const now = new Date().toLocaleTimeString();
       setLastActionTime(now);
-      onNotify?.('Successfully clocked in.', 'success');
+      onNotify?.('Face scan submitted. If recognized, it will be recorded in the active session.', 'success');
+      setScanOpen(false);
     } catch (err) {
       console.error('Clock in failed:', err);
       onNotify?.(`Failed to clock in. ${err.message || 'Please try again.'}`, 'error');
+    } finally {
+      setScanSubmitting(false);
     }
   };
 
@@ -242,17 +253,17 @@ const ManagerDashboardHome = ({ onNotify }) => {
       if (user?.employee?.department?.id) {
         // Get employees from manager's department
         const allEmployees = await api.get('/employees/employees/').catch(() => []);
-        const employeesList = Array.isArray(allEmployees) ? allEmployees : allEmployees?.data || [];
+        const employeesList = Array.isArray(allEmployees) ? allEmployees : allEmployees?.results || [];
         employees = employeesList.filter(emp => emp.department?.id === user.employee.department.id);
         setDepartment(user.employee.department);
       } else {
         // Fallback to all employees if no department
-        const employeesRes = await api.get('/employees/employees/').catch(() => ({ data: [] }));
-        employees = Array.isArray(employeesRes) ? employeesRes : employeesRes.data || [];
+        const employeesRes = await api.get('/employees/employees/').catch(() => ({ results: [] }));
+        employees = Array.isArray(employeesRes) ? employeesRes : employeesRes.results || [];
       }
       
-      const attendanceRes = await api.get('/attendance/attendance/').catch(() => ({ data: [] }));
-      const allAttendance = Array.isArray(attendanceRes) ? attendanceRes : attendanceRes.data || [];
+      const attendanceRes = await api.get('/attendance/attendance/').catch(() => ([]));
+      const allAttendance = Array.isArray(attendanceRes) ? attendanceRes : attendanceRes?.results || [];
       
       // Filter attendance by department employees only
       const employeeIds = employees.map(emp => emp.id);
@@ -332,12 +343,19 @@ const ManagerDashboardHome = ({ onNotify }) => {
                 variant="contained"
                 size="large"
                 color="success"
-                onClick={handleClockIn}
-                disabled={!activeSession}
-                sx={{ px: 4, minWidth: 150, flexShrink: 0 }}
+                onClick={() => setScanOpen(true)}
+                disabled={!activeSession || scanSubmitting}
+                sx={{ px: 4, minWidth: 150, borderRadius: 2, fontWeight: 'bold' }}
               >
-                Clock In
+                {scanSubmitting ? 'Submitting…' : 'Scan Face'}
               </Button>
+
+              <FaceCaptureDialog
+                open={scanOpen}
+                title="Scan Face for Attendance"
+                onClose={() => setScanOpen(false)}
+                onCaptured={(file) => handleClockIn(file)}
+              />
               <Box sx={{ textAlign: { xs: 'left', sm: 'right' }, minWidth: 150, flexShrink: 0 }}>
                 <Typography variant="body2" fontWeight="medium">
                   {activeSession ? 'Session Active' : 'No Active Session'}
@@ -471,19 +489,19 @@ const TeamOverviewPage = () => {
   const fetchTeam = async () => {
     try {
       setLoading(true);
-      // Get manager's department employees
-      const user = await api.getCurrentUser();
+      // Get manager's Employee profile (backend does not embed employee in /me)
+      const emp = await api.getMyEmployee().catch(() => null);
       let employees = [];
-      
-      if (user?.employee?.department?.id) {
+
+      if (emp?.department?.id) {
         // Get employees from manager's department
         const allEmployees = await api.get('/employees/employees/').catch(() => []);
-        const employeesList = Array.isArray(allEmployees) ? allEmployees : allEmployees?.data || [];
-        employees = employeesList.filter(emp => emp.department?.id === user.employee.department.id);
+        const employeesList = Array.isArray(allEmployees) ? allEmployees : allEmployees?.results || [];
+        employees = employeesList.filter((e) => e.department?.id === emp.department.id);
       } else {
         // Fallback to all employees if no department
-        const res = await api.get('/employees/employees/').catch(() => ({ data: [] }));
-        employees = Array.isArray(res) ? res : res.data || [];
+        const res = await api.get('/employees/employees/').catch(() => ({ results: [] }));
+        employees = Array.isArray(res) ? res : res.results || [];
       }
 
       const mapped = employees.map(emp => ({
