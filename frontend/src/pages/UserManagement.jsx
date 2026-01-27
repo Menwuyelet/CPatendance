@@ -618,7 +618,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                     </TableRow>
                   ) : (
                     filteredUsers.map((user) => (
-                      <TableRow key={user.id} hover>
+                      <TableRow key={user.id || user.email} hover>
                         <TableCell>
                           <Stack direction="row" spacing={2} alignItems="center">
                             <Avatar sx={{ bgcolor: 'primary.main' }}>

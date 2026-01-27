@@ -46,7 +46,6 @@ import {
   Security,
   CameraAlt,
   HowToReg,
-  PersonAdd,
   CheckCircleOutline,
   Schedule,
   Shield,
@@ -61,60 +60,66 @@ import { api } from '../services/api.service.js';
 
 const Biometrics = ({ onNotify, role }) => {
   const isEmployee = role === 'Employee';
+  const isAdmin = role === 'Admin';
+  const isHR = role === 'HR';
+
   const [tabValue, setTabValue] = useState(0);
   const [employeeId, setEmployeeId] = useState('');
+  const [hasEmployeeProfile, setHasEmployeeProfile] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(true);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraStream, setCameraStream] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   const [profiles, setProfiles] = useState([]);
   const [profilesLoading, setProfilesLoading] = useState(false);
   const [profilesError, setProfilesError] = useState('');
-
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
 
-  const isAdmin = role === 'Admin';
-  const isHR = role === 'HR';
-
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
+  // Load current user's employee profile
   useEffect(() => {
     (async () => {
+      setLoadingProfile(true);
       try {
-        const me = await api.getCurrentUser();
-        if (me?.employee?.id) {
-          setEmployeeId(String(me.employee.id));
-        } else if (me?.id) {
-          setEmployeeId(String(me.id));
+        const emp = await api.getMyEmployee();
+        const empId = emp?.id;
+        if (empId) {
+          setEmployeeId(String(empId));
+          setHasEmployeeProfile(true);
+        } else {
+          setHasEmployeeProfile(false);
         }
       } catch (e) {
-        console.error("Failed to load current user for employee ID", e);
+        console.error('Failed to load Employee profile', e);
+        setHasEmployeeProfile(false);
+      } finally {
+        setLoadingProfile(false);
       }
     })();
   }, []);
 
   const loadProfiles = async () => {
+    if (isEmployee) return;
     setProfilesLoading(true);
     setProfilesError('');
     try {
       const res = await api.getAllProfiles();
       const list = Array.isArray(res) ? res : res?.results || [];
-
-      if (list.length === 0) {
-        setProfiles([]); // Show empty state instead of demo
-      } else {
-        setProfiles(list);
-      }
+      setProfiles(list);
     } catch (err) {
       console.error('Failed to load biometric profiles:', err);
-      setProfiles([]); // Empty on error
-      setProfilesError('Unable to load profiles from server. Please try again later.');
+      setProfiles([]);
+      setProfilesError('Unable to load profiles. Please try again later.');
       onNotify?.('Failed to load biometric profiles.', 'error');
     } finally {
       setProfilesLoading(false);
@@ -122,21 +127,30 @@ const Biometrics = ({ onNotify, role }) => {
   };
 
   useEffect(() => {
-    // Only load profiles for Admin/HR (higher users)
     if (!isEmployee) {
       loadProfiles();
     }
   }, [isEmployee]);
 
+  // Cleanup camera and preview URL
   useEffect(() => {
     return () => {
-      try { stopCamera(); } catch (e) {}
+      stopCamera();
       if (imagePreview) URL.revokeObjectURL(imagePreview);
     };
   }, [imagePreview]);
 
+  // Auto-play video when stream is set
+  useEffect(() => {
+    if (!cameraOpen || !cameraStream || !videoRef.current) return;
+    videoRef.current.srcObject = cameraStream;
+    videoRef.current.play().catch(() => {});
+  }, [cameraOpen, cameraStream]);
+
   const filteredProfiles = profiles.filter((p) => {
-    const matchesSearch = !search || (p.employee_name || p.employee || '').toLowerCase().includes(search.toLowerCase());
+    const matchesSearch =
+      !search ||
+      (p.employee_name || p.employee || '').toLowerCase().includes(search.toLowerCase());
     const matchesStatus =
       statusFilter === 'ALL' ||
       (statusFilter === 'Active' && p.is_active) ||
@@ -146,85 +160,144 @@ const Biometrics = ({ onNotify, role }) => {
 
   const totalEnrolled = profiles.length;
   const totalActive = profiles.filter((p) => p.is_active).length;
-  const totalRevoked = totalEnrolled - totalActive;
-
   const stats = {
     totalEnrolled,
     activeToday: totalActive,
-    totalRevoked,
+    totalRevoked: totalEnrolled - totalActive,
     securityLevel: totalActive > 0 ? 'High' : 'Medium',
   };
 
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      if (videoRef.current) videoRef.current.srcObject = stream;
+      stopCamera();
+      setCameraReady(false);
       setCameraOpen(true);
-    } catch (e) {
-      onNotify?.('Unable to access camera. Please check permissions.', 'error');
+      await new Promise((r) => setTimeout(r, 120));
+
+      if (!videoRef.current) throw new Error('Video element not found');
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'user',
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
+
+      setCameraStream(stream);
+      videoRef.current.srcObject = stream;
+      await new Promise((resolve) => {
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current.play().catch(() => {});
+          resolve();
+        };
+        setTimeout(resolve, 2500);
+      });
+
+      setCameraReady(true);
+    } catch (err) {
+      console.error('Camera start failed:', err);
+      stopCamera();
+      let msg = 'Cannot access camera.';
+      if (err.name === 'NotAllowedError') {
+        msg = 'Camera permission denied. Please allow access in your browser settings.';
+      } else if (err.name === 'NotFoundError') {
+        msg = 'No camera found on this device.';
+      } else if (err.name === 'OverconstrainedError') {
+        msg = 'Camera constraints not satisfied. Try another device.';
+      }
+      onNotify?.(msg, 'error');
     }
   };
 
   const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((track) => track.stop());
+    }
     if (videoRef.current?.srcObject) {
-      videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
       videoRef.current.srcObject = null;
     }
+    setCameraStream(null);
     setCameraOpen(false);
+    setCameraReady(false);
   };
 
   const captureFrame = () => {
     if (!videoRef.current) return;
     const video = videoRef.current;
+
+    if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
+      onNotify?.('Camera not fully ready yet. Wait 1–2 seconds after video starts.', 'warning');
+      return;
+    }
+
     const canvas = canvasRef.current || document.createElement('canvas');
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob((blob) => {
-      if (blob) {
-        setImageFile(blob);
+
+    canvas.toBlob(
+      (blob) => {
+        if (!blob || blob.size < 2000) {
+          onNotify?.('Captured image appears empty. Try again in better lighting.', 'warning');
+          return;
+        }
+        const file = new File([blob], 'capture.jpg', { type: 'image/jpeg' });
+        setImageFile(file);
         const url = URL.createObjectURL(blob);
         setImagePreview(url);
         stopCamera();
-      }
-    }, 'image/jpeg', 0.9);
+      },
+      'image/jpeg',
+      0.92
+    );
   };
 
   const handleEnrollClick = async () => {
-    // Employee ID is taken from backend - no need to ask
+    if (!hasEmployeeProfile) {
+      onNotify?.(
+        "Face enrollment is currently not available for your account.\n\n" +
+        "This feature requires a linked Employee profile in the system.\n\n" +
+        "Please contact your HR department or system administrator and ask them to:\n" +
+        "• Create an Employee record for you, or\n" +
+        "• Link your user account to an existing Employee record.\n\n" +
+        "Once that's done, refresh this page and try again.",
+        'info'
+      );
+      return;
+    }
+
+    if (!imageFile) {
+      onNotify?.('Please capture a photo first.', 'warning');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      let enrollmentSuccess = false;
+      const form = new FormData();
+      form.append('biometric_type', 'FACE');
+      form.append('image', imageFile);
 
-      if (imageFile) {
-        const form = new FormData();
-        form.append('biometric_type', 'FACE');
-        form.append('image', imageFile, 'capture.jpg');
-        await api.postForm('/biometrics/face/enroll/', form);
-        onNotify?.('Face enrollment completed successfully!', 'success');
-        enrollmentSuccess = true;
-      } else {
-        await api.post('/biometrics/face/enroll/', {
-          biometric_type: 'FACE',
-        });
-        onNotify?.('Face enrollment started successfully!', 'success');
-        enrollmentSuccess = true;
-      }
+      await api.postForm('/biometrics/face/enroll/', form);
+      onNotify?.('Face enrolled successfully!', 'success');
 
-      // Reload profiles only for higher users
-      if (!isEmployee) {
-        await loadProfiles();
-      }
+      if (!isEmployee) await loadProfiles();
 
-      // Reset preview
       setImageFile(null);
       if (imagePreview) {
         URL.revokeObjectURL(imagePreview);
         setImagePreview(null);
       }
     } catch (err) {
-      onNotify?.(err.message || 'Enrollment failed. Please try again.', 'error');
+      let msg = err?.message || 'Enrollment failed. Please try again.';
+      const lower = msg.toLowerCase();
+      if (lower.includes('no face detected')) {
+        msg = 'No face detected. Center your face, ensure good lighting, and try again.';
+      } else if (lower.includes('image required')) {
+        msg = 'Image upload failed. Please capture again.';
+      }
+      onNotify?.(msg, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -237,24 +310,26 @@ const Biometrics = ({ onNotify, role }) => {
       const updated = await api.patch(`/biometrics/profiles/${profile.id}/`, {
         is_active: newActive,
       });
-      setProfiles((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      setProfiles((prev) =>
+        prev.map((p) => (p.id === updated.id ? updated : p))
+      );
       onNotify?.(
-        newActive ? 'Biometric profile activated.' : 'Biometric profile deactivated.',
+        newActive ? 'Profile activated.' : 'Profile deactivated.',
         'success'
       );
     } catch (err) {
-      onNotify?.(err.message || 'Failed to update profile status.', 'error');
+      onNotify?.('Failed to update status.', 'error');
     }
   };
 
   const deleteProfile = async (id) => {
-    if (!window.confirm('Delete this biometric profile? This cannot be undone.')) return;
+    if (!window.confirm('Delete this profile permanently?')) return;
     try {
       await api.deleteProfile(id);
       setProfiles((prev) => prev.filter((p) => p.id !== id));
-      onNotify?.('Biometric profile deleted.', 'info');
+      onNotify?.('Profile deleted.', 'info');
     } catch (err) {
-      onNotify?.('Failed to delete profile.', 'error');
+      onNotify?.('Delete failed.', 'error');
     }
   };
 
@@ -270,7 +345,9 @@ const Biometrics = ({ onNotify, role }) => {
         <Stack direction="row" alignItems="center" spacing={3} sx={{ mb: 2 }}>
           <Fingerprint sx={{ fontSize: 56, color: 'primary.main' }} />
           <Box>
-            <Typography variant="h3" fontWeight="bold">Biometric System</Typography>
+            <Typography variant="h3" fontWeight="bold">
+              Biometric System
+            </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
               Advanced facial recognition for secure, contactless attendance
             </Typography>
@@ -284,15 +361,15 @@ const Biometrics = ({ onNotify, role }) => {
         </Stack>
       </Box>
 
-      {/* Stats Cards */}
+      {/* Stats */}
       <Grid container spacing={4} sx={{ mb: 8 }}>
         {[
           { value: stats.totalEnrolled, label: 'Total Enrolled', icon: <HowToReg />, color: 'primary' },
           { value: stats.activeToday, label: 'Active Today', icon: <CheckCircleOutline />, color: 'success' },
           { value: stats.totalRevoked, label: 'Revoked', icon: <Shield />, color: 'error' },
           { value: stats.securityLevel, label: 'Security Level', icon: <Security />, color: 'info' },
-        ].map((stat, index) => (
-          <Grid size={{ xs: 12, sm: 6, md: 3 }} key={index}>
+        ].map((stat, i) => (
+          <Grid size={{ xs: 12, sm: 6, md: 3 }} key={i}>
             <Card
               sx={{
                 borderRadius: 4,
@@ -332,9 +409,9 @@ const Biometrics = ({ onNotify, role }) => {
         </Tabs>
 
         <Box sx={{ p: { xs: 4, md: 6 } }}>
+          {/* OVERVIEW TAB */}
           {!isEmployee && tabValue === 0 && (
             <>
-              {/* Overview content – unchanged except better empty state */}
               <Grid container spacing={6}>
                 <Grid size={{ xs: 12, md: 6 }}>
                   <Paper elevation={3} sx={{ p: 5, borderRadius: 4, height: '100%', bgcolor: 'grey.50' }}>
@@ -342,21 +419,26 @@ const Biometrics = ({ onNotify, role }) => {
                       <Info sx={{ color: 'info.main' }} /> Current Status
                     </Typography>
                     <Alert severity="info" sx={{ borderRadius: 3, p: 3 }}>
-                      <Typography variant="body1" fontWeight="medium">Biometric system is under active development</Typography>
+                      <Typography variant="body1" fontWeight="medium">
+                        Biometric system is under active development
+                      </Typography>
                       <Typography variant="body2" sx={{ mt: 2 }}>
-                        Facial recognition enrollment and verification will be available soon. Employees will enjoy touchless clock-in with enterprise-grade security.
+                        Facial recognition enrollment and verification coming soon.
                       </Typography>
                     </Alert>
                   </Paper>
                 </Grid>
+
                 <Grid size={{ xs: 12, md: 6 }}>
                   <Paper elevation={3} sx={{ p: 5, borderRadius: 4 }}>
-                    <Typography variant="h5" fontWeight="bold" sx={{ mb: 4 }}>Key Benefits</Typography>
+                    <Typography variant="h5" fontWeight="bold" sx={{ mb: 4 }}>
+                      Key Benefits
+                    </Typography>
                     <Timeline>
                       {[
                         { title: 'Touchless & Hygienic', desc: 'No physical contact required', color: 'primary' },
-                        { title: 'Lightning Fast', desc: 'Verification in under 1 second', color: 'success' },
-                        { title: 'Anti-Spoofing Protection', desc: 'Detects photos, videos, and masks', color: 'warning' },
+                        { title: 'Lightning Fast', desc: 'Verification < 1 second', color: 'success' },
+                        { title: 'Anti-Spoofing', desc: 'Resists photos, videos, masks', color: 'warning' },
                         { title: 'Privacy First', desc: 'Raw images deleted instantly', color: 'info' },
                       ].map((item, i) => (
                         <TimelineItem key={i}>
@@ -375,11 +457,12 @@ const Biometrics = ({ onNotify, role }) => {
                 </Grid>
               </Grid>
 
+              {/* Search & Filter */}
               <Box sx={{ mt: 6, mb: 4 }}>
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
                   <TextField
                     fullWidth
-                    placeholder="Search by employee name or email..."
+                    placeholder="Search by name or email..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     InputProps={{
@@ -394,7 +477,7 @@ const Biometrics = ({ onNotify, role }) => {
                   <FormControl sx={{ minWidth: 160 }}>
                     <InputLabel>Status</InputLabel>
                     <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} label="Status">
-                      <MenuItem value="ALL">All Status</MenuItem>
+                      <MenuItem value="ALL">All</MenuItem>
                       <MenuItem value="Active">Active</MenuItem>
                       <MenuItem value="Inactive">Inactive</MenuItem>
                     </Select>
@@ -410,8 +493,9 @@ const Biometrics = ({ onNotify, role }) => {
                 </Stack>
               </Box>
 
+              {/* Profiles Table */}
               <Card>
-                <CardHeader title={<Typography variant="h6">Enrolled Biometric Profiles ({filteredProfiles.length})</Typography>} />
+                <CardHeader title={<Typography variant="h6">Enrolled Profiles ({filteredProfiles.length})</Typography>} />
                 <Divider />
                 <CardContent>
                   {profilesLoading ? (
@@ -420,7 +504,9 @@ const Biometrics = ({ onNotify, role }) => {
                     <Alert severity="error">{profilesError}</Alert>
                   ) : filteredProfiles.length === 0 ? (
                     <Alert severity="info">
-                      {search || statusFilter !== 'ALL' ? 'No profiles match your search/filter.' : 'No biometric profiles enrolled yet. Enroll your face to get started!'}
+                      {search || statusFilter !== 'ALL'
+                        ? 'No matching profiles.'
+                        : 'No biometric profiles enrolled yet.'}
                     </Alert>
                   ) : (
                     <Table size="small">
@@ -437,10 +523,16 @@ const Biometrics = ({ onNotify, role }) => {
                       <TableBody>
                         {filteredProfiles.map((p) => (
                           <TableRow key={p.id} hover sx={{ cursor: 'pointer' }}>
-                            <TableCell onClick={() => openDetails(p)}>{p.employee_name || p.employee || 'Unknown'}</TableCell>
+                            <TableCell onClick={() => openDetails(p)}>
+                              {p.employee_name || p.employee || 'Unknown'}
+                            </TableCell>
                             <TableCell onClick={() => openDetails(p)}>{p.biometric_type}</TableCell>
-                            <TableCell onClick={() => openDetails(p)}>{p.created_at ? new Date(p.created_at).toLocaleString() : '-'}</TableCell>
-                            <TableCell onClick={() => openDetails(p)}>{p.last_used ? new Date(p.last_used).toLocaleString() : '-'}</TableCell>
+                            <TableCell onClick={() => openDetails(p)}>
+                              {p.created_at ? new Date(p.created_at).toLocaleString() : '-'}
+                            </TableCell>
+                            <TableCell onClick={() => openDetails(p)}>
+                              {p.last_used ? new Date(p.last_used).toLocaleString() : '-'}
+                            </TableCell>
                             <TableCell align="center">
                               {isAdmin || isHR ? (
                                 <Switch
@@ -452,7 +544,11 @@ const Biometrics = ({ onNotify, role }) => {
                                   color="success"
                                 />
                               ) : (
-                                <Chip label={p.is_active ? 'Active' : 'Inactive'} size="small" color={p.is_active ? 'success' : 'default'} />
+                                <Chip
+                                  label={p.is_active ? 'Active' : 'Inactive'}
+                                  size="small"
+                                  color={p.is_active ? 'success' : 'default'}
+                                />
                               )}
                             </TableCell>
                             <TableCell align="center">
@@ -461,7 +557,11 @@ const Biometrics = ({ onNotify, role }) => {
                               </IconButton>
                               {(isAdmin || isHR) && (
                                 <Tooltip title="Delete">
-                                  <IconButton size="small" color="error" onClick={(e) => { e.stopPropagation(); deleteProfile(p.id); }}>
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={(e) => { e.stopPropagation(); deleteProfile(p.id); }}
+                                  >
                                     <Delete fontSize="small" />
                                   </IconButton>
                                 </Tooltip>
@@ -477,20 +577,21 @@ const Biometrics = ({ onNotify, role }) => {
             </>
           )}
 
+          {/* ENROLLMENT TAB */}
           {(isEmployee ? tabValue === 0 : tabValue === 1) && (
             <Grid container spacing={6}>
               <Grid size={{ xs: 12, lg: 7 }}>
                 <Card sx={{ borderRadius: 4, boxShadow: 6 }}>
                   <CardHeader
                     title={<Typography variant="h5" fontWeight="bold">Enroll Your Face</Typography>}
-                    subheader="Set up secure touchless attendance for your account"
+                    subheader="Set up touchless attendance"
                   />
                   <Divider />
                   <CardContent sx={{ pt: 4 }}>
                     <Stack spacing={5}>
                       <Paper
                         sx={{
-                          height: 420,
+                          height: 460,
                           borderRadius: 4,
                           bgcolor: 'grey.100',
                           display: 'flex',
@@ -498,53 +599,141 @@ const Biometrics = ({ onNotify, role }) => {
                           alignItems: 'center',
                           justifyContent: 'center',
                           border: '3px dashed',
-                          borderColor: 'grey.400',
+                          borderColor: cameraReady ? 'success.main' : 'grey.400',
                         }}
                       >
-                        {cameraOpen ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                            <video ref={videoRef} autoPlay playsInline style={{ width: 540, maxWidth: '100%' }} />
-                            <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
-                              <Button variant="contained" onClick={captureFrame}>Capture</Button>
-                              <Button variant="outlined" onClick={stopCamera}>Stop Camera</Button>
+                        {loadingProfile ? (
+                          <Box sx={{ textAlign: 'center', p: 8 }}>
+                            <CircularProgress />
+                            <Typography sx={{ mt: 3 }}>Checking your account status...</Typography>
+                          </Box>
+                        ) : cameraOpen ? (
+                          <Box sx={{ width: '100%', textAlign: 'center', p: 2 }}>
+                            <video
+                              ref={videoRef}
+                              autoPlay
+                              playsInline
+                              muted
+                              onLoadedMetadata={() => setCameraReady(true)}
+                              onCanPlayThrough={() => setCameraReady(true)}
+                              style={{
+                                width: '100%',
+                                maxWidth: 540,
+                                borderRadius: 12,
+                                transform: 'scaleX(-1)',
+                                background: '#000',
+                              }}
+                            />
+                            <Box
+                              sx={{
+                                position: 'absolute',
+                                inset: 16,
+                                border: cameraReady ? '3px solid #4caf50' : '3px solid #ff9800',
+                                borderRadius: 12,
+                                pointerEvents: 'none',
+                                boxShadow: cameraReady ? '0 0 20px #4caf50aa' : 'none',
+                              }}
+                            />
+                            <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 2 }}>
+                              <Button
+                                variant="contained"
+                                color="success"
+                                onClick={captureFrame}
+                                disabled={!cameraReady || submitting}
+                                startIcon={<CameraAlt />}
+                              >
+                                Capture
+                              </Button>
+                              <Button variant="outlined" color="error" onClick={stopCamera}>
+                                Cancel
+                              </Button>
                             </Stack>
                             <canvas ref={canvasRef} style={{ display: 'none' }} />
-                          </div>
+                          </Box>
                         ) : (
-                          <div style={{ textAlign: 'center' }}>
+                          <Box sx={{ textAlign: 'center', p: 4 }}>
                             <CameraAlt sx={{ fontSize: 100, color: 'grey.600', mb: 3 }} />
-                            <Typography variant="h5" fontWeight="medium" color="text.secondary">Camera Preview</Typography>
-                            <Typography variant="body1" color="text.secondary" sx={{ mt: 2, textAlign: 'center', maxWidth: 400 }}>
-                              Live face detection and alignment guide will appear here during real enrollment. Use the camera below to capture a photo for enrollment.
+                            <Typography variant="h5" fontWeight="medium" color="text.secondary">
+                              Camera Preview
                             </Typography>
-                            <Button variant="contained" sx={{ mt: 3 }} onClick={startCamera}>Open Camera</Button>
-                          </div>
+                            <Button
+                              variant="contained"
+                              sx={{ mt: 4 }}
+                              onClick={startCamera}
+                              disabled={loadingProfile}
+                            >
+                              Open Camera
+                            </Button>
+                          </Box>
                         )}
+
                         {imagePreview && (
-                          <Box sx={{ mt: 2 }}>
-                            <Typography variant="subtitle2">Captured preview</Typography>
-                            <img src={imagePreview} alt="capture" style={{ width: 220, borderRadius: 6, marginTop: 8 }} />
-                            <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
-                              <Button size="small" onClick={() => {
-                                setImageFile(null);
-                                URL.revokeObjectURL(imagePreview);
-                                setImagePreview(null);
-                              }}>Retake</Button>
+                          <Box sx={{ mt: 3, textAlign: 'center' }}>
+                            <Typography variant="subtitle2" gutterBottom>
+                              Captured Preview
+                            </Typography>
+                            <img
+                              src={imagePreview}
+                              alt="capture"
+                              style={{ width: 220, borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}
+                            />
+                            <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 2 }}>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={() => {
+                                  setImageFile(null);
+                                  URL.revokeObjectURL(imagePreview);
+                                  setImagePreview(null);
+                                }}
+                              >
+                                Retake
+                              </Button>
                             </Stack>
                           </Box>
                         )}
                       </Paper>
-                      <Box sx={{ textAlign: 'center', mt: 2 }}>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                          Your employee ID is automatically retrieved from your account
-                        </Typography>
+
+                      <Box sx={{ textAlign: 'center', mt: 3 }}>
+                        {loadingProfile ? (
+                          <CircularProgress size={28} />
+                        ) : hasEmployeeProfile ? (
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                            Employee profile detected (ID: {employeeId})
+                          </Typography>
+                        ) : (
+                          <Alert
+                            severity="info"
+                            icon={<Info />}
+                            sx={{
+                              mb: 4,
+                              borderRadius: 3,
+                              maxWidth: 700,
+                              mx: 'auto',
+                              p: 3,
+                              '& .MuiAlert-message': { width: '100%' }
+                            }}
+                          >
+                            <Typography variant="h6" sx={{ mb: 1 }}>
+                              Face Enrollment Not Available Yet
+                            </Typography>
+                            <Typography variant="body1">
+                              Your account needs to be linked to an Employee profile in the system.<br /><br />
+                              Please contact HR or your system administrator and ask them to:<br />
+                              • Create an Employee record for you, or<br />
+                              • Link your user account to an existing Employee record.<br /><br />
+                              Once that's done, refresh this page and try enrolling again.
+                            </Typography>
+                          </Alert>
+                        )}
+
                         <Button
                           variant="contained"
                           size="large"
                           startIcon={<Fingerprint />}
-                          sx={{ px: 4, py: 1.8, borderRadius: 3 }}
+                          sx={{ px: 6, py: 1.8, borderRadius: 3 }}
                           onClick={handleEnrollClick}
-                          disabled={submitting}
+                          disabled={submitting || !imageFile || !hasEmployeeProfile || loadingProfile}
                         >
                           {submitting ? 'Submitting…' : 'Enroll My Face'}
                         </Button>
@@ -553,21 +742,24 @@ const Biometrics = ({ onNotify, role }) => {
                   </CardContent>
                 </Card>
               </Grid>
+
               <Grid size={{ xs: 12, lg: 5 }}>
                 <Card sx={{ borderRadius: 4, boxShadow: 6, height: '100%' }}>
-                  <CardHeader title={<Typography variant="h5" fontWeight="bold">Enrollment Steps</Typography>} />
+                  <CardHeader title={<Typography variant="h5" fontWeight="bold">Steps</Typography>} />
                   <Divider />
                   <CardContent sx={{ pt: 4 }}>
                     <Stack spacing={4}>
                       {[
-                        'Position face in camera view',
-                        'System captures multiple angles',
-                        'AI generates encrypted template',
-                        'Raw images deleted permanently',
-                        'You’re ready for touchless clock-in',
+                        'Position face clearly in frame',
+                        'Ensure good lighting (no strong backlighting)',
+                        'Capture photo when ready',
+                        'System creates secure template',
+                        'Ready for touchless clock-in',
                       ].map((step, i) => (
                         <Stack direction="row" spacing={3} key={i} alignItems="center">
-                          <Avatar sx={{ bgcolor: 'primary.main', width: 48, height: 48, fontWeight: 'bold' }}>{i + 1}</Avatar>
+                          <Avatar sx={{ bgcolor: 'primary.main', width: 48, height: 48, fontWeight: 'bold' }}>
+                            {i + 1}
+                          </Avatar>
                           <Typography variant="body1">{step}</Typography>
                         </Stack>
                       ))}
@@ -578,6 +770,7 @@ const Biometrics = ({ onNotify, role }) => {
             </Grid>
           )}
 
+          {/* SECURITY & PRIVACY TAB */}
           {!isEmployee && tabValue === 2 && (
             <Grid container spacing={6}>
               <Grid size={{ xs: 12 }}>
@@ -587,28 +780,25 @@ const Biometrics = ({ onNotify, role }) => {
                     borderRadius: 6,
                     p: { xs: 4, md: 6 },
                     bgcolor: '#e8f5e9',
-                    color: 'text.primary',
                     boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
                   }}
                 >
                   <Stack direction="row" alignItems="center" spacing={3} sx={{ mb: 4 }}>
                     <Shield sx={{ fontSize: 60, color: 'success.main' }} />
                     <Typography variant="h4" fontWeight="bold" color="success.dark">
-                      Your Privacy Is Our Priority
+                      Privacy First
                     </Typography>
                   </Stack>
-
                   <Typography variant="body1" sx={{ mb: 4, color: 'text.secondary', fontSize: '1.1rem' }}>
-                    We follow the highest standards of data protection:
+                    We protect your biometric data with strict standards:
                   </Typography>
-
                   <Stack spacing={3}>
                     {[
-                      'Raw face images are NEVER stored',
-                      'Only mathematical templates are saved (irreversible)',
-                      'Templates are encrypted at rest and in transit',
-                      'No biometric data leaves your secure environment',
-                      'Compliant with GDPR and privacy best practices',
+                      'Raw images are NEVER stored',
+                      'Only irreversible mathematical templates are saved',
+                      'Templates encrypted at rest and in transit',
+                      'Data never leaves your secure environment',
+                      'GDPR-compliant design',
                     ].map((point, i) => (
                       <Stack direction="row" alignItems="flex-start" spacing={2} key={i}>
                         <CheckCircleOutline sx={{ fontSize: 28, color: 'success.main', mt: 0.3 }} />
@@ -625,6 +815,7 @@ const Biometrics = ({ onNotify, role }) => {
         </Box>
       </Paper>
 
+      {/* Profile Details Modal */}
       <MUIModal open={detailsOpen} onClose={() => setDetailsOpen(false)}>
         <Box
           sx={{
@@ -657,13 +848,11 @@ const Biometrics = ({ onNotify, role }) => {
               <Divider sx={{ my: 2 }} />
               <Typography><strong>Type:</strong> {selectedProfile.biometric_type}</Typography>
               <Typography><strong>Enrolled:</strong> {new Date(selectedProfile.created_at).toLocaleString()}</Typography>
-              <Typography><strong>Last Used:</strong> {selectedProfile.last_used ? new Date(selectedProfile.last_used).toLocaleString() : 'Never'}</Typography>
-              <Button
-                variant="contained"
-                fullWidth
-                onClick={() => setDetailsOpen(false)}
-                sx={{ mt: 4 }}
-              >
+              <Typography>
+                <strong>Last Used:</strong>{' '}
+                {selectedProfile.last_used ? new Date(selectedProfile.last_used).toLocaleString() : 'Never'}
+              </Typography>
+              <Button variant="contained" fullWidth onClick={() => setDetailsOpen(false)} sx={{ mt: 4 }}>
                 Close
               </Button>
             </>

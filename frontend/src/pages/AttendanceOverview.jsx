@@ -2,7 +2,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   Box,
-  Grid,
   Card,
   CardContent,
   Typography,
@@ -21,6 +20,7 @@ import {
   CircularProgress,
   Alert,
 } from '@mui/material';
+import moment from 'moment-timezone';
 import { api } from '../services/api.service.js';
 
 const AttendanceOverview = ({ role, onNotify }) => {
@@ -37,51 +37,105 @@ const AttendanceOverview = ({ role, onNotify }) => {
     ? 'Attendance Overview'
     : 'Attendance Records';
 
-  const [from, setFrom] = useState('2025-12-01');
-  const [to, setTo] = useState('2025-12-31');
+  // Live current time (updates every second)
+  const [currentTime, setCurrentTime] = useState(
+    moment().tz('Africa/Addis_Ababa').format('hh:mm A z') // Changed to Ethiopia time (EAT)
+  );
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(moment().tz('Africa/Addis_Ababa').format('hh:mm A z'));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Default date range: current month
+  const defaultFrom = moment().startOf('month').format('YYYY-MM-DD');
+  const defaultTo = moment().endOf('month').format('YYYY-MM-DD');
+
+  const [from, setFrom] = useState(defaultFrom);
+  const [to, setTo] = useState(defaultTo);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    const loadAttendance = async () => {
-      setLoading(true);
-      setError('');
-      try {
-        // Use the correct attendance endpoint
-        const data = await api.get('/attendance/attendance/');
-        const list = Array.isArray(data) ? data : [];
-        const filteredByDate = list.filter((row) => {
-          const d = row.date;
-          if (!d) return false;
-          const afterFrom = !from || d >= from;
-          const beforeTo = !to || d <= to;
-          return afterFrom && beforeTo;
-        });
-        setRows(filteredByDate);
-      } catch (err) {
-        setError('Unable to load attendance records.');
-        setRows([]);
-        onNotify?.('Failed to fetch attendance data.', 'error');
-      } finally {
-        setLoading(false);
+  const loadAttendance = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      let endpoint = '/attendance/attendance/';
+      if (isEmployee) {
+        endpoint = '/attendance/my-attendance/';
       }
-    };
+
+      const data = await api.get(endpoint);
+      let list = Array.isArray(data) ? data : data?.results || data?.data || [];
+
+      const fromDate = moment(from).startOf('day');
+      const toDate = moment(to).endOf('day');
+
+      const filteredByDate = list.filter((row) => {
+        if (!row.date) return false;
+        const rowMoment = moment(row.date);
+        return rowMoment.isSameOrAfter(fromDate, 'day') && rowMoment.isSameOrBefore(toDate, 'day');
+      });
+
+      setRows(filteredByDate);
+    } catch (err) {
+      console.error('Attendance load error:', err);
+      setError('Unable to load attendance records. Please try again later.');
+      setRows([]);
+      onNotify?.('Failed to fetch attendance data.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadAttendance();
-  }, [from, to, isEmployee, onNotify]);
+  }, [from, to, isEmployee]);
+
+  // Real-time polling every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(loadAttendance, 30000);
+    return () => clearInterval(interval);
+  }, [from, to, isEmployee]);
+
+  // Helper to safely get employee name (prevents "undefined")
+  const getEmployeeName = (row) => {
+    if (!row) return '—';
+
+    return (
+      row.employee?.full_name ||
+      row.employee?.first_name + ' ' + (row.employee?.last_name || '') ||
+      row.employee_name ||
+      row.name ||
+      row.employee?.user?.full_name ||
+      row.employee?.user?.username ||
+      row.employee?.employee_code ||
+      row.employee_code ||
+      row.employee?.user?.email?.split('@')[0] ||
+      'No Name Available'
+    ).trim();
+  };
 
   const filteredRows = rows.filter((row) => {
     const status = (row.status || '').toUpperCase();
     if (statusFilter !== 'ALL' && status !== statusFilter) return false;
-    if (!isEmployee && search.trim()) {
-      const name = (row.employee?.full_name || row.employee_name || row.name || '').toLowerCase();
-      const email = (row.employee?.user?.email || row.employee_email || '').toLowerCase();
-      const searchLower = search.toLowerCase();
-      if (!name.includes(searchLower) && !email.includes(searchLower)) return false;
-    }
-    return true;
+
+    if (isEmployee || !search.trim()) return true;
+
+    const searchLower = search.toLowerCase();
+    const name = getEmployeeName(row).toLowerCase();
+    const email = (
+      row.employee?.user?.email ||
+      row.employee_email ||
+      ''
+    ).toLowerCase();
+
+    return name.includes(searchLower) || email.includes(searchLower);
   });
 
   const totalRecords = filteredRows.length;
@@ -89,135 +143,171 @@ const AttendanceOverview = ({ role, onNotify }) => {
   const lateCount = filteredRows.filter((r) => (r.status || '').toUpperCase() === 'LATE').length;
   const absentCount = filteredRows.filter((r) => (r.status || '').toUpperCase() === 'ABSENT').length;
 
+  const totalHours = filteredRows.reduce((sum, r) => {
+    if (r.check_out_time && r.check_in_time) {
+      const diff = moment(r.check_out_time).diff(moment(r.check_in_time), 'seconds');
+      return sum + diff / 3600;
+    }
+    return sum;
+  }, 0).toFixed(2);
+
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom fontWeight="600">
-        {heading}
-      </Typography>
+      {/* Header with live time */}
+      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 4 }}>
+        <Typography variant="h4" fontWeight="600">
+          {heading}
+        </Typography>
+        <Typography variant="subtitle1" color="text.secondary">
+          Current Time: <strong>{currentTime}</strong>
+        </Typography>
+      </Stack>
 
-      <Grid container spacing={4}>
-        {/* Attendance Table */}
-        <Grid size={{ xs: 12 }}>
-          <Card sx={{ mb: 3 }}>
-            <CardContent>
-              <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between">
-                <Stack direction="row" spacing={2}>
-                  <TextField
-                    label="From"
-                    type="date"
-                    size="small"
-                    value={from}
-                    onChange={(e) => setFrom(e.target.value)}
-                    InputLabelProps={{ shrink: true }}
-                  />
-                  <TextField
-                    label="To"
-                    type="date"
-                    size="small"
-                    value={to}
-                    onChange={(e) => setTo(e.target.value)}
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Stack>
-                <Stack direction="row" spacing={2} alignItems="center">
-                  {!isEmployee && (
-                    <TextField
-                      label="Search employee"
-                      size="small"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      sx={{ minWidth: 200 }}
-                    />
-                  )}
-                  <FormControl size="small" sx={{ minWidth: 140 }}>
-                    <InputLabel>Status</InputLabel>
-                    <Select
-                      value={statusFilter}
-                      label="Status"
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                    >
-                      <MenuItem value="ALL">All</MenuItem>
-                      <MenuItem value="PRESENT">Present</MenuItem>
-                      <MenuItem value="LATE">Late</MenuItem>
-                      <MenuItem value="ABSENT">Absent</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Stack>
-              </Stack>
-              <Stack direction="row" spacing={2} sx={{ mt: 3 }}>
-                <Chip label={`Total: ${totalRecords}`} />
-                <Chip label={`Present: ${presentCount}`} color="success" />
-                <Chip label={`Late: ${lateCount}`} color="warning" />
-                <Chip label={`Absent: ${absentCount}`} color="error" />
-              </Stack>
-            </CardContent>
-          </Card>
+      {/* Filters & Stats */}
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} justifyContent="space-between" alignItems="flex-end">
+            {/* Date range */}
+            <Stack direction="row" spacing={2} alignItems="center">
+              <TextField
+                label="From"
+                type="date"
+                size="small"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                label="To"
+                type="date"
+                size="small"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Stack>
 
-          <Card>
-            <CardContent>
-              {loading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-                  <CircularProgress />
-                </Box>
-              ) : error ? (
-                <Alert severity="error">{error}</Alert>
-              ) : rows.length === 0 ? (
-                <Alert severity="info">No attendance records found for the selected period.</Alert>
-              ) : (
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      {!isEmployee && <TableCell><strong>Employee</strong></TableCell>}
-                      <TableCell><strong>Date</strong></TableCell>
-                      <TableCell><strong>Clock In</strong></TableCell>
-                      <TableCell><strong>Clock Out</strong></TableCell>
-                      <TableCell><strong>Status</strong></TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {filteredRows.map((row) => (
-                      <TableRow key={row.id} hover>
-                        {!isEmployee && (
-                          <TableCell>
-                            {row.employee?.full_name || row.employee_name || row.employee || 'Unknown'}
-                          </TableCell>
-                        )}
-                        <TableCell>{row.date}</TableCell>
-                        <TableCell>{row.check_in_time ? new Date(row.check_in_time).toLocaleString() : '-'}</TableCell>
-                        <TableCell>{row.check_out_time ? new Date(row.check_out_time).toLocaleString() : '-'}</TableCell>
-                        <TableCell>
-                          {(() => {
-                            const status = (row.status || '').toUpperCase();
-                            const niceLabel =
-                              status === 'PRESENT' ? 'Present' :
-                              status === 'LATE' ? 'Late' :
-                              status === 'ABSENT' ? 'Absent' :
-                              status === 'ON_LEAVE' ? 'On Leave' : status || '-';
-                            const color =
-                              status === 'PRESENT' ? 'success' :
-                              status === 'LATE' ? 'warning' :
-                              status === 'ABSENT' ? 'error' : 'default';
-                            return (
-                              <Chip
-                                label={niceLabel}
-                                size="small"
-                                color={color}
-                              />
-                            );
-                          })()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+            {/* Search & Status */}
+            <Stack direction="row" spacing={2} alignItems="center">
+              {!isEmployee && (
+                <TextField
+                  label="Search employee"
+                  size="small"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  sx={{ minWidth: 220 }}
+                  placeholder="Name, code or email..."
+                />
               )}
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+              <FormControl size="small" sx={{ minWidth: 140 }}>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={statusFilter}
+                  label="Status"
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  <MenuItem value="ALL">All</MenuItem>
+                  <MenuItem value="PRESENT">Present</MenuItem>
+                  <MenuItem value="LATE">Late</MenuItem>
+                  <MenuItem value="ABSENT">Absent</MenuItem>
+                  <MenuItem value="ON_LEAVE">On Leave</MenuItem>
+                </Select>
+              </FormControl>
+            </Stack>
+          </Stack>
+
+          {/* Stats Chips */}
+          <Stack direction="row" spacing={1.5} sx={{ mt: 3, flexWrap: 'wrap' }}>
+            <Chip label={`Total: ${totalRecords}`} color="primary" />
+            <Chip label={`Present: ${presentCount}`} color="success" />
+            <Chip label={`Late: ${lateCount}`} color="warning" />
+            <Chip label={`Absent: ${absentCount}`} color="error" />
+            <Chip label={`Total Hours: ${totalHours}`} color="info" />
+          </Stack>
+        </CardContent>
+      </Card>
+
+      {/* Table */}
+      <Card>
+        <CardContent sx={{ p: 0 }}>
+          {loading ? (
+            <Box sx={{ py: 10, textAlign: 'center' }}>
+              <CircularProgress />
+            </Box>
+          ) : error ? (
+            <Alert severity="error" sx={{ m: 3 }}>{error}</Alert>
+          ) : filteredRows.length === 0 ? (
+            <Alert severity="info" sx={{ m: 3 }}>
+              No attendance records found for the selected period and filters.
+            </Alert>
+          ) : (
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  {!isEmployee && <TableCell><strong>Employee</strong></TableCell>}
+                  <TableCell><strong>Date</strong></TableCell>
+                  <TableCell><strong>Clock In</strong></TableCell>
+                  <TableCell><strong>Clock Out</strong></TableCell>
+                  <TableCell><strong>Hours</strong></TableCell>
+                  <TableCell><strong>Status</strong></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filteredRows.map((row) => {
+                  const clockIn = row.check_in_time
+                    ? moment(row.check_in_time).format('hh:mm A')
+                    : '—';
+
+                  const clockOut = row.check_out_time
+                    ? moment(row.check_out_time).format('hh:mm A')
+                    : '—';
+
+                  const hours = row.check_in_time && row.check_out_time
+                    ? moment(row.check_out_time).diff(moment(row.check_in_time), 'hours', true).toFixed(2)
+                    : '—';
+
+                  const status = (row.status || '').toUpperCase();
+                  let label = status || 'Unknown';
+                  let color = 'default';
+
+                  if (status === 'PRESENT') {
+                    label = 'Present';
+                    color = 'success';
+                  } else if (status === 'LATE') {
+                    label = 'Late';
+                    color = 'warning';
+                  } else if (status === 'ABSENT') {
+                    label = 'Absent';
+                    color = 'error';
+                  } else if (status === 'ON_LEAVE') {
+                    label = 'On Leave';
+                    color = 'info';
+                  }
+
+                  const rowStyle = status === 'ABSENT' ? { backgroundColor: 'rgba(244, 67, 54, 0.08)' } : {};
+
+                  return (
+                    <TableRow key={row.id || row.date} hover sx={rowStyle}>
+                      {!isEmployee && (
+                        <TableCell>{getEmployeeName(row)}</TableCell>
+                      )}
+                      <TableCell>{row.date || '—'}</TableCell>
+                      <TableCell>{clockIn}</TableCell>
+                      <TableCell>{clockOut}</TableCell>
+                      <TableCell>{hours}</TableCell>
+                      <TableCell>
+                        <Chip label={label} color={color} size="small" />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </Box>
   );
 };
 
 export default AttendanceOverview;
-
