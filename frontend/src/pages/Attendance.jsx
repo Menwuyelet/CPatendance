@@ -62,16 +62,16 @@ const enrichSessions = async (sessionsList) => {
         : session.started_by;
 
       // Find matching shift and user
-      const shift = shiftsList.find((s) => String(s.id) === String(shiftId));
-      const user = usersList.find((u) => String(u.id) === String(startedById));
+      const shift = shiftsList.find((s) => String(s?.id) === String(shiftId));
+      const user = usersList.find((u) => String(u?.id) === String(startedById));
       
       // Find employee for this user to get full_name
-      const employee = employeesList.find((e) => e.user?.id === String(startedById));
+      const employee = employeesList.find((e) => e?.user?.id === String(startedById));
       
       // Combine user and employee data
       const enrichedUser = user ? {
         ...user,
-        full_name: employee?.full_name || user.full_name,
+        full_name: employee?.full_name || user?.full_name || user?.email || 'Unknown',
       } : null;
 
       return {
@@ -181,7 +181,7 @@ const Attendance = ({ role, onNotify, initialSection }) => {
       try {
         // Attendance records
         const data = await api.get('/attendance/attendance/');
-        const list = Array.isArray(data) ? data : [];
+        const list = Array.isArray(data) ? data : data?.results || [];
 
         // Map employee IDs -> names (fixes search + display for HR/Manager/Admin)
         let employeeMap = {};
@@ -192,7 +192,7 @@ const Attendance = ({ role, onNotify, initialSection }) => {
               ? employeesRes
               : employeesRes?.results || [];
             employeeMap = Object.fromEntries(
-              employeesList.map((e) => [String(e.id), e.full_name || e.user?.email || String(e.id)])
+              employeesList.map((e) => [String(e?.id || ''), e?.full_name || e?.user?.email || 'Unknown'])
             );
           } catch (_) {
             employeeMap = {};
@@ -200,13 +200,17 @@ const Attendance = ({ role, onNotify, initialSection }) => {
         }
 
         const normalized = list.map((row) => {
-          const empId = String(row.employee?.id || row.employee || '');
-          const employeeName = employeeMap[empId];
+          const empId = String(row?.employee?.id || row?.employee || '');
+          const employeeName = employeeMap[empId] || empId;
           return {
             ...row,
-            employee: row.employee?.id || row.employee,
+            employee: row?.employee?.id || row?.employee || '',
             employee_name: employeeName,
             name: employeeName, // backwards-compat for existing search UI
+            date: row?.date || '',
+            status: row?.status || '',
+            check_in_time: row?.check_in_time || null,
+            check_out_time: row?.check_out_time || null,
           };
         });
 
@@ -256,7 +260,7 @@ const Attendance = ({ role, onNotify, initialSection }) => {
       setShiftError('');
       try {
         const data = await api.get('/attendance/shifts/');
-        const list = Array.isArray(data) ? data : [];
+        const list = Array.isArray(data) ? data : data?.results || [];
         setShifts(list);
       } catch (err) {
         console.error('Unable to load shifts:', err);
@@ -271,7 +275,7 @@ const Attendance = ({ role, onNotify, initialSection }) => {
     };
 
     loadShifts();
-  }, [canViewShifts]);
+  }, [canViewShifts, onNotify]);
 
   // Load attendance sessions
   useEffect(() => {
@@ -287,7 +291,7 @@ const Attendance = ({ role, onNotify, initialSection }) => {
       try {
         // Fetch sessions
         const sessionsData = await api.listAttendanceSessions().catch(() => []);
-        const sessionsList = Array.isArray(sessionsData) ? sessionsData : [];
+        const sessionsList = Array.isArray(sessionsData) ? sessionsData : sessionsData?.results || [];
 
         // Enrich sessions with shift and user data
         const enrichedSessions = await enrichSessions(sessionsList);
@@ -323,25 +327,25 @@ const Attendance = ({ role, onNotify, initialSection }) => {
           api.listEmployeeShifts(),
         ]);
 
-        const shiftsList = Array.isArray(shiftsData) ? shiftsData : [];
+        const shiftsList = Array.isArray(shiftsData) ? shiftsData : shiftsData?.results || [];
         const employeesList = Array.isArray(employeesData)
           ? employeesData
           : employeesData?.results || [];
-        const employeeShiftsList = Array.isArray(employeeShiftsData) ? employeeShiftsData : [];
+        const employeeShiftsList = Array.isArray(employeeShiftsData) ? employeeShiftsData : employeeShiftsData?.results || [];
 
         setEmployees(employeesList);
         setEmployeeShifts(employeeShiftsList);
 
         // Enrich assignments (API usually returns IDs for employee/shift)
-        const employeesById = Object.fromEntries(employeesList.map((e) => [String(e.id), e]));
-        const shiftsById = Object.fromEntries(shiftsList.map((s) => [String(s.id), s]));
+        const employeesById = Object.fromEntries(employeesList.map((e) => [String(e?.id || ''), e]));
+        const shiftsById = Object.fromEntries(shiftsList.map((s) => [String(s?.id || ''), s]));
         const enriched = employeeShiftsList.map((a) => {
-          const employeeId = String(a.employee?.id || a.employee || '');
-          const shiftId = String(a.shift?.id || a.shift || '');
+          const employeeId = String(a?.employee?.id || a?.employee || '');
+          const shiftId = String(a?.shift?.id || a?.shift || '');
           return {
             ...a,
-            employee: employeesById[employeeId] || a.employee,
-            shift: shiftsById[shiftId] || a.shift,
+            employee: employeesById[employeeId] || a?.employee,
+            shift: shiftsById[shiftId] || a?.shift,
           };
         });
         setEmployeeShiftsEnriched(enriched);
@@ -371,17 +375,17 @@ const Attendance = ({ role, onNotify, initialSection }) => {
   const openShiftDialogForEdit = (shift) => {
     setEditingShift(shift);
     setShiftForm({
-      name: shift.name || '',
-      start_time: shift.start_time || '',
-      end_time: shift.end_time || '',
-      description: shift.description || '',
-      monday: !!shift.monday,
-      tuesday: !!shift.tuesday,
-      wednesday: !!shift.wednesday,
-      thursday: !!shift.thursday,
-      friday: !!shift.friday,
-      saturday: !!shift.saturday,
-      sunday: !!shift.sunday,
+      name: shift?.name || '',
+      start_time: shift?.start_time || '',
+      end_time: shift?.end_time || '',
+      description: shift?.description || '',
+      monday: !!shift?.monday,
+      tuesday: !!shift?.tuesday,
+      wednesday: !!shift?.wednesday,
+      thursday: !!shift?.thursday,
+      friday: !!shift?.friday,
+      saturday: !!shift?.saturday,
+      sunday: !!shift?.sunday,
     });
     setShiftDialogOpen(true);
   };
@@ -458,18 +462,18 @@ const Attendance = ({ role, onNotify, initialSection }) => {
       return;
     }
     try {
-      const result =       await api.createAttendanceSession(selectedShiftForSession);
+      const result = await api.createAttendanceSession(selectedShiftForSession);
       onNotify?.('Attendance session started successfully.', 'success');
       setSessionDialogOpen(false);
       setSelectedShiftForSession('');
       // Reload sessions with enrichment
       const sessionsData = await api.listAttendanceSessions().catch(() => []);
-      const sessionsList = Array.isArray(sessionsData) ? sessionsData : [];
+      const sessionsList = Array.isArray(sessionsData) ? sessionsData : sessionsData?.results || [];
       const enrichedSessions = await enrichSessions(sessionsList);
       setSessions(enrichedSessions);
     } catch (err) {
       console.error('Failed to start session:', err);
-      onNotify?.(err.message || 'Failed to start attendance session.', 'error');
+      onNotify?.(err?.message || 'Failed to start attendance session.', 'error');
     }
   };
 
@@ -481,12 +485,12 @@ const Attendance = ({ role, onNotify, initialSection }) => {
       onNotify?.('Attendance session closed successfully.', 'success');
       // Reload sessions with enrichment
       const sessionsData = await api.listAttendanceSessions().catch(() => []);
-      const sessionsList = Array.isArray(sessionsData) ? sessionsData : [];
+      const sessionsList = Array.isArray(sessionsData) ? sessionsData : sessionsData?.results || [];
       const enrichedSessions = await enrichSessions(sessionsList);
       setSessions(enrichedSessions);
     } catch (err) {
       console.error('Failed to close session:', err);
-      onNotify?.(err.message || 'Failed to close attendance session.', 'error');
+      onNotify?.(err?.message || 'Failed to close attendance session.', 'error');
     }
   };
 
@@ -503,10 +507,33 @@ const Attendance = ({ role, onNotify, initialSection }) => {
       setEmployeeShiftForm({ employee: '', shift: '' });
       // Reload employee shifts
       const data = await api.listEmployeeShifts();
-      setEmployeeShifts(Array.isArray(data) ? data : []);
+      const employeeShiftsList = Array.isArray(data) ? data : data?.results || [];
+      setEmployeeShifts(employeeShiftsList);
+      
+      // Also update enriched list
+      const [shiftsData, employeesData] = await Promise.all([
+        api.get('/attendance/shifts/').catch(() => []),
+        api.get('/employees/employees/').catch(() => []),
+      ]);
+      
+      const shiftsList = Array.isArray(shiftsData) ? shiftsData : shiftsData?.results || [];
+      const employeesList = Array.isArray(employeesData) ? employeesData : employeesData?.results || [];
+      
+      const employeesById = Object.fromEntries(employeesList.map((e) => [String(e?.id || ''), e]));
+      const shiftsById = Object.fromEntries(shiftsList.map((s) => [String(s?.id || ''), s]));
+      const enriched = employeeShiftsList.map((a) => {
+        const employeeId = String(a?.employee?.id || a?.employee || '');
+        const shiftId = String(a?.shift?.id || a?.shift || '');
+        return {
+          ...a,
+          employee: employeesById[employeeId] || a?.employee,
+          shift: shiftsById[shiftId] || a?.shift,
+        };
+      });
+      setEmployeeShiftsEnriched(enriched);
     } catch (err) {
       console.error('Failed to assign shift:', err);
-      onNotify?.(err.message || 'Failed to assign shift to employee.', 'error');
+      onNotify?.(err?.message || 'Failed to assign shift to employee.', 'error');
     }
   };
 
@@ -518,27 +545,40 @@ const Attendance = ({ role, onNotify, initialSection }) => {
       onNotify?.('Shift assignment removed successfully.', 'success');
       // Reload employee shifts
       const data = await api.listEmployeeShifts();
-      setEmployeeShifts(Array.isArray(data) ? data : []);
+      const employeeShiftsList = Array.isArray(data) ? data : data?.results || [];
+      setEmployeeShifts(employeeShiftsList);
+      
+      // Update enriched list
+      const enriched = employeeShiftsList.map((a) => {
+        const employeeId = String(a?.employee?.id || a?.employee || '');
+        const shiftId = String(a?.shift?.id || a?.shift || '');
+        return {
+          ...a,
+          employee: employees?.find(e => String(e?.id) === employeeId) || a?.employee,
+          shift: shifts?.find(s => String(s?.id) === shiftId) || a?.shift,
+        };
+      });
+      setEmployeeShiftsEnriched(enriched);
     } catch (err) {
       console.error('Failed to remove shift assignment:', err);
-      onNotify?.(err.message || 'Failed to remove shift assignment.', 'error');
+      onNotify?.(err?.message || 'Failed to remove shift assignment.', 'error');
     }
   };
 
   const filteredRows = rows.filter((row) => {
-    const status = (row.status || '').toUpperCase();
+    const status = (row?.status || '').toUpperCase();
     if (statusFilter !== 'ALL' && status !== statusFilter) return false;
     if (!isEmployee && search.trim()) {
-      const name = (row.name || '').toLowerCase();
+      const name = (row?.name || '').toLowerCase();
       if (!name.includes(search.toLowerCase())) return false;
     }
     return true;
   });
 
   const totalRecords = filteredRows.length;
-  const presentCount = filteredRows.filter((r) => (r.status || '').toUpperCase() === 'PRESENT').length;
-  const lateCount = filteredRows.filter((r) => (r.status || '').toUpperCase() === 'LATE').length;
-  const absentCount = filteredRows.filter((r) => (r.status || '').toUpperCase() === 'ABSENT').length;
+  const presentCount = filteredRows.filter((r) => (r?.status || '').toUpperCase() === 'PRESENT').length;
+  const lateCount = filteredRows.filter((r) => (r?.status || '').toUpperCase() === 'LATE').length;
+  const absentCount = filteredRows.filter((r) => (r?.status || '').toUpperCase() === 'ABSENT').length;
 
   const handleClockToggle = async (imageFile) => {
     // Backend endpoint /attendance/attendance-check-in/ requires multipart image.
@@ -559,16 +599,18 @@ const Attendance = ({ role, onNotify, initialSection }) => {
       // Refresh today list (records may appear only after the session is closed/processed)
       const today = new Date().toISOString().slice(0, 10);
       const records = await api.get(`/attendance/attendance/?date=${today}`);
-      const todayRecords = Array.isArray(records) ? records : [];
+      const list = Array.isArray(records) ? records : records?.results || [];
+      const todayRecords = list.filter(r => r?.date === today);
+      
       setRows((prev) => {
-        const filtered = prev.filter((r) => r.date !== today);
+        const filtered = prev.filter((r) => r?.date !== today);
         return [...filtered, ...todayRecords];
       });
 
       setLastActionTime(new Date().toLocaleTimeString());
     } catch (err) {
       console.error('Face scan failed:', err);
-      onNotify?.(err.message || 'Face scan failed. Please try again.', 'error');
+      onNotify?.(err?.message || 'Face scan failed. Please try again.', 'error');
     } finally {
       setScanSubmitting(false);
     }
@@ -699,18 +741,18 @@ const Attendance = ({ role, onNotify, initialSection }) => {
                   </TableHead>
                   <TableBody>
                     {filteredRows.map((row) => (
-                      <TableRow key={row.id} hover>
-                        {!isEmployee && <TableCell>{row.employee_name || row.employee}</TableCell>}
-                        <TableCell>{row.date}</TableCell>
+                      <TableRow key={row?.id || Math.random()} hover>
+                        {!isEmployee && <TableCell>{row?.employee_name || row?.employee || 'Unknown'}</TableCell>}
+                        <TableCell>{row?.date || '-'}</TableCell>
                         <TableCell>
-                          {row.check_in_time ? new Date(row.check_in_time).toLocaleString() : '-'}
+                          {row?.check_in_time ? new Date(row.check_in_time).toLocaleString() : '-'}
                         </TableCell>
                         <TableCell>
-                          {row.check_out_time ? new Date(row.check_out_time).toLocaleString() : '-'}
+                          {row?.check_out_time ? new Date(row.check_out_time).toLocaleString() : '-'}
                         </TableCell>
                         <TableCell>
                           {(() => {
-                            const status = (row.status || '').toUpperCase();
+                            const status = (row?.status || '').toUpperCase();
                             const niceLabel =
                               status === 'PRESENT' ? 'Present' :
                               status === 'LATE' ? 'Late' :
@@ -801,13 +843,13 @@ const Attendance = ({ role, onNotify, initialSection }) => {
                   <TableBody>
                     {shifts.map((shift) => {
                       const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-                        .filter((d) => shift[d])
+                        .filter((d) => shift?.[d])
                         .map((d) => d.charAt(0).toUpperCase());
                       return (
-                        <TableRow key={shift.id} hover>
-                          <TableCell>{shift.name}</TableCell>
+                        <TableRow key={shift?.id || Math.random()} hover>
+                          <TableCell>{shift?.name || 'Unnamed'}</TableCell>
                           <TableCell>
-                            {shift.start_time} – {shift.end_time}
+                            {(shift?.start_time || '--:--')} – {(shift?.end_time || '--:--')}
                           </TableCell>
                           <TableCell>{days.length ? days.join(' ') : '–'}</TableCell>
                           {canManageShifts && (
@@ -821,7 +863,7 @@ const Attendance = ({ role, onNotify, initialSection }) => {
                                 <IconButton
                                   size="small"
                                   color="error"
-                                  onClick={() => handleDeleteShift(shift.id)}
+                                  onClick={() => handleDeleteShift(shift?.id)}
                                 >
                                   <DeleteIcon fontSize="small" />
                                 </IconButton>
@@ -965,26 +1007,26 @@ const Attendance = ({ role, onNotify, initialSection }) => {
                   </TableHead>
                   <TableBody>
                     {sessions.map((session) => (
-                      <TableRow key={session.id} hover>
-                        <TableCell>{session.shift?.name || 'Unknown'}</TableCell>
-                        <TableCell>{session.started_by?.email || session.started_by?.full_name || 'Unknown'}</TableCell>
+                      <TableRow key={session?.id || Math.random()} hover>
+                        <TableCell>{session?.shift?.name || 'Unknown'}</TableCell>
+                        <TableCell>{session?.started_by?.email || session?.started_by?.full_name || 'Unknown'}</TableCell>
                         <TableCell>
-                          {session.started_at ? new Date(session.started_at).toLocaleString() : '-'}
+                          {session?.started_at ? new Date(session.started_at).toLocaleString() : '-'}
                         </TableCell>
                         <TableCell>
                           <Chip
-                            label={session.is_active ? 'Active' : 'Closed'}
+                            label={session?.is_active ? 'Active' : 'Closed'}
                             size="small"
-                            color={session.is_active ? 'success' : 'default'}
+                            color={session?.is_active ? 'success' : 'default'}
                           />
                         </TableCell>
                         <TableCell align="right">
-                          {session.is_active && (
+                          {session?.is_active && (
                             <Tooltip title="Close Session">
                               <IconButton
                                 size="small"
                                 color="error"
-                                onClick={() => handleCloseSession(session.id)}
+                                onClick={() => handleCloseSession(session?.id)}
                               >
                                 <Stop fontSize="small" />
                               </IconButton>
@@ -1010,8 +1052,8 @@ const Attendance = ({ role, onNotify, initialSection }) => {
                   onChange={(e) => setSelectedShiftForSession(e.target.value)}
                 >
                   {shifts.map((shift) => (
-                    <MenuItem key={shift.id} value={shift.id}>
-                      {shift.name} ({shift.start_time} - {shift.end_time})
+                    <MenuItem key={shift?.id} value={shift?.id}>
+                      {shift?.name || 'Unnamed'} ({(shift?.start_time || '--:--')} - {(shift?.end_time || '--:--')})
                     </MenuItem>
                   ))}
                 </Select>
@@ -1079,17 +1121,17 @@ const Attendance = ({ role, onNotify, initialSection }) => {
                   </TableHead>
                   <TableBody>
                     {employeeShiftsEnriched.map((assignment) => (
-                      <TableRow key={assignment.id} hover>
+                      <TableRow key={assignment?.id || Math.random()} hover>
                         <TableCell>
-                          {assignment.employee?.full_name || assignment.employee?.employee_code || 'Unknown'}
+                          {assignment?.employee?.full_name || assignment?.employee?.employee_code || 'Unknown'}
                         </TableCell>
-                        <TableCell>{assignment.shift?.name || 'Unknown'}</TableCell>
+                        <TableCell>{assignment?.shift?.name || 'Unknown'}</TableCell>
                         <TableCell align="right">
                           <Tooltip title="Remove Assignment">
                             <IconButton
                               size="small"
                               color="error"
-                              onClick={() => handleRemoveEmployeeShift(assignment.id)}
+                              onClick={() => handleRemoveEmployeeShift(assignment?.id)}
                             >
                               <DeleteIcon fontSize="small" />
                             </IconButton>
@@ -1119,8 +1161,8 @@ const Attendance = ({ role, onNotify, initialSection }) => {
                   onChange={(e) => setEmployeeShiftForm((prev) => ({ ...prev, employee: e.target.value }))}
                 >
                   {employees.map((emp) => (
-                    <MenuItem key={emp.id} value={emp.id}>
-                      {emp.full_name || emp.employee_code} ({emp.employee_code})
+                    <MenuItem key={emp?.id} value={emp?.id}>
+                      {emp?.full_name || emp?.employee_code || 'Unknown'} ({emp?.employee_code || 'No Code'})
                     </MenuItem>
                   ))}
                 </Select>
@@ -1133,8 +1175,8 @@ const Attendance = ({ role, onNotify, initialSection }) => {
                   onChange={(e) => setEmployeeShiftForm((prev) => ({ ...prev, shift: e.target.value }))}
                 >
                   {shifts.map((shift) => (
-                    <MenuItem key={shift.id} value={shift.id}>
-                      {shift.name} ({shift.start_time} - {shift.end_time})
+                    <MenuItem key={shift?.id} value={shift?.id}>
+                      {shift?.name || 'Unnamed'} ({(shift?.start_time || '--:--')} - {(shift?.end_time || '--:--')})
                     </MenuItem>
                   ))}
                 </Select>

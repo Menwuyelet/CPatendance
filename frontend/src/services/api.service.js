@@ -1,5 +1,4 @@
 // src/services/api.service.js
-
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 let accessToken = localStorage.getItem('accessToken') || null;
@@ -74,9 +73,11 @@ async function refreshAccessToken() {
 }
 
 async function request(path, options = {}) {
+  // Validate path
   if (/^https?:\/\//i.test(path)) {
     throw new Error('Invalid API path');
   }
+  
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const url = `${API_BASE_URL}${normalizedPath}`;
 
@@ -122,11 +123,11 @@ async function request(path, options = {}) {
 
     try {
       errorData = await response.clone().json();
-      if (errorData.detail) {
+      if (errorData?.detail) {
         errorMessage = errorData.detail;
-      } else if (errorData.message) {
+      } else if (errorData?.message) {
         errorMessage = errorData.message;
-      } else if (errorData.error) {
+      } else if (errorData?.error) {
         errorMessage = errorData.error;
       } else if (typeof errorData === 'object' && errorData !== null) {
         const fieldErrors = Object.entries(errorData)
@@ -140,7 +141,7 @@ async function request(path, options = {}) {
       // Fallback to text if JSON fails
       try {
         const text = await response.clone().text();
-        if (text.trim()) errorMessage = text;
+        if (text?.trim()) errorMessage = text;
       } catch (_) {}
     }
 
@@ -163,84 +164,91 @@ async function request(path, options = {}) {
   }
 }
 
+// Multipart form request
+async function requestForm(path, formData, options = {}) {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const url = `${API_BASE_URL}${normalizedPath}`;
+
+  const config = {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      ...authHeader(),
+    },
+    body: formData,
+    ...options,
+  };
+
+  let response = await fetch(url, config);
+
+  if (
+    response.status === 401 &&
+    refreshToken &&
+    !path.includes('/auth/refresh/')
+  ) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      response = await fetch(url, {
+        ...config,
+        headers: {
+          ...config.headers,
+          ...authHeader(),
+        },
+      });
+    }
+  }
+
+  if (!response.ok) {
+    let errorMessage = `Upload failed with status ${response.status}`;
+    
+    try {
+      const errorData = await response.clone().json();
+      if (errorData?.detail) {
+        errorMessage = errorData.detail;
+      } else if (typeof errorData === 'object') {
+        const fieldErrors = Object.entries(errorData || {})
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+          .join('; ');
+        if (fieldErrors) errorMessage = fieldErrors;
+      }
+    } catch (_) {
+      const text = await response.clone().text();
+      if (text) errorMessage = text;
+    }
+    
+    const error = new Error(errorMessage);
+    error.status = response.status;
+    throw error;
+  }
+
+  if (response.status === 204) return null;
+  
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
 export const api = {
+  // ============ BASIC HTTP METHODS ============
   get: (path, options) => request(path, { ...options, method: 'GET' }),
+  
   post: (path, body, options) =>
     request(path, { ...options, method: 'POST', body: JSON.stringify(body) }),
+  
   put: (path, body, options) =>
     request(path, { ...options, method: 'PUT', body: JSON.stringify(body) }),
+  
   patch: (path, body, options) =>
     request(path, { ...options, method: 'PATCH', body: JSON.stringify(body) }),
+  
   delete: (path, options) => request(path, { ...options, method: 'DELETE' }),
 
-  // For multipart/form-data (e.g. file uploads)
-  postForm: async (path, formData, options = {}) => {
-    if (/^https?:\/\//i.test(path)) {
-      throw new Error('Invalid API path');
-    }
-    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-    const url = `${API_BASE_URL}${normalizedPath}`;
+  // ============ MULTIPART FORM DATA ============
+  postForm: (path, formData, options) => requestForm(path, formData, options),
 
-    const config = {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        // Let browser set Content-Type with boundary
-        ...authHeader(),
-        ...(options.headers || {}),
-      },
-      body: formData,
-      ...options,
-    };
-
-    let response = await fetch(url, config);
-
-    if (
-      response.status === 401 &&
-      refreshToken &&
-      !path.includes('/auth/refresh/')
-    ) {
-      const refreshed = await refreshAccessToken();
-      if (refreshed) {
-        response = await fetch(url, {
-          ...config,
-          headers: {
-            ...config.headers,
-            ...authHeader(),
-          },
-        });
-      }
-    }
-
-    if (!response.ok) {
-      let errorMessage = `Upload failed with status ${response.status}`;
-      try {
-        const errorData = await response.clone().json();
-        if (errorData.detail) errorMessage = errorData.detail;
-        else if (typeof errorData === 'object') {
-          const fieldErrors = Object.entries(errorData)
-            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
-            .join('; ');
-          if (fieldErrors) errorMessage = fieldErrors;
-        }
-      } catch (_) {
-        const text = await response.clone().text();
-        if (text) errorMessage = text;
-      }
-      const error = new Error(errorMessage);
-      error.status = response.status;
-      throw error;
-    }
-
-    if (response.status === 204) return null;
-    try {
-      return await response.json();
-    } catch {
-      return null;
-    }
-  },
-
-  // --- Auth Methods ---
+  // ============ AUTH METHODS ============
   login: async (email, password) => {
     const data = await request('/auth/login/', {
       method: 'POST',
@@ -256,36 +264,39 @@ export const api = {
 
   logout: () => {
     setTokens({ access: null, refresh: null });
+    window.location.href = '/login'; // Redirect to login page
   },
 
   isAuthenticated: () => Boolean(accessToken),
 
-  // Optional: expose current tokens (for debugging or custom use)
   getTokens: () => ({ accessToken, refreshToken }),
 
+  // ============ USER METHODS ============
   getCurrentUser: async () => {
-    return await request('/accounts/users/me/', { method: 'GET' });
+    try {
+      return await request('/accounts/users/me/', { method: 'GET' });
+    } catch (error) {
+      console.error('Failed to get current user:', error);
+      throw error;
+    }
   },
 
-  /**
-   * Fetch the current user's Employee record.
-   * This avoids relying on /accounts/users/me/ containing embedded employee data.
-   */
   getMyEmployee: async () => {
-    const res = await request('/employees/employees/', { method: 'GET' });
-    const list = Array.isArray(res) ? res : res?.results || [];
-    // For an Employee user, backend scopes this list to only "self".
-    return list[0] || null;
+    try {
+      const res = await request('/employees/employees/', { method: 'GET' });
+      const list = Array.isArray(res) ? res : res?.results || [];
+      return list[0] || null;
+    } catch (error) {
+      console.error('Failed to get employee data:', error);
+      return null;
+    }
   },
 
-  /**
-   * Determine user role from user data
-   * @param {Object} userData 
-   * @returns {string} Role name (Admin, HR, Manager, Employee)
-   */
   getUserRole: (userData) => {
+    if (!userData) return 'Employee'; // Default fallback
+    
     console.log('User data from backend:', JSON.stringify(userData, null, 2));
-    const rawRoles = userData.roles || userData.user?.roles || [];
+    const rawRoles = userData?.roles || userData?.user?.roles || [];
     
     const roleNames = rawRoles
       .map((r) => {
@@ -294,7 +305,8 @@ export const api = {
         return null;
       })
       .filter(Boolean)
-      .map((r) => r.toUpperCase());
+      .map((r) => r?.toUpperCase?.() || '')
+      .filter(r => r);
    
     console.log('Processed role names:', roleNames);
     
@@ -305,7 +317,7 @@ export const api = {
       if (roleNames.includes('EMPLOYEE')) return 'Employee';
     }
     
-    if (userData.role) {
+    if (userData?.role) {
       const role = String(userData.role).trim();
       if (['Admin', 'HR', 'Manager', 'Employee'].includes(role)) {
         return role;
@@ -315,90 +327,249 @@ export const api = {
     return 'Employee'; // Default
   },
 
-  /**
-   * Get display name from user data
-   * @param {Object} userData 
-   * @returns {string}
-   */
   getUserDisplayName: (userData) => {
-    return userData.full_name ||
-           userData.name ||
-           (userData.first_name && userData.last_name
-             ? `${userData.first_name} ${userData.last_name}`
-             : userData.email?.split('@')[0] || 'User');
+    if (!userData) return 'User';
+    
+    const name = userData?.full_name ||
+                 userData?.name ||
+                 (userData?.first_name && userData?.last_name
+                   ? `${userData.first_name} ${userData.last_name}`.trim()
+                   : '') ||
+                 (userData?.email ? userData.email.split('@')[0] : '');
+    
+    return name || 'User';
   },
 
-  // --- Biometrics Methods ---
+  // ============ ATTENDANCE METHODS ============
+  getAttendance: async (filters = {}) => {
+    const params = new URLSearchParams();
+    
+    if (filters?.from) params.append('date__gte', filters.from);
+    if (filters?.to) params.append('date__lte', filters.to);
+    if (filters?.employee_id) params.append('employee', filters.employee_id);
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.mine) params.append('mine', 'true');
+    if (filters?.session_id) params.append('session_id', filters.session_id);
+    
+    const query = params.toString();
+    return await request(`/attendance/attendance/${query ? `?${query}` : ''}`, { method: 'GET' });
+  },
+
+  getMyAttendance: async (from, to) => {
+    const params = new URLSearchParams();
+    if (from) params.append('date__gte', from);
+    if (to) params.append('date__lte', to);
+    params.append('mine', 'true');
+    
+    const query = params.toString();
+    return await request(`/attendance/attendance/${query ? `?${query}` : ''}`, { method: 'GET' });
+  },
+
+  checkInAttendance: async (imageFile) => {
+    const form = new FormData();
+    form.append('image', imageFile);
+    return await requestForm('/attendance/attendance-check-in/', form);
+  },
+
+  // ============ BIOMETRICS METHODS ============
   getAllProfiles: async () => {
-    return await api.get('/biometrics/profiles/');
+    return await request('/biometrics/profiles/', { method: 'GET' });
   },
 
   enrollFace: async (data) => {
     if (data instanceof FormData) {
-      return await api.postForm('/biometrics/face/enroll/', data);
+      return await requestForm('/biometrics/face/enroll/', data);
     }
-    return await api.post('/biometrics/face/enroll/', data);
+    return await request('/biometrics/face/enroll/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
 
   updateProfileStatus: async (id, isActive) => {
-    return await api.patch(`/biometrics/profiles/${id}/`, {
-      is_active: isActive,
+    return await request(`/biometrics/profiles/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify({ is_active: isActive }),
     });
   },
 
   deleteProfile: async (id) => {
-    return await api.delete(`/biometrics/profiles/${id}/`);
+    return await request(`/biometrics/profiles/${id}/`, { method: 'DELETE' });
   },
 
-  // --- Attendance Sessions Methods ---
+  // ============ ATTENDANCE SESSIONS METHODS ============
   createAttendanceSession: async (shiftId) => {
-    return await api.post('/attendance/attendance-sessions/', { shift_id: shiftId });
+    return await request('/attendance/attendance-sessions/', {
+      method: 'POST',
+      body: JSON.stringify({ shift_id: shiftId }),
+    });
   },
 
   closeAttendanceSession: async (sessionId) => {
-    return await api.delete(`/attendance/attendance-sessions/${sessionId}/`);
+    return await request(`/attendance/attendance-sessions/${sessionId}/`, { method: 'DELETE' });
   },
 
   listAttendanceSessions: async (filters = {}) => {
     const params = new URLSearchParams();
-    if (filters.active !== undefined) {
-      // Convert boolean to string for URL params
+    if (filters?.active !== undefined) {
       params.append('active', String(filters.active));
     }
-    if (filters.shift_id) params.append('shift_id', filters.shift_id);
+    if (filters?.shift_id) params.append('shift_id', filters.shift_id);
+    
     const query = params.toString();
-    return await api.get(`/attendance/attendance-manage-sessions/${query ? `?${query}` : ''}`);
+    return await request(`/attendance/attendance-manage-sessions/${query ? `?${query}` : ''}`, { method: 'GET' });
   },
 
   getAttendanceSession: async (sessionId) => {
-    return await api.get(`/attendance/attendance-manage-sessions/${sessionId}/`);
+    return await request(`/attendance/attendance-manage-sessions/${sessionId}/`, { method: 'GET' });
   },
 
   updateAttendanceSession: async (sessionId, data) => {
-    return await api.put(`/attendance/attendance-manage-sessions/${sessionId}/`, data);
+    return await request(`/attendance/attendance-manage-sessions/${sessionId}/`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
   },
 
-  // --- Employee Shifts Methods ---
+  // ============ SHIFTS METHODS ============
+  getAllShifts: async () => {
+    return await request('/attendance/shifts/', { method: 'GET' });
+  },
+
+  getShift: async (shiftId) => {
+    return await request(`/attendance/shifts/${shiftId}/`, { method: 'GET' });
+  },
+
+  createShift: async (shiftData) => {
+    return await request('/attendance/shifts/', {
+      method: 'POST',
+      body: JSON.stringify(shiftData),
+    });
+  },
+
+  updateShift: async (shiftId, shiftData) => {
+    return await request(`/attendance/shifts/${shiftId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(shiftData),
+    });
+  },
+
+  deleteShift: async (shiftId) => {
+    return await request(`/attendance/shifts/${shiftId}/`, { method: 'DELETE' });
+  },
+
+  // ============ EMPLOYEE SHIFTS METHODS ============
   listEmployeeShifts: async (employeeId = null) => {
-    const query = employeeId ? `?employee=${employeeId}` : '';
-    return await api.get(`/attendance/employee-shifts/${query}`);
+    const params = new URLSearchParams();
+    if (employeeId) params.append('employee', employeeId);
+    
+    const query = params.toString();
+    return await request(`/attendance/employee-shifts/${query ? `?${query}` : ''}`, { method: 'GET' });
   },
 
   assignEmployeeShift: async (employeeId, shiftId) => {
-    return await api.post('/attendance/employee-shifts/', {
-      employee: employeeId,
-      shift: shiftId,
+    return await request('/attendance/employee-shifts/', {
+      method: 'POST',
+      body: JSON.stringify({ employee: employeeId, shift: shiftId }),
     });
   },
 
   removeEmployeeShift: async (assignmentId) => {
-    return await api.delete(`/attendance/employee-shifts/${assignmentId}/`);
+    return await request(`/attendance/employee-shifts/${assignmentId}/`, { method: 'DELETE' });
   },
 
-  // --- Attendance (Face scan via active session) ---
-  checkInAttendance: async (imageFile) => {
-    const form = new FormData();
-    form.append('image', imageFile);
-    return await api.postForm('/attendance/attendance-check-in/', form);
+  // ============ EMPLOYEES METHODS ============
+  getAllEmployees: async () => {
+    return await request('/employees/employees/', { method: 'GET' });
   },
+
+  getEmployee: async (employeeId) => {
+    return await request(`/employees/employees/${employeeId}/`, { method: 'GET' });
+  },
+
+  // ============ DEPARTMENTS METHODS ============
+  getAllDepartments: async () => {
+    return await request('/departments/departments/', { method: 'GET' });
+  },
+
+  // ============ LEAVES METHODS ============
+  getMyLeaves: async () => {
+    return await request('/leaves/my-leaves/', { method: 'GET' });
+  },
+
+  getAllLeaves: async () => {
+    return await request('/leaves/leaves/', { method: 'GET' });
+  },
+
+  createLeave: async (leaveData) => {
+    return await request('/leaves/leaves/', {
+      method: 'POST',
+      body: JSON.stringify(leaveData),
+    });
+  },
+
+  updateLeaveStatus: async (leaveId, status) => {
+    return await request(`/leaves/leaves/${leaveId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  },
+
+  // ============ REPORTS METHODS ============
+  getAttendanceReport: async (params = {}) => {
+    const queryParams = new URLSearchParams();
+    if (params?.from) queryParams.append('from', params.from);
+    if (params?.to) queryParams.append('to', params.to);
+    if (params?.department_id) queryParams.append('department_id', params.department_id);
+    
+    const query = queryParams.toString();
+    return await request(`/reports/attendance/${query ? `?${query}` : ''}`, { method: 'GET' });
+  },
+
+  // ============ HELPER METHODS ============
+  extractArray: (response) => {
+    if (!response) return [];
+    if (Array.isArray(response)) return response;
+    if (Array.isArray(response?.results)) return response.results;
+    if (Array.isArray(response?.data)) return response.data;
+    return [];
+  },
+
+  safeGet: (obj, path, defaultValue = null) => {
+    if (!obj) return defaultValue;
+    
+    const keys = path.split('.');
+    let result = obj;
+    
+    for (const key of keys) {
+      if (result === null || result === undefined) return defaultValue;
+      result = result[key];
+    }
+    
+    return result === undefined ? defaultValue : result;
+  },
+
+  // ============ FILE DOWNLOAD ============
+  downloadFile: async (path, filename = 'download') => {
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    const url = `${API_BASE_URL}${normalizedPath}`;
+    
+    const response = await fetch(url, {
+      headers: authHeader(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Download failed with status ${response.status}`);
+    }
+    
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+  }
 };

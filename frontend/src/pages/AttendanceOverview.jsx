@@ -37,9 +37,9 @@ const AttendanceOverview = ({ role, onNotify }) => {
     ? 'Attendance Overview'
     : 'Attendance Records';
 
-  // Live current time (updates every second)
+  // Live current time
   const [currentTime, setCurrentTime] = useState(
-    moment().tz('Africa/Addis_Ababa').format('hh:mm A z') // Changed to Ethiopia time (EAT)
+    moment().tz('Africa/Addis_Ababa').format('hh:mm A z')
   );
 
   useEffect(() => {
@@ -65,27 +65,56 @@ const AttendanceOverview = ({ role, onNotify }) => {
     setLoading(true);
     setError('');
     try {
-      let endpoint = '/attendance/attendance/';
+      // FIXED: Use the correct endpoint with date filters
+      const params = new URLSearchParams();
+      params.append('date__gte', from);
+      params.append('date__lte', to);
+      
+      // If employee, let backend filter by current user
       if (isEmployee) {
-        endpoint = '/attendance/my-attendance/';
+        params.append('mine', 'true');
       }
-
-      const data = await api.get(endpoint);
-      let list = Array.isArray(data) ? data : data?.results || data?.data || [];
-
-      const fromDate = moment(from).startOf('day');
-      const toDate = moment(to).endOf('day');
-
-      const filteredByDate = list.filter((row) => {
-        if (!row.date) return false;
-        const rowMoment = moment(row.date);
-        return rowMoment.isSameOrAfter(fromDate, 'day') && rowMoment.isSameOrBefore(toDate, 'day');
-      });
-
-      setRows(filteredByDate);
+      
+      const query = params.toString();
+      const data = await api.get(`/attendance/attendance/${query ? `?${query}` : ''}`);
+      
+      // Handle response format
+      let list = [];
+      if (Array.isArray(data)) {
+        list = data;
+      } else if (data?.results && Array.isArray(data.results)) {
+        list = data.results;
+      } else if (data?.data && Array.isArray(data.data)) {
+        list = data.data;
+      }
+      
+      // Additional filtering for employees if backend doesn't support 'mine' param
+      if (isEmployee && list.length > 0) {
+        try {
+          const user = await api.getCurrentUser();
+          const userId = user?.id;
+          if (userId) {
+            list = list.filter(row => {
+              const rowUserId = row?.employee?.user?.id || row?.user?.id;
+              return String(rowUserId) === String(userId);
+            });
+          }
+        } catch (userErr) {
+          console.warn('Could not filter by user:', userErr);
+        }
+      }
+      
+      setRows(list);
     } catch (err) {
       console.error('Attendance load error:', err);
-      setError('Unable to load attendance records. Please try again later.');
+      
+      // Check if it's a 404 error
+      if (err?.status === 404) {
+        setError('Attendance endpoint not found. Please contact administrator.');
+      } else {
+        setError('Unable to load attendance records. Please try again later.');
+      }
+      
       setRows([]);
       onNotify?.('Failed to fetch attendance data.', 'error');
     } finally {
@@ -103,48 +132,44 @@ const AttendanceOverview = ({ role, onNotify }) => {
     return () => clearInterval(interval);
   }, [from, to, isEmployee]);
 
-  // Helper to safely get employee name (prevents "undefined")
+  // Helper to safely get employee name
   const getEmployeeName = (row) => {
     if (!row) return '—';
 
-    return (
-      row.employee?.full_name ||
-      row.employee?.first_name + ' ' + (row.employee?.last_name || '') ||
-      row.employee_name ||
-      row.name ||
-      row.employee?.user?.full_name ||
-      row.employee?.user?.username ||
-      row.employee?.employee_code ||
-      row.employee_code ||
-      row.employee?.user?.email?.split('@')[0] ||
-      'No Name Available'
-    ).trim();
+    const name = row?.employee?.full_name ||
+                (row?.employee?.first_name ? `${row.employee.first_name} ${row.employee.last_name || ''}`.trim() : '') ||
+                row?.employee_name ||
+                row?.name ||
+                row?.employee?.user?.full_name ||
+                row?.employee?.user?.username ||
+                row?.employee?.employee_code ||
+                row?.employee_code ||
+                (row?.employee?.user?.email ? row.employee.user.email.split('@')[0] : '') ||
+                'No Name Available';
+    
+    return name.trim() || '—';
   };
 
   const filteredRows = rows.filter((row) => {
-    const status = (row.status || '').toUpperCase();
+    const status = (row?.status || '').toUpperCase();
     if (statusFilter !== 'ALL' && status !== statusFilter) return false;
 
     if (isEmployee || !search.trim()) return true;
 
     const searchLower = search.toLowerCase();
     const name = getEmployeeName(row).toLowerCase();
-    const email = (
-      row.employee?.user?.email ||
-      row.employee_email ||
-      ''
-    ).toLowerCase();
+    const email = (row?.employee?.user?.email || row?.employee_email || '').toLowerCase();
 
     return name.includes(searchLower) || email.includes(searchLower);
   });
 
   const totalRecords = filteredRows.length;
-  const presentCount = filteredRows.filter((r) => (r.status || '').toUpperCase() === 'PRESENT').length;
-  const lateCount = filteredRows.filter((r) => (r.status || '').toUpperCase() === 'LATE').length;
-  const absentCount = filteredRows.filter((r) => (r.status || '').toUpperCase() === 'ABSENT').length;
+  const presentCount = filteredRows.filter((r) => (r?.status || '').toUpperCase() === 'PRESENT').length;
+  const lateCount = filteredRows.filter((r) => (r?.status || '').toUpperCase() === 'LATE').length;
+  const absentCount = filteredRows.filter((r) => (r?.status || '').toUpperCase() === 'ABSENT').length;
 
   const totalHours = filteredRows.reduce((sum, r) => {
-    if (r.check_out_time && r.check_in_time) {
+    if (r?.check_out_time && r?.check_in_time) {
       const diff = moment(r.check_out_time).diff(moment(r.check_in_time), 'seconds');
       return sum + diff / 3600;
     }
@@ -254,19 +279,19 @@ const AttendanceOverview = ({ role, onNotify }) => {
               </TableHead>
               <TableBody>
                 {filteredRows.map((row) => {
-                  const clockIn = row.check_in_time
+                  const clockIn = row?.check_in_time
                     ? moment(row.check_in_time).format('hh:mm A')
                     : '—';
 
-                  const clockOut = row.check_out_time
+                  const clockOut = row?.check_out_time
                     ? moment(row.check_out_time).format('hh:mm A')
                     : '—';
 
-                  const hours = row.check_in_time && row.check_out_time
+                  const hours = row?.check_in_time && row?.check_out_time
                     ? moment(row.check_out_time).diff(moment(row.check_in_time), 'hours', true).toFixed(2)
                     : '—';
 
-                  const status = (row.status || '').toUpperCase();
+                  const status = (row?.status || '').toUpperCase();
                   let label = status || 'Unknown';
                   let color = 'default';
 
@@ -287,11 +312,11 @@ const AttendanceOverview = ({ role, onNotify }) => {
                   const rowStyle = status === 'ABSENT' ? { backgroundColor: 'rgba(244, 67, 54, 0.08)' } : {};
 
                   return (
-                    <TableRow key={row.id || row.date} hover sx={rowStyle}>
+                    <TableRow key={row?.id || row?.date || Math.random()} hover sx={rowStyle}>
                       {!isEmployee && (
                         <TableCell>{getEmployeeName(row)}</TableCell>
                       )}
-                      <TableCell>{row.date || '—'}</TableCell>
+                      <TableCell>{row?.date || '—'}</TableCell>
                       <TableCell>{clockIn}</TableCell>
                       <TableCell>{clockOut}</TableCell>
                       <TableCell>{hours}</TableCell>

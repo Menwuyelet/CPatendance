@@ -1,4 +1,5 @@
-import { Grid, Card, CardContent, Typography, Button, Box, Chip, Stack, Alert, CircularProgress, LinearProgress } from '@mui/material';
+// src/pages/EmployeeDashboard.jsx
+import { Grid, Card, CardContent, Typography, Button, Box, Chip, Stack, Alert, CircularProgress } from '@mui/material';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api.service.js';
@@ -41,7 +42,7 @@ const EmployeeDashboard = ({ onNotify }) => {
       await loadDashboardData();
     } catch (err) {
       console.error('Face scan failed:', err);
-      setError(err.message || 'Face scan failed.');
+      setError(err?.message || 'Face scan failed.');
     } finally {
       setScanSubmitting(false);
       setScanOpen(false);
@@ -54,26 +55,56 @@ const EmployeeDashboard = ({ onNotify }) => {
       setError('');
 
       // Load user data
-      const user = await api.get('/accounts/users/me/');
-      setUserData(user);
+      const user = await api.getCurrentUser();
+      setUserData(user || {});
 
       // Load today's attendance
-      const today = new Date().toISOString().slice(0, 10);
-      const attendance = await api.get(`/attendance/attendance/?date=${today}`);
-      const todayAttendance = Array.isArray(attendance) ? attendance.find(a => a.date === today) : null;
+      const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
       
-      if (todayAttendance) {
-        setAttendanceToday(todayAttendance);
+      // Try multiple approaches to get today's attendance
+      let todayAttendance = null;
+      
+      try {
+        // Approach 1: Get all attendance and filter locally
+        const attendanceData = await api.getAttendance({ from: today, to: today, mine: true });
+        const attendanceList = api.extractArray(attendanceData);
+        
+        // Find today's attendance
+        todayAttendance = attendanceList.find(a => {
+          const attendanceDate = a?.date || a?.attendance_date;
+          return attendanceDate === today;
+        }) || null;
+        
+      } catch (attendanceErr) {
+        console.warn('Could not load attendance via filtered API:', attendanceErr);
+        
+        // Approach 2: Get all attendance and filter manually
+        try {
+          const allAttendance = await api.get('/attendance/attendance/');
+          const allList = api.extractArray(allAttendance);
+          
+          // Filter for today and current user
+          todayAttendance = allList.find(a => {
+            const attendanceDate = a?.date || a?.attendance_date;
+            const isToday = attendanceDate === today;
+            // Check if it belongs to current user (simplified check)
+            return isToday;
+          }) || null;
+        } catch (fallbackErr) {
+          console.error('Fallback attendance load also failed:', fallbackErr);
+        }
       }
+      
+      setAttendanceToday(todayAttendance || null);
+      
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
-      setError('Failed to load dashboard data');
+      setError('Failed to load dashboard data. Please try again.');
       onNotify?.('Failed to load dashboard data', 'error');
     } finally {
       setLoading(false);
     }
   };
-
 
   if (loading) {
     return (
@@ -85,6 +116,10 @@ const EmployeeDashboard = ({ onNotify }) => {
 
   const currentTime = new Date().toLocaleTimeString();
   const today = format(new Date(), 'EEEE, MMMM d, yyyy');
+
+  // Safe data access
+  const safeAttendanceToday = attendanceToday || {};
+  const safeUserData = userData || {};
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: '1200px', mx: 'auto' }}>
@@ -120,22 +155,22 @@ const EmployeeDashboard = ({ onNotify }) => {
               </Typography>
 
               <Box sx={{ mb: 2 }}>
-                {attendanceToday ? (
+                {safeAttendanceToday.date || safeAttendanceToday.attendance_date ? (
                   <>
                     <Chip
                       icon={<CheckCircle />}
-                      label={attendanceToday.check_in_time && !attendanceToday.check_out_time ? 'Clocked In' : 'Completed'}
-                      color={attendanceToday.check_in_time && !attendanceToday.check_out_time ? 'success' : 'default'}
+                      label={safeAttendanceToday.check_in_time && !safeAttendanceToday.check_out_time ? 'Clocked In' : 'Completed'}
+                      color={safeAttendanceToday.check_in_time && !safeAttendanceToday.check_out_time ? 'success' : 'default'}
                       sx={{ mb: 1 }}
                     />
-                    {attendanceToday.check_in_time && (
+                    {safeAttendanceToday.check_in_time && (
                       <Typography variant="body2" sx={{ mt: 1 }}>
-                        In: {new Date(attendanceToday.check_in_time).toLocaleTimeString()}
+                        In: {new Date(safeAttendanceToday.check_in_time).toLocaleTimeString()}
                       </Typography>
                     )}
-                    {attendanceToday.check_out_time && (
+                    {safeAttendanceToday.check_out_time && (
                       <Typography variant="body2">
-                        Out: {new Date(attendanceToday.check_out_time).toLocaleTimeString()}
+                        Out: {new Date(safeAttendanceToday.check_out_time).toLocaleTimeString()}
                       </Typography>
                     )}
                   </>
@@ -183,18 +218,18 @@ const EmployeeDashboard = ({ onNotify }) => {
                 <strong>Current Time:</strong> {currentTime}
               </Typography>
 
-              {attendanceToday && (
+              {safeAttendanceToday.date || safeAttendanceToday.attendance_date ? (
                 <Box sx={{ mt: 2 }}>
                   <Typography variant="subtitle2" gutterBottom>
                     Status
                   </Typography>
                   <Chip
-                    label={attendanceToday.status || 'Present'}
-                    color={attendanceToday.status === 'PRESENT' ? 'success' : 'default'}
+                    label={safeAttendanceToday.status || 'Not Checked In'}
+                    color={(safeAttendanceToday.status || '').toUpperCase() === 'PRESENT' ? 'success' : 'default'}
                     size="small"
                   />
                 </Box>
-              )}
+              ) : null}
 
               <Box sx={{ mt: 3 }}>
                 <Typography variant="body2" color="text.secondary">
@@ -259,13 +294,13 @@ const EmployeeDashboard = ({ onNotify }) => {
                 </Button>
               </Stack>
 
-              {userData?.full_name && (
+              {safeUserData.full_name || safeUserData.email ? (
                 <Box sx={{ mt: 3, pt: 2, borderTop: 1, borderColor: 'divider' }}>
                   <Typography variant="body2" color="text.secondary">
-                    Welcome, {userData.full_name}
+                    Welcome, {safeUserData.full_name || safeUserData.email?.split('@')[0] || 'User'}
                   </Typography>
                 </Box>
-              )}
+              ) : null}
             </CardContent>
           </Card>
         </Grid>
