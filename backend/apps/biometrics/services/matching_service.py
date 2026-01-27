@@ -86,10 +86,12 @@ class BiometricMatchingService:
 
         for employee_id, stored_embedding in stored_embeddings.items():
             print(f"[DEBUG] Comparing embedding of employee {employee_id}")
+            print(f"[debug]: stored: {stored_embedding}")
             normalized_stored = BiometricMatchingService._normalize(stored_embedding)
             if normalized_stored is None:
                 continue
-
+            print(f"[debug]: normalized")
+            print(f"[debug]: stored: {len(normalized_stored)}, embed: {len(normalized_embedding)}")
             if BiometricMatchingService._is_match(
                 normalized_embedding, normalized_stored
             ):
@@ -101,26 +103,69 @@ class BiometricMatchingService:
     # INTERNAL HELPERS
     # -------------------------
 
+
+
     @staticmethod
     def _normalize(vector):
-        """
-        Normalize a vector to unit length.
-        Returns None if vector is invalid.
-        """
-        vector = np.asarray(vector, dtype=np.float32)
-        norm = np.linalg.norm(vector)
+        try:
+            # Force real copy + flatten
+            vector = np.array(vector, dtype=np.float32).reshape(-1).copy()
 
-        if norm == 0.0:
+            if vector.shape[0] != 512:
+                print("[WARN] Invalid embedding size:", vector.shape)
+                return None
+
+            if np.isnan(vector).any():
+                print("[WARN] NaN detected in embedding")
+                return None
+
+            norm = np.linalg.norm(vector)
+            if norm == 0:
+                return None
+
+            return vector / norm
+
+        except Exception as e:
+            print("[ERROR] Normalize failed:", e)
             return None
 
-        return vector / norm
 
     @staticmethod
     def _is_match(embedding, stored_embedding, threshold=0.6):
-        """
-        Compare two normalized embeddings using cosine similarity.
 
-        Assumes both embeddings are already normalized.
-        """
+        embedding = np.array(embedding, dtype=np.float32).flatten()
+        stored_embedding = np.array(stored_embedding, dtype=np.float32).flatten()
+
+        if embedding.shape != stored_embedding.shape:
+            print("[WARN] Shape mismatch:", embedding.shape, stored_embedding.shape)
+            return False
+
         similarity = float(np.dot(embedding, stored_embedding))
+        print("[DEBUG] Similarity:", similarity)
+
         return similarity >= threshold
+
+
+    # @staticmethod
+    # def _normalize(vector):
+    #     """
+    #     Normalize a vector to unit length.
+    #     Returns None if vector is invalid.
+    #     """
+    #     vector = np.asarray(vector, dtype=np.float32)
+    #     norm = np.linalg.norm(vector)
+
+    #     if norm == 0.0:
+    #         return None
+
+    #     return vector / norm
+
+    # @staticmethod
+    # def _is_match(embedding, stored_embedding, threshold=0.6):
+    #     """
+    #     Compare two normalized embeddings using cosine similarity.
+
+    #     Assumes both embeddings are already normalized.
+    #     """
+    #     similarity = float(np.dot(embedding, stored_embedding))
+    #     return similarity >= threshold

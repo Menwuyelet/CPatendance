@@ -89,7 +89,7 @@ class BiometricEnrollmentService:
         """
         if not self.employee.is_active:
             raise ValueError("Inactive employee cannot be enrolled")
-
+        print(f"[debug]: {len(embedding)}")
         vector = np.asarray(embedding, dtype="float32").tobytes()
         encrypted = encrypt_template(vector)
 

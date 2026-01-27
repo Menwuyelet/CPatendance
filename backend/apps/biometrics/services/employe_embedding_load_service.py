@@ -56,6 +56,7 @@ class ShiftEmbeddingLoader:
         try:
             print(f"Decrypting template data for profile {profile.id}")
             decrypted = decrypt_template(profile.template_data)
+            print("[debug]: Decrypted length:", len(decrypted))
 
             embedding = np.frombuffer(
                 decrypted,
