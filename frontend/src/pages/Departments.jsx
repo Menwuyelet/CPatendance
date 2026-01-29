@@ -56,16 +56,42 @@ const Departments = ({ onNotify }) => {
     try {
       setLoading(true);
       setError('');
+      
+      console.log('🔄 Loading departments and employees...');
 
       const [data, employeesRes] = await Promise.all([
-        api.get('/employees/departments/'),
-        api.get('/employees/employees/'),
+        api.getAllDepartments(), // Use dedicated method
+        api.getAllEmployees(),    // Use dedicated method
       ]);
+      
+      console.log('✅ Raw data received:', { 
+        departmentsType: typeof data,
+        departmentsIsArray: Array.isArray(data),
+        departmentsKeys: data ? Object.keys(data) : [],
+        employeesType: typeof employeesRes,
+        employeesIsArray: Array.isArray(employeesRes)
+      });
 
+      // Extract departments with multiple fallback strategies
+      let departmentsList = [];
+      if (Array.isArray(data)) {
+        departmentsList = data;
+      } else if (data?.results && Array.isArray(data.results)) {
+        departmentsList = data.results;
+      } else if (data?.data && Array.isArray(data.data)) {
+        departmentsList = data.data;
+      } else if (data) {
+        console.warn('⚠️  Unexpected departments response format:', data);
+      }
+
+      console.log(`📦 Extracted ${departmentsList.length} departments`);
+
+      // Extract employees with multiple fallback strategies
       const employeesList = Array.isArray(employeesRes)
         ? employeesRes
         : employeesRes?.results || employeesRes?.data || [];
 
+      console.log(`👥 Extracted ${employeesList.length} employees`);
       setEmployees(employeesList);
 
       const employeeMap = new Map();
@@ -73,18 +99,20 @@ const Departments = ({ onNotify }) => {
         if (e.id) employeeMap.set(e.id, e);
       });
 
-      const normalizedDepartments = Array.isArray(data)
-        ? data.map((d) => {
-            const deptEmployees = employeesList.filter((e) => e.department?.id === d.id);
-            return {
-              ...d,
-              manager: employeeMap.get(d.manager) || d.manager,
-              employeeCount: deptEmployees.length,
-            };
-          })
-        : [];
+      const normalizedDepartments = departmentsList.map((d) => {
+        const deptEmployees = employeesList.filter((e) => e.department?.id === d.id);
+        return {
+          ...d,
+          manager: employeeMap.get(d.manager) || d.manager,
+          employeeCount: deptEmployees.length,
+        };
+      });
 
       setDepartments(normalizedDepartments);
+      console.log(`📁 Normalized ${normalizedDepartments.length} departments:`);
+      normalizedDepartments.forEach(d => {
+        console.log(`   - ${d.name} (${d.code}) - ${d.employeeCount} employees`);
+      });
 
       const managerEmployees = employeesList.filter((e) => {
         const roles = e.user?.roles || [];
@@ -95,6 +123,12 @@ const Departments = ({ onNotify }) => {
         return roleNames.includes('MANAGER');
       });
       setManagers(managerEmployees);
+      console.log(`👤 Found ${managerEmployees.length} managers`);
+      console.log('✅ Departments loaded successfully!');
+      
+      if (normalizedDepartments.length === 0) {
+        console.warn('⚠️  No departments found. You may need to create some in Django admin or via the form.');
+      }
     } catch (err) {
       console.error('Failed to load departments or managers:', err);
       setError('Unable to load departments. You might not have permission to view them.');
@@ -207,13 +241,15 @@ const Departments = ({ onNotify }) => {
         is_active: editForm.is_active,
         manager: editForm.managerId || null,
       };
-      const updated = await api.patch(`/employees/departments/${editingId}/`, payload);
+      console.log(`📝 Updating department ${editingId}...`);
+      const updated = await api.updateDepartment(editingId, payload);
       setDepartments((prev) =>
         prev.map((d) => (d.id === editingId ? { ...d, ...updated } : d))
       );
       onNotify?.('Department updated successfully.', 'success');
+      console.log('✅ Department updated');
     } catch (err) {
-      console.error('Failed to update department:', err);
+      console.error('❌ Failed to update department:', err);
       onNotify?.('Failed to update department.', 'error');
     } finally {
       cancelEdit();
@@ -235,12 +271,14 @@ const Departments = ({ onNotify }) => {
         is_active: createForm.is_active,
         manager: createForm.managerId || null,
       };
-      const created = await api.post('/employees/departments/', payload);
+      console.log('➕ Creating new department...');
+      const created = await api.createDepartment(payload);
       setDepartments((prev) => [created, ...prev]);
       setCreateForm({ name: '', code: '', is_active: true, managerId: '' });
       onNotify?.('Department created successfully.', 'success');
+      console.log('✅ Department created:', created);
     } catch (err) {
-      console.error('Failed to create department:', err);
+      console.error('❌ Failed to create department:', err);
       onNotify?.('Failed to create department.', 'error');
     }
   };
@@ -248,11 +286,13 @@ const Departments = ({ onNotify }) => {
   const deleteDepartment = async (id) => {
     if (!window.confirm('Delete this department? This action cannot be undone.')) return;
     try {
-      await api.delete(`/employees/departments/${id}/`);
+      console.log(`🗑️ Deleting department ${id}...`);
+      await api.deleteDepartment(id);
       setDepartments((prev) => prev.filter((d) => d.id !== id));
       onNotify?.('Department deleted.', 'info');
+      console.log('✅ Department deleted');
     } catch (err) {
-      console.error('Failed to delete department:', err);
+      console.error('❌ Failed to delete department:', err);
       onNotify?.('Failed to delete department.', 'error');
     }
   };

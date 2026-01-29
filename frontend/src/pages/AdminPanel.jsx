@@ -65,7 +65,7 @@ const AdminPanel = ({ onNotify }) => {
       const [employeesRes, attendanceRes, departmentsRes] = await Promise.all([
         api.get('/employees/employees/'),
         api.get('/attendance/attendance/'),
-        api.get('/employees/departments/'),
+        api.getAllDepartments(),
       ]);
 
       // Extract arrays with multiple fallbacks
@@ -92,12 +92,6 @@ const AdminPanel = ({ onNotify }) => {
         : Array.isArray(departmentsRes?.data)
         ? departmentsRes.data
         : [];
-
-      console.log('Dashboard Data:', {
-        employeesCount: employees.length,
-        attendanceCount: attendance.length,
-        departmentsCount: departments.length
-      });
 
       const totalEmployees = employees.length;
       const totalDepartments = departments.length;
@@ -129,13 +123,6 @@ const AdminPanel = ({ onNotify }) => {
         pendingApprovals,
         attendanceRate,
         totalDepartments,
-      });
-
-      console.log('Dashboard Stats Updated:', {
-        totalEmployees,
-        presentToday,
-        totalDepartments,
-        attendanceRate
       });
 
       if (force) {

@@ -1,231 +1,120 @@
 // src/utils/faceDetector.js
 export class FaceDetector {
   constructor() {
-    this.detector = null;
+    this.landmarker = null;
     this.initialized = false;
-    this.modelsLoaded = false;
-    this.useFaceAPI = false;
   }
 
   async init() {
     if (this.initialized) return true;
 
     try {
-      // 1. Prefer native browser FaceDetector (Chrome/Edge)
-      if (typeof window.FaceDetector === 'function') {
-        console.log('Using native FaceDetector API');
-        this.detector = new window.FaceDetector({
-          maxDetectedFaces: 1,
-          fastMode: true,
-        });
-        this.initialized = true;
-        return true;
-      }
+      console.log('[FaceDetector] Starting MediaPipe initialization...');
 
-      // 2. Fallback to face-api.js
-      console.log('Loading face-api.js...');
-      this.useFaceAPI = true;
-      await this.loadFaceAPI();
+      const { FilesetResolver, FaceLandmarker } = await import('@mediapipe/tasks-vision');
+
+      const vision = await FilesetResolver.forVisionTasks(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.17/wasm'
+      );
+
+      this.landmarker = await FaceLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath:
+            'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task',
+          delegate: 'GPU', // try 'CPU' if still black
+        },
+        runningMode: 'VIDEO',
+        numFaces: 1,
+        outputFaceBlendshapes: true,
+      });
+
       this.initialized = true;
-      console.log('face-api.js initialized successfully');
+      console.log('[FaceDetector] MediaPipe initialized successfully');
       return true;
     } catch (err) {
-      console.error('FaceDetector init failed:', err);
-      this.initialized = false;
+      console.error('[FaceDetector] Init failed:', err);
       return false;
     }
   }
 
-  async loadFaceAPI() {
-    // Prevent duplicate loading
-    if (window.faceapi?.nets) {
-      console.log('face-api.js already loaded');
-      this.modelsLoaded = true;
-      return;
-    }
-
-    return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js';
-      script.crossOrigin = 'anonymous';
-
-      script.onload = async () => {
-        try {
-          console.log('face-api.js script loaded → loading models');
-
-          const modelPaths = [
-            '/models',                                          // ← local folder (recommended)
-            'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights', // reliable CDN
-            'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights', // fallback
-          ];
-
-          let success = false;
-
-          for (const path of modelPaths) {
-            try {
-              console.log(`Trying to load from: ${path}`);
-              await window.faceapi.nets.tinyFaceDetector.loadFromUri(path);
-              await window.faceapi.nets.faceLandmark68Net.loadFromUri(path);
-              // Optional: load expressions if you want smile / neutral etc.
-              // await window.faceapi.nets.faceExpressionNet.loadFromUri(path);
-
-              this.modelsLoaded = true;
-              success = true;
-              console.log(`Models successfully loaded from: ${path}`);
-              break;
-            } catch (err) {
-              console.warn(`Failed to load models from ${path}:`, err.message);
-            }
-          }
-
-          if (success) {
-            resolve();
-          } else {
-            reject(new Error('Failed to load face-api.js models from any path'));
-          }
-        } catch (err) {
-          reject(err);
-        }
-      };
-
-      script.onerror = () => {
-        reject(new Error('Failed to load face-api.js script from CDN'));
-      };
-
-      document.head.appendChild(script);
-    });
-  }
-
-  async detect(videoElement) {
-    if (!this.initialized) {
-      const success = await this.init();
-      if (!success) return null;
-    }
-
-    if (!videoElement || videoElement.readyState < 2) {
-      return null;
-    }
+  async detect(video) {
+    if (!this.initialized) await this.init();
+    if (!video || video.readyState < 2 || video.videoWidth === 0) return null;
 
     try {
-      // 1. Native browser FaceDetector
-      if (!this.useFaceAPI && this.detector && typeof this.detector.detect === 'function') {
-        const faces = await this.detector.detect(videoElement);
-        if (faces.length > 0) {
-          return {
-            boundingBox: faces[0].boundingBox,
-            confidence: 0.85, // native doesn't give confidence → use fixed high value
-            hasEyes: false,
-          };
-        }
+      const results = await this.landmarker.detectForVideo(video, performance.now());
+
+      if (results.faceLandmarks?.length > 0) {
+        const lm = results.faceLandmarks[0];
+        const bs = results.faceBlendshapes?.[0] || [];
+
+        const xs = lm.map(p => p.x * video.videoWidth);
+        const ys = lm.map(p => p.y * video.videoHeight);
+        const x = Math.min(...xs);
+        const y = Math.min(...ys);
+        const width = Math.max(...xs) - x;
+        const height = Math.max(...ys) - y;
+
+        const leftBlink = bs.find(b => b.categoryName === 'eyeBlinkLeft')?.score || 0;
+        const rightBlink = bs.find(b => b.categoryName === 'eyeBlinkRight')?.score || 0;
+        const isBlinking = (leftBlink + rightBlink) / 2 > 0.65;
+
+        return {
+          boundingBox: { x, y, width, height },
+          confidence: 0.92,
+          landmarks: lm,
+          isBlinking
+        };
       }
-
-      // 2. face-api.js
-      if (this.useFaceAPI && window.faceapi && this.modelsLoaded) {
-        const detection = await window.faceapi
-          .detectSingleFace(videoElement, new window.faceapi.TinyFaceDetectorOptions())
-          .withFaceLandmarks();
-
-        if (detection) {
-          const landmarks = detection.landmarks;
-          const leftEye = landmarks.getLeftEye();
-          const rightEye = landmarks.getRightEye();
-
-          const leftEAR = this.calculateEAR(leftEye);
-          const rightEAR = this.calculateEAR(rightEye);
-          const avgEAR = (leftEAR + rightEAR) / 2;
-          const isBlinking = avgEAR < 0.22; // typical threshold (can be tuned)
-
-          return {
-            boundingBox: detection.detection.box,
-            confidence: detection.detection.score || 0.75,
-            landmarks,
-            hasEyes: true,
-            eyes: { left: leftEye, right: rightEye },
-            ear: avgEAR,
-            isBlinking,
-          };
-        }
-      }
-
-      // 3. Fallback simple detection
-      return this.basicDetection(videoElement);
+      return null;
     } catch (err) {
-      console.warn('Face detection failed:', err);
-      return this.basicDetection(videoElement);
+      console.warn('[Detect error]', err);
+      return null;
     }
-  }
-
-  calculateEAR(eyePoints) {
-    // 6-point eye landmarks: [left-top, left-top-mid, left-bottom-mid, right-bottom, right-bottom-mid, right-top-mid]
-    const A = this.dist(eyePoints[1], eyePoints[5]);
-    const B = this.dist(eyePoints[2], eyePoints[4]);
-    const C = this.dist(eyePoints[0], eyePoints[3]);
-    return (A + B) / (2 * C);
-  }
-
-  dist(p1, p2) {
-    return Math.hypot(p2.x - p1.x, p2.y - p1.y);
-  }
-
-  basicDetection(video) {
-    if (!video.videoWidth || !video.videoHeight) return null;
-
-    const w = video.videoWidth;
-    const h = video.videoHeight;
-    const size = Math.min(w, h) * 0.3;
-
-    return {
-      boundingBox: {
-        x: w / 2 - size / 2,
-        y: h / 2 - size / 2,
-        width: size,
-        height: size,
-      },
-      confidence: 0.6,
-      hasEyes: false,
-    };
   }
 
   drawDetection(canvas, video, detection) {
-    if (!detection || !canvas || !video) return;
+    if (!canvas || !video) return;
 
     const ctx = canvas.getContext('2d');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
 
-    // Match video size
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // DRAW VIDEO NORMALLY (no scale(-1)) — this fixes black screen in most cases
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (detection) {
+      // If you want mirrored look, mirror overlays only (or use CSS transform on canvas)
+      ctx.strokeStyle = detection.isBlinking ? '#ff0000' : '#00ff88';
+      ctx.lineWidth = 5;
+      ctx.strokeRect(detection.boundingBox.x, detection.boundingBox.y,
+                     detection.boundingBox.width, detection.boundingBox.height);
 
-    // Bounding box
-    const { x, y, width, height } = detection.boundingBox;
-    ctx.strokeStyle = detection.confidence > 0.7 ? '#00ff88' : '#ff4444';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(x, y, width, height);
+      ctx.fillStyle = '#00ff88';
+      ctx.font = '22px Arial';
+      ctx.fillText(`Face ${Math.round(detection.confidence * 100)}%`,
+                   detection.boundingBox.x + 10, detection.boundingBox.y + 40);
 
-    // Confidence label
-    ctx.fillStyle = '#00ff88';
-    ctx.font = '16px Arial';
-    ctx.fillText(`Conf: ${Math.round(detection.confidence * 100)}%`, x, y - 10);
+      if (detection.isBlinking) {
+        ctx.fillStyle = '#ff0000';
+        ctx.font = 'bold 32px Arial';
+        ctx.fillText('BLINK!', 60, 90);
+      }
 
-    // Blink indicator
-    if (detection.isBlinking) {
-      ctx.fillStyle = '#ff0000';
-      ctx.font = 'bold 22px Arial';
-      ctx.fillText('BLINK DETECTED!', 20, 40);
-    }
-
-    // Draw landmarks if available
-    if (detection.landmarks) {
       ctx.fillStyle = '#ff3366';
-      detection.landmarks.positions.forEach((p) => {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-        ctx.fill();
+      detection.landmarks.forEach((p, i) => {
+        if (i % 8 === 0) {
+          ctx.beginPath();
+          ctx.arc(p.x * canvas.width, p.y * canvas.height, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
       });
+    } else {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+      ctx.font = '24px Arial';
+      ctx.fillText('No face detected - center in oval', 50, canvas.height / 2);
     }
   }
 }
 
-// Singleton export
 export const faceDetector = new FaceDetector();

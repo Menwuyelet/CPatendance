@@ -28,6 +28,13 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  InputAdornment,
+  CircularProgress,
 } from '@mui/material';
 import {
   Dashboard,
@@ -46,6 +53,7 @@ import {
   TrendingDown,
   TrendingUp,
   Download,
+  Search,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api.service.js';
@@ -69,8 +77,16 @@ const HRDashboard = ({ onNotify }) => {
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [complianceAlerts, setComplianceAlerts] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Filter states
+  const [filterDepartment, setFilterDepartment] = useState('ALL');
+  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [filterDate, setFilterDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Clock-in state
   const [lastActionTime, setLastActionTime] = useState(null);
@@ -97,6 +113,14 @@ const HRDashboard = ({ onNotify }) => {
         const attendance = Array.isArray(attendanceRes) ? attendanceRes : attendanceRes?.results || [];
         const departmentsList = Array.isArray(departmentsRes) ? departmentsRes : departmentsRes?.results || [];
 
+        console.log('📊 HR Dashboard Data:', {
+          employees: employees.length,
+          attendance: attendance.length,
+          departments: departmentsList.length
+        });
+
+        setEmployees(employees);
+        setAttendanceRecords(attendance);
         setDepartments(departmentsList);
 
         const totalEmployees = employees.length;
@@ -482,14 +506,14 @@ const HRDashboard = ({ onNotify }) => {
 
       {/* Compliance Alerts */}
       {complianceAlerts.length > 0 && (
-        <Box sx={{ mb: 2 }}>
+        <Box sx={{ mb: 3 }}>
           <Stack spacing={1}>
             {complianceAlerts.map((alert, index) => (
               <Alert 
                 key={index}
                 severity={alert.severity}
                 icon={alert.icon}
-                sx={{ borderRadius: 1 }}
+                sx={{ borderRadius: 2 }}
               >
                 {alert.message}
               </Alert>
@@ -497,6 +521,232 @@ const HRDashboard = ({ onNotify }) => {
           </Stack>
         </Box>
       )}
+
+      {/* Employee Attendance Tracking with Filters */}
+      <Card sx={{ mb: 3, borderRadius: 2, boxShadow: 3 }}>
+        <CardContent>
+          <Typography variant="h6" fontWeight="bold" gutterBottom>
+            Employee Attendance Today
+          </Typography>
+          <Divider sx={{ mb: 3 }} />
+
+          {/* Filters */}
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid item xs={12} sm={6} md={3}>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Search employees..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Search />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Department</InputLabel>
+                <Select
+                  value={filterDepartment}
+                  onChange={(e) => setFilterDepartment(e.target.value)}
+                  label="Department"
+                >
+                  <MenuItem value="ALL">All Departments</MenuItem>
+                  {departments.map((dept) => (
+                    <MenuItem key={dept.id} value={dept.id}>
+                      {dept.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  label="Status"
+                >
+                  <MenuItem value="ALL">All Status</MenuItem>
+                  <MenuItem value="PRESENT">Present</MenuItem>
+                  <MenuItem value="ABSENT">Absent</MenuItem>
+                  <MenuItem value="LATE">Late</MenuItem>
+                  <MenuItem value="ON_LEAVE">On Leave</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <TextField
+                fullWidth
+                size="small"
+                type="date"
+                label="Date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+          </Grid>
+
+          {/* Filtered Results */}
+          <TableContainer component={Paper} variant="outlined">
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'primary.light' }}>
+                  <TableCell><strong>Employee</strong></TableCell>
+                  <TableCell><strong>Department</strong></TableCell>
+                  <TableCell><strong>Status</strong></TableCell>
+                  <TableCell><strong>Check-in Time</strong></TableCell>
+                  <TableCell><strong>Check-out Time</strong></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {(() => {
+                  // Filter employees and attendance
+                  let filtered = employees.filter((emp) => {
+                    const matchesSearch = !searchQuery ||
+                      emp.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      emp.employee_code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      emp.user?.email?.toLowerCase().includes(searchQuery.toLowerCase());
+
+                    const matchesDept = filterDepartment === 'ALL' ||
+                      emp.department?.id === filterDepartment;
+
+                    return matchesSearch && matchesDept;
+                  });
+
+                  const filteredAttendance = attendanceRecords.filter((record) => {
+                    const matchesDate = !filterDate || record.date === filterDate;
+                    const matchesStatus = filterStatus === 'ALL' ||
+                      record.status === filterStatus;
+                    return matchesDate && matchesStatus;
+                  });
+
+                  // Map employees with their attendance
+                  const empWithAttendance = filtered.map((emp) => {
+                    const record = filteredAttendance.find(
+                      (r) => String(r.employee?.id || r.employee) === String(emp.id)
+                    );
+                    return { ...emp, attendanceRecord: record };
+                  });
+
+                  // Filter by status if not "ALL"
+                  const finalFiltered = filterStatus === 'ALL'
+                    ? empWithAttendance
+                    : empWithAttendance.filter((e) => 
+                        filterStatus === 'ABSENT' 
+                          ? !e.attendanceRecord 
+                          : e.attendanceRecord?.status === filterStatus
+                      );
+
+                  if (loading) {
+                    return (
+                      <TableRow>
+                        <TableCell colSpan={5} align="center">
+                          <CircularProgress size={30} />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  }
+
+                  if (finalFiltered.length === 0) {
+                    return (
+                      <TableRow>
+                        <TableCell colSpan={5} align="center">
+                          <Typography variant="body2" color="text.secondary">
+                            No employees match the selected filters
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  }
+
+                  return finalFiltered.slice(0, 10).map((emp) => {
+                    const record = emp.attendanceRecord;
+                    const status = record?.status || 'ABSENT';
+                    const statusColor = {
+                      PRESENT: 'success',
+                      LATE: 'warning',
+                      ABSENT: 'error',
+                      ON_LEAVE: 'info'
+                    }[status] || 'default';
+
+                    return (
+                      <TableRow key={emp.id} hover>
+                        <TableCell>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Avatar sx={{ width: 32, height: 32, fontSize: '0.875rem' }}>
+                              {emp.full_name?.charAt(0) || 'E'}
+                            </Avatar>
+                            <Box>
+                              <Typography variant="body2" fontWeight="medium">
+                                {emp.full_name || 'N/A'}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {emp.employee_code || 'No Code'}
+                              </Typography>
+                            </Box>
+                          </Stack>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">
+                            {emp.department?.name || 'N/A'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={status}
+                            color={statusColor}
+                            size="small"
+                            sx={{ fontWeight: 'medium' }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">
+                            {record?.check_in_time
+                              ? new Date(record.check_in_time).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
+                              : '-'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">
+                            {record?.check_out_time
+                              ? new Date(record.check_out_time).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
+                              : '-'}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  });
+                })()}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          {/* Show more button */}
+          <Box sx={{ mt: 2, textAlign: 'center' }}>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => navigate('/attendance-overview')}
+            >
+              View Complete Attendance Records
+            </Button>
+          </Box>
+        </CardContent>
+      </Card>
 
       {/* Feature Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>

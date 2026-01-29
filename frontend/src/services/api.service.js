@@ -500,9 +500,31 @@ export const api = {
     return await request(`/employees/employees/${employeeId}/`, { method: 'GET' });
   },
 
-  // ============ DEPARTMENTS METHODS ============
+  // ============ DEPARTMENTS/COMPANIES METHODS ============
   getAllDepartments: async () => {
-    return await request('/departments/departments/', { method: 'GET' });
+    return await request('/employees/departments/', { method: 'GET' });
+  },
+
+  getDepartment: async (departmentId) => {
+    return await request(`/employees/departments/${departmentId}/`, { method: 'GET' });
+  },
+
+  createDepartment: async (departmentData) => {
+    return await request('/employees/departments/', {
+      method: 'POST',
+      body: JSON.stringify(departmentData),
+    });
+  },
+
+  updateDepartment: async (departmentId, departmentData) => {
+    return await request(`/employees/departments/${departmentId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(departmentData),
+    });
+  },
+
+  deleteDepartment: async (departmentId) => {
+    return await request(`/employees/departments/${departmentId}/`, { method: 'DELETE' });
   },
 
   // ============ LEAVES METHODS ============
