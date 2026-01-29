@@ -25,7 +25,8 @@ import {
   PersonAdd,
   Schedule,
   CalendarToday,
-  Download
+  Download,
+  Business
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api.service.js';
@@ -39,6 +40,7 @@ const AdminPanel = ({ onNotify }) => {
     monthlyPayroll: null,
     pendingApprovals: 0,
     attendanceRate: 0,
+    totalDepartments: 0,
   });
   const [error, setError] = useState('');
 
@@ -60,20 +62,45 @@ const AdminPanel = ({ onNotify }) => {
     setError('');
 
     try {
-      const [employeesRes, attendanceRes] = await Promise.all([
+      const [employeesRes, attendanceRes, departmentsRes] = await Promise.all([
         api.get('/employees/employees/'),
         api.get('/attendance/attendance/'),
+        api.get('/employees/departments/'),
       ]);
 
+      // Extract arrays with multiple fallbacks
       const employees = Array.isArray(employeesRes)
         ? employeesRes
-        : employeesRes.data || [];
+        : Array.isArray(employeesRes?.results)
+        ? employeesRes.results
+        : Array.isArray(employeesRes?.data)
+        ? employeesRes.data
+        : [];
 
       const attendance = Array.isArray(attendanceRes)
         ? attendanceRes
-        : attendanceRes.data || [];
+        : Array.isArray(attendanceRes?.results)
+        ? attendanceRes.results
+        : Array.isArray(attendanceRes?.data)
+        ? attendanceRes.data
+        : [];
+
+      const departments = Array.isArray(departmentsRes)
+        ? departmentsRes
+        : Array.isArray(departmentsRes?.results)
+        ? departmentsRes.results
+        : Array.isArray(departmentsRes?.data)
+        ? departmentsRes.data
+        : [];
+
+      console.log('Dashboard Data:', {
+        employeesCount: employees.length,
+        attendanceCount: attendance.length,
+        departmentsCount: departments.length
+      });
 
       const totalEmployees = employees.length;
+      const totalDepartments = departments.length;
 
       let presentToday = 0;
       let pendingApprovals = 0;
@@ -101,15 +128,26 @@ const AdminPanel = ({ onNotify }) => {
         monthlyPayroll: null,
         pendingApprovals,
         attendanceRate,
+        totalDepartments,
       });
 
-      if (!force) {
-        onNotify?.('Dashboard updated automatically', 'success');
+      console.log('Dashboard Stats Updated:', {
+        totalEmployees,
+        presentToday,
+        totalDepartments,
+        attendanceRate
+      });
+
+      if (force) {
+        onNotify?.('Dashboard refreshed successfully', 'success');
       }
     } catch (err) {
       console.error('Failed to load dashboard:', err);
-      setError('Unable to load dashboard data. Please try again later.');
-      onNotify?.('Failed to load data', 'error');
+      const errorMsg = err?.message || 'Unable to load dashboard data. Please try again later.';
+      setError(errorMsg);
+      if (force) {
+        onNotify?.(errorMsg, 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -139,9 +177,9 @@ const AdminPanel = ({ onNotify }) => {
   }, [fetchDashboardData]);
 
   const quickActions = [
-    { label: 'Add Employee', icon: <PersonAdd />, color: 'primary', path: '/users' },
-    { label: 'Manage Shifts', icon: <Schedule />, color: 'secondary', path: '/attendance' },
-    { label: 'Holidays & Config', icon: <CalendarToday />, color: 'info', path: '/config' },
+    { label: 'Manage Departments', icon: <Business />, color: 'primary', path: '/departments' },
+    { label: 'Add Employee', icon: <PersonAdd />, color: 'secondary', path: '/users' },
+    { label: 'Manage Shifts', icon: <Schedule />, color: 'info', path: '/attendance' },
     { label: 'Export Reports', icon: <Download />, color: 'success', path: '/reports' },
   ];
 
@@ -198,8 +236,18 @@ const AdminPanel = ({ onNotify }) => {
       {/* Stats Grid */}
       <Grid container spacing={4} sx={{ mb: 6 }}>
         {/* Total Employees */}
-        <Grid item xs={12} sm={6} lg={3}>
-          <Card sx={{ height: '100%', borderRadius: 3, boxShadow: 4, transition: '0.3s', '&:hover': { transform: 'translateY(-8px)', boxShadow: 8 } }}>
+        <Grid item xs={12} sm={6} lg={2.4}>
+          <Card 
+            onClick={() => navigate('/users')}
+            sx={{ 
+              height: '100%', 
+              borderRadius: 3, 
+              boxShadow: 4, 
+              cursor: 'pointer',
+              transition: '0.3s', 
+              '&:hover': { transform: 'translateY(-8px)', boxShadow: 8 } 
+            }}
+          >
             <CardContent>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
                 <Box>
@@ -207,7 +255,7 @@ const AdminPanel = ({ onNotify }) => {
                     Total Employees
                   </Typography>
                   <Typography variant="h3" fontWeight="bold">
-                    {stats.totalEmployees.toLocaleString()}
+                    {loading ? '...' : stats.totalEmployees.toLocaleString()}
                   </Typography>
                   <Chip label="Active workforce" color="success" size="small" sx={{ mt: 2 }} />
                 </Box>
@@ -218,8 +266,18 @@ const AdminPanel = ({ onNotify }) => {
         </Grid>
 
         {/* Present Today */}
-        <Grid item xs={12} sm={6} lg={3}>
-          <Card sx={{ height: '100%', borderRadius: 3, boxShadow: 4, transition: '0.3s', '&:hover': { transform: 'translateY(-8px)', boxShadow: 8 } }}>
+        <Grid item xs={12} sm={6} lg={2.4}>
+          <Card 
+            onClick={() => navigate('/attendance-overview')}
+            sx={{ 
+              height: '100%', 
+              borderRadius: 3, 
+              boxShadow: 4, 
+              cursor: 'pointer',
+              transition: '0.3s', 
+              '&:hover': { transform: 'translateY(-8px)', boxShadow: 8 } 
+            }}
+          >
             <CardContent>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
                 <Box>
@@ -227,7 +285,7 @@ const AdminPanel = ({ onNotify }) => {
                     Present Today
                   </Typography>
                   <Typography variant="h3" fontWeight="bold">
-                    {stats.presentToday}
+                    {loading ? '...' : stats.presentToday}
                   </Typography>
                   <Box sx={{ mt: 2 }}>
                     <LinearProgress
@@ -251,8 +309,38 @@ const AdminPanel = ({ onNotify }) => {
           </Card>
         </Grid>
 
+        {/* Departments */}
+        <Grid item xs={12} sm={6} lg={2.4}>
+          <Card 
+            onClick={() => navigate('/departments')}
+            sx={{ 
+              height: '100%', 
+              borderRadius: 3, 
+              boxShadow: 4, 
+              cursor: 'pointer',
+              transition: '0.3s', 
+              '&:hover': { transform: 'translateY(-8px)', boxShadow: 8 } 
+            }}
+          >
+            <CardContent>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Box>
+                  <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+                    Departments
+                  </Typography>
+                  <Typography variant="h3" fontWeight="bold">
+                    {loading ? '...' : stats.totalDepartments}
+                  </Typography>
+                  <Chip label="Active units" color="info" size="small" sx={{ mt: 2 }} />
+                </Box>
+                <Business sx={{ fontSize: 60, color: 'info.main', opacity: 0.2 }} />
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+
         {/* Monthly Payroll */}
-        <Grid item xs={12} sm={6} lg={3}>
+        <Grid item xs={12} sm={6} lg={2.4}>
           <Card sx={{ height: '100%', borderRadius: 3, boxShadow: 4, transition: '0.3s', '&:hover': { transform: 'translateY(-8px)', boxShadow: 8 } }}>
             <CardContent>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
@@ -277,7 +365,7 @@ const AdminPanel = ({ onNotify }) => {
         </Grid>
 
         {/* Pending Approvals */}
-        <Grid item xs={12} sm={6} lg={3}>
+        <Grid item xs={12} sm={6} lg={2.4}>
           <Card sx={{ height: '100%', borderRadius: 3, boxShadow: 4, transition: '0.3s', '&:hover': { transform: 'translateY(-8px)', boxShadow: 8 } }}>
             <CardContent>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
@@ -286,7 +374,7 @@ const AdminPanel = ({ onNotify }) => {
                     Pending Approvals
                   </Typography>
                   <Typography variant="h3" fontWeight="bold" color="error.main">
-                    {stats.pendingApprovals}
+                    {loading ? '...' : stats.pendingApprovals}
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
                     Leaves & overtime requests

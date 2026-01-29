@@ -8,6 +8,7 @@ const Login = ({ onLogin, onNotify }) => {
   const location = useLocation();
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [focusedField, setFocusedField] = useState(null);
@@ -19,11 +20,18 @@ const Login = ({ onLogin, onNotify }) => {
   const submitRef = useRef(null);
   const emailRef = useRef(null);
 
-  // Check for existing lock
+  // Check for existing lock and remembered email
   useEffect(() => {
     const lockTime = localStorage.getItem('loginLockUntil');
     if (lockTime && Date.now() < parseInt(lockTime)) {
       setLockUntil(parseInt(lockTime));
+    }
+    
+    // Load remembered email
+    const rememberedEmail = localStorage.getItem('rememberedEmail');
+    if (rememberedEmail) {
+      setFormData(prev => ({ ...prev, email: rememberedEmail }));
+      setRememberMe(true);
     }
   }, []);
 
@@ -119,6 +127,13 @@ const Login = ({ onLogin, onNotify }) => {
       localStorage.removeItem('failedAttempts');
       setAttempts(0);
       
+      // Handle remember me
+      if (rememberMe) {
+        localStorage.setItem('rememberedEmail', formData.email);
+      } else {
+        localStorage.removeItem('rememberedEmail');
+      }
+      
       // Store session data
       if (response.token) {
         localStorage.setItem('authToken', response.token);
@@ -206,6 +221,22 @@ const Login = ({ onLogin, onNotify }) => {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
+  const getPasswordStrength = () => {
+    const password = formData.password;
+    if (!password) return { strength: 0, label: '', color: '' };
+    
+    let strength = 0;
+    if (password.length >= 6) strength++;
+    if (password.length >= 10) strength++;
+    if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
+    if (/\d/.test(password)) strength++;
+    if (/[^a-zA-Z0-9]/.test(password)) strength++;
+    
+    if (strength <= 1) return { strength: 1, label: 'Weak', color: '#e53e3e' };
+    if (strength <= 3) return { strength: 2, label: 'Medium', color: '#ed8936' };
+    return { strength: 3, label: 'Strong', color: '#48bb78' };
+  };
+
   return (
     <div
       style={{
@@ -276,14 +307,14 @@ const Login = ({ onLogin, onNotify }) => {
             </svg>
           </div>
           <h1 style={{
-            fontSize: '32px',
+            fontSize: '28px',
             fontWeight: '700',
             color: '#1a202c',
             margin: '0 0 8px',
             letterSpacing: '-0.5px',
+            lineHeight: '1.3',
           }}>
-            Welcome Back  to
-            CAMS Login
+            Welcome Back
           </h1>
           <p style={{
             color: '#718096',
@@ -291,7 +322,7 @@ const Login = ({ onLogin, onNotify }) => {
             margin: 0,
             lineHeight: '1.5',
           }}>
-            Sign in to your CAMS account
+            Sign in to your <strong style={{ color: '#667eea' }}>CAMS</strong> account
           </p>
         </div>
 
@@ -393,7 +424,7 @@ const Login = ({ onLogin, onNotify }) => {
           </div>
 
           {/* Password field */}
-          <div style={{ marginBottom: '24px' }}>
+          <div style={{ marginBottom: '16px' }}>
             <div style={{
               position: 'relative',
               border: `2px solid ${focusedField === 'password' ? '#667eea' : '#e2e8f0'}`,
@@ -465,13 +496,79 @@ const Login = ({ onLogin, onNotify }) => {
                 )}
               </button>
             </div>
+            
+            {/* Password strength indicator */}
+            {formData.password && focusedField === 'password' && (
+              <div style={{
+                marginTop: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 12px',
+                backgroundColor: '#f8fafc',
+                borderRadius: '8px',
+              }}>
+                <div style={{
+                  flex: 1,
+                  height: '4px',
+                  backgroundColor: '#e2e8f0',
+                  borderRadius: '2px',
+                  overflow: 'hidden',
+                }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${(getPasswordStrength().strength / 3) * 100}%`,
+                    backgroundColor: getPasswordStrength().color,
+                    transition: 'all 0.3s ease',
+                  }} />
+                </div>
+                <span style={{
+                  fontSize: '12px',
+                  fontWeight: '500',
+                  color: getPasswordStrength().color,
+                  minWidth: '60px',
+                }}>
+                  {getPasswordStrength().label}
+                </span>
+              </div>
+            )}
           </div>
 
-          {/* Forgot password */}
+          {/* Remember me and Forgot password */}
           <div style={{
-            textAlign: 'right',
-            marginBottom: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '24px',
           }}>
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: loading || lockUntil ? 'not-allowed' : 'pointer',
+              userSelect: 'none',
+            }}>
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                disabled={loading || lockUntil}
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  cursor: loading || lockUntil ? 'not-allowed' : 'pointer',
+                  accentColor: '#667eea',
+                }}
+              />
+              <span style={{
+                color: '#4a5568',
+                fontSize: '14px',
+                fontWeight: '500',
+              }}>
+                Remember me
+              </span>
+            </label>
+
             <button
               type="button"
               onClick={handleForgotPassword}
@@ -583,7 +680,7 @@ const Login = ({ onLogin, onNotify }) => {
               e.target.style.borderColor = '#e2e8f0';
             }}
           >
-            Contact system Adminstor
+            Contact System Administrator
           </button>
         </div>
 
@@ -601,7 +698,7 @@ const Login = ({ onLogin, onNotify }) => {
               <svg width="12" height="12" viewBox="0 0 24 24" fill="#48bb78">
                 <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
               </svg>
-              <span>Secure corporate portal • v2.3.1</span>
+              <span>Secure corporate portal • v2.4.0</span>
             </div>
           </div>
           <div>
@@ -622,6 +719,21 @@ const Login = ({ onLogin, onNotify }) => {
           to { transform: rotate(360deg); }
         }
         
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        .login-form {
+          animation: fadeIn 0.4s ease-out;
+        }
+        
         input:-webkit-autofill,
         input:-webkit-autofill:hover,
         input:-webkit-autofill:focus {
@@ -630,10 +742,39 @@ const Login = ({ onLogin, onNotify }) => {
           transition: background-color 5000s ease-in-out 0s;
         }
         
+        input:focus {
+          outline: none;
+        }
+        
+        button:focus {
+          outline: 2px solid #667eea;
+          outline-offset: 2px;
+        }
+        
         @media (max-width: 480px) {
           .login-form {
-            padding: 32px 24px;
+            padding: 32px 24px !important;
             margin: 0 16px;
+            max-width: 100% !important;
+          }
+          
+          .login-form h1 {
+            font-size: 24px !important;
+          }
+          
+          .login-form input {
+            font-size: 16px !important;
+            padding: 16px 16px 16px 48px !important;
+          }
+          
+          .login-form button[type="submit"] {
+            padding: 18px !important;
+          }
+        }
+        
+        @media (max-width: 380px) {
+          .login-form {
+            padding: 24px 20px !important;
           }
         }
       `}</style>

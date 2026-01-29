@@ -37,6 +37,9 @@ import {
   Clear,
   CheckCircle,
   Cancel,
+  FilterList,
+  Sort,
+  SwapVert,
 } from '@mui/icons-material';
 import { api } from '../services/api.service.js';
 
@@ -83,6 +86,8 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
   const [filterRole, setFilterRole] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [filterDepartment, setFilterDepartment] = useState('ALL');
+  const [sortBy, setSortBy] = useState('name');
+  const [sortOrder, setSortOrder] = useState('asc');
   const canDelete = scope === 'admin';
   const isEmployeeRole = EMPLOYEE_ROLE_NAMES.includes(form.role);
 
@@ -347,13 +352,14 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
   };
 
   const filteredUsers = useMemo(() => {
-    return users.filter((u) => {
+    let filtered = users.filter((u) => {
       const q = search.toLowerCase();
       const matchesSearch =
         !q ||
         u.name?.toLowerCase().includes(q) ||
         u.email?.toLowerCase().includes(q) ||
-        (u.department || '').toLowerCase().includes(q);
+        (u.department || '').toLowerCase().includes(q) ||
+        (u.employeeCode || '').toLowerCase().includes(q);
 
       const matchesRole =
         filterRole === 'ALL' ||
@@ -366,7 +372,45 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
 
       return matchesSearch && matchesRole && matchesStatus && matchesDepartment;
     });
-  }, [users, search, filterRole, filterStatus, filterDepartment]);
+
+    // Sort users
+    filtered.sort((a, b) => {
+      let aVal, bVal;
+      
+      switch (sortBy) {
+        case 'name':
+          aVal = a.name?.toLowerCase() || '';
+          bVal = b.name?.toLowerCase() || '';
+          break;
+        case 'email':
+          aVal = a.email?.toLowerCase() || '';
+          bVal = b.email?.toLowerCase() || '';
+          break;
+        case 'role':
+          aVal = a.role?.toLowerCase() || '';
+          bVal = b.role?.toLowerCase() || '';
+          break;
+        case 'department':
+          aVal = a.department?.toLowerCase() || 'zzz';
+          bVal = b.department?.toLowerCase() || 'zzz';
+          break;
+        case 'status':
+          aVal = a.status?.toLowerCase() || '';
+          bVal = b.status?.toLowerCase() || '';
+          break;
+        default:
+          return 0;
+      }
+
+      if (sortOrder === 'asc') {
+        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+      } else {
+        return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+      }
+    });
+
+    return filtered;
+  }, [users, search, filterRole, filterStatus, filterDepartment, sortBy, sortOrder]);
 
   const activeCount = users.filter(u => u.status === 'Active').length;
 
@@ -528,67 +572,150 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
 
         {/* Right: Users Table */}
         <Grid size={{ xs: 12, lg: 8 }}>
-          <Card sx={{ mb: 3, borderRadius: 3, boxShadow: 3 }}>
+          {/* Filters Card */}
+          <Card sx={{ mb: 2, borderRadius: 3, boxShadow: 3 }}>
+            <CardHeader 
+              title={
+                <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <FilterList /> Filters & Sorting
+                </Typography>
+              }
+              subheader="Filter and sort users by multiple criteria"
+            />
+            <Divider />
             <CardContent>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
-                <TextField
-                  fullWidth
-                  placeholder="Search by name, email, department..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  InputProps={{
-                    startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
-                    endAdornment: search && (
-                      <InputAdornment position="end">
-                        <IconButton size="small" onClick={() => setSearch('')}><Clear /></IconButton>
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-                <FormControl sx={{ minWidth: 140 }}>
-                  <InputLabel>Role</InputLabel>
-                  <Select value={filterRole} onChange={(e) => setFilterRole(e.target.value)} label="Role">
-                    <MenuItem value="ALL">All Roles</MenuItem>
-                    <MenuItem value="EMPLOYEE">Employee</MenuItem>
-                    <MenuItem value="MANAGER">Manager</MenuItem>
-                    <MenuItem value="HR">HR</MenuItem>
-                    <MenuItem value="ADMIN">Admin</MenuItem>
-                  </Select>
-                </FormControl>
-                <FormControl sx={{ minWidth: 140 }}>
-                  <InputLabel>Department</InputLabel>
-                  <Select
-                    value={filterDepartment}
-                    onChange={(e) => setFilterDepartment(e.target.value)}
-                    label="Department"
+              <Grid container spacing={2}>
+                {/* Search */}
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    placeholder="Search by name, email, department, code..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
+                      endAdornment: search && (
+                        <InputAdornment position="end">
+                          <IconButton size="small" onClick={() => setSearch('')}><Clear /></IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Grid>
+
+                {/* Role Filter */}
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Role</InputLabel>
+                    <Select value={filterRole} onChange={(e) => setFilterRole(e.target.value)} label="Role">
+                      <MenuItem value="ALL">All Roles</MenuItem>
+                      <MenuItem value="EMPLOYEE">Employee</MenuItem>
+                      <MenuItem value="MANAGER">Manager</MenuItem>
+                      <MenuItem value="HR">HR</MenuItem>
+                      <MenuItem value="ADMIN">Admin</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                {/* Status Filter */}
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Status</InputLabel>
+                    <Select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} label="Status">
+                      <MenuItem value="ALL">All Status</MenuItem>
+                      <MenuItem value="Active">Active</MenuItem>
+                      <MenuItem value="Inactive">Inactive</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                {/* Department Filter */}
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Department</InputLabel>
+                    <Select
+                      value={filterDepartment}
+                      onChange={(e) => setFilterDepartment(e.target.value)}
+                      label="Department"
+                    >
+                      <MenuItem value="ALL">All Departments</MenuItem>
+                      {departments.map((d) => (
+                        <MenuItem key={d.id} value={d.name}>
+                          {d.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                {/* Sort By */}
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Sort By</InputLabel>
+                    <Select value={sortBy} onChange={(e) => setSortBy(e.target.value)} label="Sort By">
+                      <MenuItem value="name">Name</MenuItem>
+                      <MenuItem value="email">Email</MenuItem>
+                      <MenuItem value="role">Role</MenuItem>
+                      <MenuItem value="department">Department</MenuItem>
+                      <MenuItem value="status">Status</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                {/* Sort Order */}
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Order</InputLabel>
+                    <Select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} label="Order">
+                      <MenuItem value="asc">Ascending (A-Z)</MenuItem>
+                      <MenuItem value="desc">Descending (Z-A)</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+
+              {/* Active Filters Display */}
+              {(search || filterRole !== 'ALL' || filterStatus !== 'ALL' || filterDepartment !== 'ALL' || sortBy !== 'name') && (
+                <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">Active filters:</Typography>
+                  {search && <Chip label={`Search: "${search}"`} onDelete={() => setSearch('')} size="small" color="primary" />}
+                  {filterRole !== 'ALL' && <Chip label={`Role: ${getRoleLabel(filterRole)}`} onDelete={() => setFilterRole('ALL')} size="small" color="secondary" />}
+                  {filterStatus !== 'ALL' && <Chip label={`Status: ${filterStatus}`} onDelete={() => setFilterStatus('ALL')} size="small" color="success" />}
+                  {filterDepartment !== 'ALL' && <Chip label={`Dept: ${filterDepartment}`} onDelete={() => setFilterDepartment('ALL')} size="small" color="info" />}
+                  {sortBy !== 'name' && <Chip label={`Sorted by: ${sortBy}`} size="small" variant="outlined" />}
+                  <Button 
+                    size="small" 
+                    onClick={() => {
+                      setSearch('');
+                      setFilterRole('ALL');
+                      setFilterStatus('ALL');
+                      setFilterDepartment('ALL');
+                      setSortBy('name');
+                      setSortOrder('asc');
+                    }}
+                    startIcon={<Clear />}
                   >
-                    <MenuItem value="ALL">All Departments</MenuItem>
-                    {departments.map((d) => (
-                      <MenuItem key={d.id} value={d.name}>
-                        {d.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                <FormControl sx={{ minWidth: 140 }}>
-                  <InputLabel>Status</InputLabel>
-                  <Select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} label="Status">
-                    <MenuItem value="ALL">All Status</MenuItem>
-                    <MenuItem value="Active">Active</MenuItem>
-                    <MenuItem value="Inactive">Inactive</MenuItem>
-                  </Select>
-                </FormControl>
-              </Stack>
+                    Clear All
+                  </Button>
+                </Box>
+              )}
             </CardContent>
           </Card>
 
+          {/* Users Table Card */}
           <Card sx={{ borderRadius: 3, boxShadow: 4 }}>
             <CardHeader
-              title={<Typography variant="h6">All Users ({filteredUsers.length})</Typography>}
+              title={<Typography variant="h6">All Users ({filteredUsers.length} of {users.length})</Typography>}
               subheader={
-                <Stack direction="row" spacing={2} mt={1}>
-                  <Chip label={`${activeCount} Active`} color="success" />
-                  <Chip label={`${users.length - activeCount} Inactive`} variant="outlined" />
+                <Stack direction="row" spacing={1} mt={1} flexWrap="wrap" gap={1}>
+                  <Chip label={`Total: ${filteredUsers.length}`} size="small" color="primary" />
+                  <Chip label={`Active: ${filteredUsers.filter(u => u.status === 'Active').length}`} size="small" color="success" />
+                  <Chip label={`Inactive: ${filteredUsers.filter(u => u.status === 'Inactive').length}`} size="small" variant="outlined" />
+                  <Chip label={`Admins: ${filteredUsers.filter(u => u.role === 'ADMIN').length}`} size="small" color="error" variant="outlined" />
+                  <Chip label={`HR: ${filteredUsers.filter(u => u.role === 'HR').length}`} size="small" color="secondary" variant="outlined" />
+                  <Chip label={`Managers: ${filteredUsers.filter(u => u.role === 'MANAGER').length}`} size="small" color="primary" variant="outlined" />
+                  <Chip label={`Employees: ${filteredUsers.filter(u => u.role === 'EMPLOYEE').length}`} size="small" variant="outlined" />
                 </Stack>
               }
             />

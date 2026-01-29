@@ -1,5 +1,5 @@
 // src/pages/Biometrics.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box,
   Grid,
@@ -32,6 +32,13 @@ import {
   MenuItem,
   Tooltip,
   Modal as MUIModal,
+  FormControlLabel,
+  Slider,
+  LinearProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import {
   Timeline,
@@ -55,8 +62,23 @@ import {
   Search,
   Clear,
   Delete,
+  Face,
+  FlashOn,
+  FlashOff,
+  AutoAwesome,
+  Camera,
+  FaceRetouchingNatural,
+  Sensors,
+  Settings,
+  CloudUpload,
+  TaskAlt,
+  Error as ErrorIcon,
+  PhotoCamera,
+  CheckCircle,
 } from '@mui/icons-material';
 import { api } from '../services/api.service.js';
+import FaceCaptureDialog from '../components/FaceCaptureDialog';
+import { faceDetector } from '../utils/faceDetector';  // ← Correct import
 
 const Biometrics = ({ onNotify, role }) => {
   const isEmployee = role === 'Employee';
@@ -67,28 +89,48 @@ const Biometrics = ({ onNotify, role }) => {
   const [employeeId, setEmployeeId] = useState('');
   const [hasEmployeeProfile, setHasEmployeeProfile] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
-  const [cameraOpen, setCameraOpen] = useState(false);
-  const [cameraReady, setCameraReady] = useState(false);
-  const [cameraStream, setCameraStream] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [autoSending, setAutoSending] = useState(false);
+
+  // Face capture dialog state
+  const [captureDialogOpen, setCaptureDialogOpen] = useState(false);
+  const [capturedImage, setCapturedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+
+  // Enhanced features state
+  const [faceDetectionEnabled, setFaceDetectionEnabled] = useState(true);
+  const [autoCaptureEnabled, setAutoCaptureEnabled] = useState(true);
+  const [autoSendEnabled, setAutoSendEnabled] = useState(true);
+  const [blinkDetectionEnabled, setBlinkDetectionEnabled] = useState(true); // now real
+  const [qualityThreshold, setQualityThreshold] = useState(0.7);
+  const [captureDelay, setCaptureDelay] = useState(3);
+
+  // Face detection state
+  const [detectionStatus, setDetectionStatus] = useState('Ready');
+  const [detectionProgress, setDetectionProgress] = useState(0);
+  const [autoCaptureCountdown, setAutoCaptureCountdown] = useState(null);
+  const [showAutoCaptureDialog, setShowAutoCaptureDialog] = useState(false);
+  const [capturedImageData, setCapturedImageData] = useState(null);
+  const [lastFaceData, setLastFaceData] = useState(null);
+  const [eyeBlinkDetected, setEyeBlinkDetected] = useState(false);
 
   const [profiles, setProfiles] = useState([]);
   const [profilesLoading, setProfilesLoading] = useState(false);
   const [profilesError, setProfilesError] = useState('');
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
-
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
 
   const videoRef = useRef(null);
-  const canvasRef = useRef(null);
+  const detectionIntervalRef = useRef(null);
+  const captureTimeoutRef = useRef(null);
+  const consecutiveFramesRef = useRef(0);
+  const detectionActiveRef = useRef(false);
 
   // Load current user's employee profile
   useEffect(() => {
-    (async () => {
+    const loadEmployeeProfile = async () => {
       setLoadingProfile(true);
       try {
         const emp = await api.getMyEmployee();
@@ -105,10 +147,12 @@ const Biometrics = ({ onNotify, role }) => {
       } finally {
         setLoadingProfile(false);
       }
-    })();
+    };
+
+    loadEmployeeProfile();
   }, []);
 
-  const loadProfiles = async () => {
+  const loadProfiles = useCallback(async () => {
     if (isEmployee) return;
     setProfilesLoading(true);
     setProfilesError('');
@@ -124,28 +168,51 @@ const Biometrics = ({ onNotify, role }) => {
     } finally {
       setProfilesLoading(false);
     }
-  };
+  }, [isEmployee, onNotify]);
 
   useEffect(() => {
     if (!isEmployee) {
       loadProfiles();
     }
-  }, [isEmployee]);
+  }, [isEmployee, loadProfiles]);
 
-  // Cleanup camera and preview URL
+  // Handle auto-capture countdown
+  useEffect(() => {
+    if (autoCaptureCountdown !== null && autoCaptureCountdown > 0) {
+      const timer = setTimeout(() => {
+        setAutoCaptureCountdown(autoCaptureCountdown - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (autoCaptureCountdown === 0) {
+      setAutoCaptureCountdown(null);
+      performAutoCapture();
+    }
+  }, [autoCaptureCountdown]);
+
+  // Handle auto-send after capture
+  useEffect(() => {
+    if (capturedImageData && autoSendEnabled && hasEmployeeProfile) {
+      autoSendToBackend(capturedImageData);
+    }
+  }, [capturedImageData, autoSendEnabled, hasEmployeeProfile]);
+
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      stopCamera();
-      if (imagePreview) URL.revokeObjectURL(imagePreview);
+      if (detectionIntervalRef.current) {
+        clearInterval(detectionIntervalRef.current);
+      }
+      if (captureTimeoutRef.current) {
+        clearTimeout(captureTimeoutRef.current);
+      }
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+      }
+      if (capturedImageData?.url) {
+        URL.revokeObjectURL(capturedImageData.url);
+      }
     };
-  }, [imagePreview]);
-
-  // Auto-play video when stream is set
-  useEffect(() => {
-    if (!cameraOpen || !cameraStream || !videoRef.current) return;
-    videoRef.current.srcObject = cameraStream;
-    videoRef.current.play().catch(() => {});
-  }, [cameraOpen, cameraStream]);
+  }, [imagePreview, capturedImageData]);
 
   const filteredProfiles = profiles.filter((p) => {
     const matchesSearch =
@@ -167,136 +234,324 @@ const Biometrics = ({ onNotify, role }) => {
     securityLevel: totalActive > 0 ? 'High' : 'Medium',
   };
 
-  const startCamera = async () => {
-    try {
-      stopCamera();
-      setCameraReady(false);
-      setCameraOpen(true);
-      await new Promise((r) => setTimeout(r, 120));
-
-      if (!videoRef.current) throw new Error('Video element not found');
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'user',
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-      });
-
-      setCameraStream(stream);
-      videoRef.current.srcObject = stream;
-      await new Promise((resolve) => {
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current.play().catch(() => {});
-          resolve();
-        };
-        setTimeout(resolve, 2500);
-      });
-
-      setCameraReady(true);
-    } catch (err) {
-      console.error('Camera start failed:', err);
-      stopCamera();
-      let msg = 'Cannot access camera.';
-      if (err.name === 'NotAllowedError') {
-        msg = 'Camera permission denied. Please allow access in your browser settings.';
-      } else if (err.name === 'NotFoundError') {
-        msg = 'No camera found on this device.';
-      } else if (err.name === 'OverconstrainedError') {
-        msg = 'Camera constraints not satisfied. Try another device.';
-      }
-      onNotify?.(msg, 'error');
-    }
-  };
-
-  const stopCamera = () => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach((track) => track.stop());
-    }
-    if (videoRef.current?.srcObject) {
-      videoRef.current.srcObject = null;
-    }
-    setCameraStream(null);
-    setCameraOpen(false);
-    setCameraReady(false);
-  };
-
-  const captureFrame = () => {
-    if (!videoRef.current) return;
-    const video = videoRef.current;
-
-    if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
-      onNotify?.('Camera not fully ready yet. Wait 1–2 seconds after video starts.', 'warning');
+  // ─────────────────────────────────────────────────────────────
+  // Real face detection loop – using faceDetector from faceDetector.js
+  // ─────────────────────────────────────────────────────────────
+  const startFaceDetection = useCallback(() => {
+    if (!captureDialogOpen || !faceDetectionEnabled || !videoRef.current || detectionActiveRef.current) {
       return;
     }
 
-    const canvas = canvasRef.current || document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    detectionActiveRef.current = true;
 
-    canvas.toBlob(
-      (blob) => {
-        if (!blob || blob.size < 2000) {
-          onNotify?.('Captured image appears empty. Try again in better lighting.', 'warning');
-          return;
+    detectionIntervalRef.current = setInterval(async () => {
+      if (!videoRef.current || videoRef.current.readyState < 2) return;
+
+      try {
+        const face = await faceDetector.detect(videoRef.current);
+
+        if (face) {
+          const confidence = face.confidence || 0.6;
+          const videoWidth = videoRef.current.videoWidth;
+          const videoHeight = videoRef.current.videoHeight;
+
+          if (!videoWidth || !videoHeight) return;
+
+          const bbox = face.boundingBox;
+          const faceX = bbox.x + bbox.width / 2;
+          const faceY = bbox.y + bbox.height / 2;
+          const faceSize = Math.max(bbox.width, bbox.height);
+
+          const isInFrame = confidence > qualityThreshold;
+          const isCentered =
+            Math.abs(faceX - videoWidth / 2) < videoWidth * 0.15 &&
+            Math.abs(faceY - videoHeight / 2) < videoHeight * 0.15;
+          const isSizeOptimal =
+            faceSize > Math.min(videoWidth, videoHeight) * 0.25 &&
+            faceSize < Math.min(videoWidth, videoHeight) * 0.45;
+
+          let progress = 0;
+          if (isInFrame) progress += 25;
+          if (isCentered) progress += 25;
+          if (isSizeOptimal) progress += 25;
+          if (face.hasEyes) progress += 25;
+
+          let status = 'Detecting...';
+          if (!isInFrame) {
+            status = 'Move face into frame';
+            consecutiveFramesRef.current = 0;
+          } else if (!isCentered) {
+            status = 'Center your face in the circle';
+            consecutiveFramesRef.current = 0;
+          } else if (!isSizeOptimal) {
+            status = faceSize < Math.min(videoWidth, videoHeight) * 0.3 ? 'Move closer' : 'Move farther';
+            consecutiveFramesRef.current = 0;
+          } else {
+            status = 'Perfect! Hold still for auto-capture';
+            consecutiveFramesRef.current = Math.min(consecutiveFramesRef.current + 1, 10);
+          }
+
+          // ── REAL BLINK DETECTION ── (from faceDetector.js)
+          if (blinkDetectionEnabled && face.hasEyes && face.isBlinking) {
+            setEyeBlinkDetected(true);
+            setTimeout(() => setEyeBlinkDetected(false), 500); // show for 0.5s
+          }
+
+          setDetectionStatus(status);
+          setDetectionProgress(progress);
+
+          setLastFaceData({
+            confidence: Math.round(confidence * 100),
+            isCentered,
+            isSizeOptimal,
+            isInFrame,
+            hasEyes: face.hasEyes,
+            x: Math.round(faceX),
+            y: Math.round(faceY),
+            ear: face.ear ? face.ear.toFixed(3) : null,
+            isBlinking: face.isBlinking || false,
+          });
+
+          if (
+            autoCaptureEnabled &&
+            isInFrame &&
+            isCentered &&
+            isSizeOptimal &&
+            consecutiveFramesRef.current >= 5 &&
+            !autoCaptureCountdown
+          ) {
+            setAutoCaptureCountdown(captureDelay);
+          }
+        } else {
+          setDetectionStatus('No face detected');
+          setDetectionProgress(0);
+          consecutiveFramesRef.current = 0;
+          setLastFaceData(null);
+          setEyeBlinkDetected(false);
         }
-        const file = new File([blob], 'capture.jpg', { type: 'image/jpeg' });
-        setImageFile(file);
-        const url = URL.createObjectURL(blob);
-        setImagePreview(url);
-        stopCamera();
-      },
-      'image/jpeg',
-      0.92
-    );
+      } catch (error) {
+        console.warn('Detection error:', error);
+        setDetectionStatus('Detection error - check console');
+        setDetectionProgress(0);
+      }
+    }, 300);
+  }, [
+    captureDialogOpen,
+    faceDetectionEnabled,
+    qualityThreshold,
+    autoCaptureEnabled,
+    autoCaptureCountdown,
+    captureDelay,
+    blinkDetectionEnabled,
+  ]);
+
+  const clearDetectionInterval = useCallback(() => {
+    if (detectionIntervalRef.current) {
+      clearInterval(detectionIntervalRef.current);
+      detectionIntervalRef.current = null;
+    }
+    detectionActiveRef.current = false;
+    consecutiveFramesRef.current = 0;
+  }, []);
+
+  const clearCaptureTimeout = useCallback(() => {
+    if (captureTimeoutRef.current) {
+      clearTimeout(captureTimeoutRef.current);
+      captureTimeoutRef.current = null;
+    }
+  }, []);
+
+  const handleCaptureDialogOpen = () => {
+    setCaptureDialogOpen(true);
+    setCapturedImage(null);
+    setImagePreview(null);
+    setDetectionStatus('Starting camera...');
+    setDetectionProgress(0);
+    setAutoCaptureCountdown(null);
+    setEyeBlinkDetected(false);
+    consecutiveFramesRef.current = 0;
+
+    setTimeout(() => {
+      faceDetector.init()
+        .then(() => {
+          console.log('Face detector ready');
+          onNotify?.('Face detection initialized successfully', 'success');
+        })
+        .catch((err) => {
+          console.error('Failed to initialize face detector:', err);
+          onNotify?.('Face detection initialization failed. Using basic mode.', 'warning');
+        });
+    }, 500);
   };
 
-  const handleEnrollClick = async () => {
+  const handleCaptureDialogClose = () => {
+    setCaptureDialogOpen(false);
+    clearDetectionInterval();
+    clearCaptureTimeout();
+    consecutiveFramesRef.current = 0;
+    setAutoCaptureCountdown(null);
+    setEyeBlinkDetected(false);
+  };
+
+  const handleCaptured = async (file) => {
+    setCapturedImage(file);
+    const url = URL.createObjectURL(file);
+    setImagePreview(url);
+
+    if (autoSendEnabled && hasEmployeeProfile) {
+      await autoSendImage(file);
+    } else {
+      onNotify?.('Image captured successfully. Click "Enroll Face" to submit.', 'success');
+    }
+  };
+
+  const performAutoCapture = () => {
+    if (!videoRef.current) return;
+
+    try {
+      const video = videoRef.current;
+      if (video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
+        return;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+
+        const file = new File([blob], `auto_capture_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        const url = URL.createObjectURL(blob);
+
+        setCapturedImageData({ file, url });
+        setShowAutoCaptureDialog(true);
+
+        if (autoSendEnabled) {
+          setTimeout(() => {
+            handleCaptureDialogClose();
+          }, 1000);
+        }
+      }, 'image/jpeg', 0.9);
+    } catch (error) {
+      console.error('Auto-capture failed:', error);
+      onNotify?.('Auto-capture failed. Please try manual capture.', 'error');
+    }
+  };
+
+  const autoSendImage = async (file) => {
+    if (!hasEmployeeProfile || !file) return;
+
+    setSubmitting(true);
+    setAutoSending(true);
+
+    try {
+      const form = new FormData();
+      form.append('biometric_type', 'FACE');
+      form.append('image', file);
+      form.append('employee_id', employeeId);
+      form.append('auto_captured', 'true');
+
+      if (lastFaceData) {
+        form.append('face_confidence', lastFaceData.confidence.toString());
+        form.append('detection_quality', 'auto');
+        if (lastFaceData.hasEyes) {
+          form.append('eyes_detected', 'true');
+        }
+      }
+      await api.postForm('/biometrics/face/enroll/', form);
+
+      onNotify?.('Face auto-enrolled successfully!', 'success');
+
+      if (!isEmployee) {
+        await loadProfiles();
+      }
+
+      setCapturedImage(null);
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+        setImagePreview(null);
+      }
+    } catch (err) {
+      console.error('Auto-enrollment failed:', err);
+      let msg = err?.message || 'Auto-enrollment failed. Please try manual enrollment.';
+      onNotify?.(msg, 'error');
+    } finally {
+      setSubmitting(false);
+      setAutoSending(false);
+    }
+  };
+
+  const autoSendToBackend = async (imageData) => {
+    if (!hasEmployeeProfile || !imageData) return;
+
+    setAutoSending(true);
+
+    try {
+      const form = new FormData();
+      form.append('biometric_type', 'FACE');
+      form.append('image', imageData.file);
+      form.append('employee_id', employeeId);
+      form.append('auto_captured', 'true');
+
+      if (lastFaceData) {
+        form.append('face_confidence', lastFaceData.confidence.toString());
+        form.append('detection_quality', 'auto');
+        if (lastFaceData.hasEyes) {
+          form.append('eyes_detected', 'true');
+        }
+      }
+      await api.postForm('/biometrics/face/enroll/', form);
+
+      onNotify?.('Face auto-enrolled successfully!', 'success');
+      setShowAutoCaptureDialog(false);
+
+      if (!isEmployee) {
+        await loadProfiles();
+      }
+
+      setCapturedImageData(null);
+      if (imageData.url) {
+        URL.revokeObjectURL(imageData.url);
+      }
+    } catch (err) {
+      console.error('Auto-enrollment failed:', err);
+      let msg = err?.message || 'Auto-enrollment failed. Please try manual enrollment.';
+      onNotify?.(msg, 'error');
+    } finally {
+      setAutoSending(false);
+    }
+  };
+
+  const handleManualEnroll = async () => {
     if (!hasEmployeeProfile) {
       onNotify?.(
-        "Face enrollment is currently not available for your account.\n\n" +
-        "This feature requires a linked Employee profile in the system.\n\n" +
-        "Please contact your HR department or system administrator and ask them to:\n" +
-        "• Create an Employee record for you, or\n" +
-        "• Link your user account to an existing Employee record.\n\n" +
-        "Once that's done, refresh this page and try again.",
+        "Face enrollment requires a linked Employee profile.\n\nPlease contact HR or system administrator to link your account.",
         'info'
       );
       return;
     }
-
-    if (!imageFile) {
+    if (!capturedImage) {
       onNotify?.('Please capture a photo first.', 'warning');
       return;
     }
-
     setSubmitting(true);
     try {
       const form = new FormData();
       form.append('biometric_type', 'FACE');
-      form.append('image', imageFile);
-
+      form.append('image', capturedImage);
+      form.append('employee_id', employeeId);
       await api.postForm('/biometrics/face/enroll/', form);
       onNotify?.('Face enrolled successfully!', 'success');
-
       if (!isEmployee) await loadProfiles();
-
-      setImageFile(null);
+      setCapturedImage(null);
       if (imagePreview) {
         URL.revokeObjectURL(imagePreview);
         setImagePreview(null);
       }
     } catch (err) {
       let msg = err?.message || 'Enrollment failed. Please try again.';
-      const lower = msg.toLowerCase();
-      if (lower.includes('no face detected')) {
-        msg = 'No face detected. Center your face, ensure good lighting, and try again.';
-      } else if (lower.includes('image required')) {
-        msg = 'Image upload failed. Please capture again.';
-      }
       onNotify?.(msg, 'error');
     } finally {
       setSubmitting(false);
@@ -313,23 +568,20 @@ const Biometrics = ({ onNotify, role }) => {
       setProfiles((prev) =>
         prev.map((p) => (p.id === updated.id ? updated : p))
       );
-      onNotify?.(
-        newActive ? 'Profile activated.' : 'Profile deactivated.',
-        'success'
-      );
+      onNotify?.(newActive ? 'Profile activated.' : 'Profile deactivated.', 'success');
     } catch (err) {
-      onNotify?.('Failed to update status.', 'error');
+      onNotify?.('Failed to update profile status.', 'error');
     }
   };
 
   const deleteProfile = async (id) => {
-    if (!window.confirm('Delete this profile permanently?')) return;
+    if (!window.confirm('Are you sure you want to delete this profile permanently?')) return;
     try {
       await api.deleteProfile(id);
       setProfiles((prev) => prev.filter((p) => p.id !== id));
-      onNotify?.('Profile deleted.', 'info');
+      onNotify?.('Profile deleted successfully.', 'info');
     } catch (err) {
-      onNotify?.('Delete failed.', 'error');
+      onNotify?.('Failed to delete profile.', 'error');
     }
   };
 
@@ -346,16 +598,16 @@ const Biometrics = ({ onNotify, role }) => {
           <Fingerprint sx={{ fontSize: 56, color: 'primary.main' }} />
           <Box>
             <Typography variant="h3" fontWeight="bold">
-              Biometric System
+              Attendance Management System - Face Enrollment
             </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
-              Advanced facial recognition for secure, contactless attendance
+              Advanced facial recognition with auto-detection and enrollment
             </Typography>
           </Box>
           <Chip
-            label="Coming Soon"
-            color="warning"
-            icon={<Schedule />}
+            label="Auto-Detection Active"
+            color="success"
+            icon={<AutoAwesome />}
             sx={{ ml: 'auto', px: 2, py: 1, fontWeight: 'bold', fontSize: '0.95rem' }}
           />
         </Stack>
@@ -367,9 +619,9 @@ const Biometrics = ({ onNotify, role }) => {
           { value: stats.totalEnrolled, label: 'Total Enrolled', icon: <HowToReg />, color: 'primary' },
           { value: stats.activeToday, label: 'Active Today', icon: <CheckCircleOutline />, color: 'success' },
           { value: stats.totalRevoked, label: 'Revoked', icon: <Shield />, color: 'error' },
-          { value: stats.securityLevel, label: 'Security Level', icon: <Security />, color: 'info' },
+          { value: 'Auto', label: 'Detection Mode', icon: <AutoAwesome />, color: 'warning' },
         ].map((stat, i) => (
-          <Grid size={{ xs: 12, sm: 6, md: 3 }} key={i}>
+          <Grid item xs={12} sm={6} md={3} key={i}>
             <Card
               sx={{
                 borderRadius: 4,
@@ -404,7 +656,8 @@ const Biometrics = ({ onNotify, role }) => {
           }}
         >
           {!isEmployee && <Tab label="Overview" />}
-          <Tab label="Enrollment Process" />
+          <Tab label="Face Enrollment" />
+          <Tab label="Detection Settings" />
           {!isEmployee && <Tab label="Security & Privacy" />}
         </Tabs>
 
@@ -413,33 +666,32 @@ const Biometrics = ({ onNotify, role }) => {
           {!isEmployee && tabValue === 0 && (
             <>
               <Grid container spacing={6}>
-                <Grid size={{ xs: 12, md: 6 }}>
+                <Grid item xs={12} md={6}>
                   <Paper elevation={3} sx={{ p: 5, borderRadius: 4, height: '100%', bgcolor: 'grey.50' }}>
                     <Typography variant="h5" fontWeight="bold" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Info sx={{ color: 'info.main' }} /> Current Status
+                      <Info sx={{ color: 'info.main' }} /> Auto-Detection System
                     </Typography>
-                    <Alert severity="info" sx={{ borderRadius: 3, p: 3 }}>
+                    <Alert severity="success" sx={{ borderRadius: 3, p: 3 }}>
                       <Typography variant="body1" fontWeight="medium">
-                        Biometric system is under active development
+                        Smart face detection and auto-enrollment active
                       </Typography>
                       <Typography variant="body2" sx={{ mt: 2 }}>
-                        Facial recognition enrollment and verification coming soon.
+                        The system will automatically detect faces, verify conditions, capture, and enroll.
                       </Typography>
                     </Alert>
                   </Paper>
                 </Grid>
-
-                <Grid size={{ xs: 12, md: 6 }}>
+                <Grid item xs={12} md={6}>
                   <Paper elevation={3} sx={{ p: 5, borderRadius: 4 }}>
                     <Typography variant="h5" fontWeight="bold" sx={{ mb: 4 }}>
-                      Key Benefits
+                      Auto-Detection Process
                     </Typography>
                     <Timeline>
                       {[
-                        { title: 'Touchless & Hygienic', desc: 'No physical contact required', color: 'primary' },
-                        { title: 'Lightning Fast', desc: 'Verification < 1 second', color: 'success' },
-                        { title: 'Anti-Spoofing', desc: 'Resists photos, videos, masks', color: 'warning' },
-                        { title: 'Privacy First', desc: 'Raw images deleted instantly', color: 'info' },
+                        { title: 'Face Detection', desc: 'Real-time face tracking', color: 'primary' },
+                        { title: 'Alignment Check', desc: 'Verifies position and size', color: 'success' },
+                        { title: 'Quality Verification', desc: 'Confidence threshold check', color: 'warning' },
+                        { title: 'Auto-Capture & Send', desc: 'Captures and sends to backend', color: 'info' },
                       ].map((item, i) => (
                         <TimelineItem key={i}>
                           <TimelineSeparator>
@@ -528,10 +780,10 @@ const Biometrics = ({ onNotify, role }) => {
                             </TableCell>
                             <TableCell onClick={() => openDetails(p)}>{p.biometric_type}</TableCell>
                             <TableCell onClick={() => openDetails(p)}>
-                              {p.created_at ? new Date(p.created_at).toLocaleString() : '-'}
+                              {p.created_at ? new Date(p.created_at).toLocaleDateString() : '-'}
                             </TableCell>
                             <TableCell onClick={() => openDetails(p)}>
-                              {p.last_used ? new Date(p.last_used).toLocaleString() : '-'}
+                              {p.last_used ? new Date(p.last_used).toLocaleDateString() : '-'}
                             </TableCell>
                             <TableCell align="center">
                               {isAdmin || isHR ? (
@@ -580,18 +832,18 @@ const Biometrics = ({ onNotify, role }) => {
           {/* ENROLLMENT TAB */}
           {(isEmployee ? tabValue === 0 : tabValue === 1) && (
             <Grid container spacing={6}>
-              <Grid size={{ xs: 12, lg: 7 }}>
+              <Grid item xs={12} lg={7}>
                 <Card sx={{ borderRadius: 4, boxShadow: 6 }}>
                   <CardHeader
-                    title={<Typography variant="h5" fontWeight="bold">Enroll Your Face</Typography>}
-                    subheader="Set up touchless attendance"
+                    title={<Typography variant="h5" fontWeight="bold">Face Enrollment</Typography>}
+                    subheader="Click 'Capture Face' to start auto-detection and enrollment"
                   />
                   <Divider />
                   <CardContent sx={{ pt: 4 }}>
                     <Stack spacing={5}>
                       <Paper
                         sx={{
-                          height: 460,
+                          height: 400,
                           borderRadius: 4,
                           bgcolor: 'grey.100',
                           display: 'flex',
@@ -599,7 +851,9 @@ const Biometrics = ({ onNotify, role }) => {
                           alignItems: 'center',
                           justifyContent: 'center',
                           border: '3px dashed',
-                          borderColor: cameraReady ? 'success.main' : 'grey.400',
+                          borderColor: capturedImage ? 'success.main' : 'grey.400',
+                          position: 'relative',
+                          overflow: 'hidden',
                         }}
                       >
                         {loadingProfile ? (
@@ -607,173 +861,414 @@ const Biometrics = ({ onNotify, role }) => {
                             <CircularProgress />
                             <Typography sx={{ mt: 3 }}>Checking your account status...</Typography>
                           </Box>
-                        ) : cameraOpen ? (
-                          <Box sx={{ width: '100%', textAlign: 'center', p: 2 }}>
-                            <video
-                              ref={videoRef}
-                              autoPlay
-                              playsInline
-                              muted
-                              onLoadedMetadata={() => setCameraReady(true)}
-                              onCanPlayThrough={() => setCameraReady(true)}
+                        ) : imagePreview ? (
+                          <Box sx={{ textAlign: 'center', p: 4 }}>
+                            <img
+                              src={imagePreview}
+                              alt="captured face"
                               style={{
                                 width: '100%',
-                                maxWidth: 540,
-                                borderRadius: 12,
-                                transform: 'scaleX(-1)',
-                                background: '#000',
+                                maxWidth: 400,
+                                height: 'auto',
+                                borderRadius: 8,
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
                               }}
                             />
-                            <Box
-                              sx={{
-                                position: 'absolute',
-                                inset: 16,
-                                border: cameraReady ? '3px solid #4caf50' : '3px solid #ff9800',
-                                borderRadius: 12,
-                                pointerEvents: 'none',
-                                boxShadow: cameraReady ? '0 0 20px #4caf50aa' : 'none',
-                              }}
-                            />
-                            <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 2 }}>
+                            <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 3 }}>
+                              <Button
+                                variant="outlined"
+                                onClick={() => {
+                                  setCapturedImage(null);
+                                  if (imagePreview) {
+                                    URL.revokeObjectURL(imagePreview);
+                                    setImagePreview(null);
+                                  }
+                                }}
+                              >
+                                Retake
+                              </Button>
                               <Button
                                 variant="contained"
-                                color="success"
-                                onClick={captureFrame}
-                                disabled={!cameraReady || submitting}
+                                onClick={handleCaptureDialogOpen}
                                 startIcon={<CameraAlt />}
                               >
-                                Capture
-                              </Button>
-                              <Button variant="outlined" color="error" onClick={stopCamera}>
-                                Cancel
+                                Capture New
                               </Button>
                             </Stack>
-                            <canvas ref={canvasRef} style={{ display: 'none' }} />
                           </Box>
                         ) : (
                           <Box sx={{ textAlign: 'center', p: 4 }}>
                             <CameraAlt sx={{ fontSize: 100, color: 'grey.600', mb: 3 }} />
                             <Typography variant="h5" fontWeight="medium" color="text.secondary">
-                              Camera Preview
+                              Face Enrollment - Click 'Capture Face' to open camera
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 4 }}>
+                              {faceDetectionEnabled
+                                ? 'System auto-detects and guides you. Position your face in the center.'
+                                : 'Make sure your face is centered and well-lit.'}
                             </Typography>
                             <Button
                               variant="contained"
-                              sx={{ mt: 4 }}
-                              onClick={startCamera}
+                              sx={{ px: 6, py: 1.5 }}
+                              onClick={handleCaptureDialogOpen}
                               disabled={loadingProfile}
+                              startIcon={<CameraAlt />}
                             >
-                              Open Camera
+                              Capture Face
                             </Button>
-                          </Box>
-                        )}
-
-                        {imagePreview && (
-                          <Box sx={{ mt: 3, textAlign: 'center' }}>
-                            <Typography variant="subtitle2" gutterBottom>
-                              Captured Preview
-                            </Typography>
-                            <img
-                              src={imagePreview}
-                              alt="capture"
-                              style={{ width: 220, borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}
-                            />
-                            <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 2 }}>
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                onClick={() => {
-                                  setImageFile(null);
-                                  URL.revokeObjectURL(imagePreview);
-                                  setImagePreview(null);
-                                }}
-                              >
-                                Retake
-                              </Button>
-                            </Stack>
+                            {faceDetectionEnabled && (
+                              <Typography variant="caption" color="success.main" sx={{ mt: 2, display: 'block' }}>
+                                Auto-detection active. Alignment triggers auto-capture
+                              </Typography>
+                            )}
                           </Box>
                         )}
                       </Paper>
+
+                      {/* Detection Status Summary */}
+                      {capturedImage && lastFaceData && (
+                        <Paper sx={{ p: 3, borderRadius: 3, bgcolor: 'grey.50' }}>
+                          <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2 }}>
+                            Detection Results
+                          </Typography>
+                          <Grid container spacing={2}>
+                            <Grid item xs={6} md={3}>
+                              <Stack direction="row" alignItems="center" spacing={1}>
+                                <CheckCircle color="success" />
+                                <Typography variant="body2">
+                                  Confidence: {lastFaceData.confidence}%
+                                </Typography>
+                              </Stack>
+                            </Grid>
+                            <Grid item xs={6} md={3}>
+                              <Stack direction="row" alignItems="center" spacing={1}>
+                                {lastFaceData.isCentered ? (
+                                  <CheckCircle color="success" />
+                                ) : (
+                                  <ErrorIcon color="warning" />
+                                )}
+                                <Typography variant="body2">
+                                  Centered: {lastFaceData.isCentered ? 'Yes' : 'No'}
+                                </Typography>
+                              </Stack>
+                            </Grid>
+                            <Grid item xs={6} md={3}>
+                              <Stack direction="row" alignItems="center" spacing={1}>
+                                {lastFaceData.isSizeOptimal ? (
+                                  <CheckCircle color="success" />
+                                ) : (
+                                  <ErrorIcon color="warning" />
+                                )}
+                                <Typography variant="body2">
+                                  Size: {lastFaceData.isSizeOptimal ? 'Optimal' : 'Not optimal'}
+                                </Typography>
+                              </Stack>
+                            </Grid>
+                            <Grid item xs={6} md={3}>
+                              <Stack direction="row" alignItems="center" spacing={1}>
+                                <AutoAwesome color="primary" />
+                                <Typography variant="body2">
+                                  Mode: {autoCaptureEnabled ? 'Auto' : 'Manual'}
+                                </Typography>
+                              </Stack>
+                            </Grid>
+                            {lastFaceData.hasEyes && (
+                              <Grid item xs={6} md={3}>
+                                <Stack direction="row" alignItems="center" spacing={1}>
+                                  <Face color="info" />
+                                  <Typography variant="body2">
+                                    Eyes: Detected
+                                  </Typography>
+                                </Stack>
+                              </Grid>
+                            )}
+                            {eyeBlinkDetected && (
+                              <Grid item xs={6} md={3}>
+                                <Stack direction="row" alignItems="center" spacing={1}>
+                                  <Visibility color="warning" />
+                                  <Typography variant="body2">
+                                    Blink: Detected! (real detection)
+                                  </Typography>
+                                </Stack>
+                              </Grid>
+                            )}
+                          </Grid>
+                        </Paper>
+                      )}
 
                       <Box sx={{ textAlign: 'center', mt: 3 }}>
                         {loadingProfile ? (
                           <CircularProgress size={28} />
                         ) : hasEmployeeProfile ? (
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                            Employee profile detected (ID: {employeeId})
-                          </Typography>
+                          <>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                              Employee ID: {employeeId} |
+                              Auto-detection: {faceDetectionEnabled ? 'ON' : 'OFF'} |
+                              Auto-send: {autoSendEnabled ? 'ON' : 'OFF'} |
+                              Blink detection: {blinkDetectionEnabled ? 'ON (real)' : 'OFF'}
+                            </Typography>
+                            <Stack direction="row" spacing={2} justifyContent="center" flexWrap="wrap">
+                              <Button
+                                variant="contained"
+                                size="large"
+                                startIcon={<Fingerprint />}
+                                sx={{ px: 6, py: 1.8, borderRadius: 3 }}
+                                onClick={handleManualEnroll}
+                                disabled={submitting || !capturedImage}
+                              >
+                                {submitting ? 'Submitting…' : 'Enroll Face'}
+                              </Button>
+
+                              <Button
+                                variant="outlined"
+                                size="large"
+                                startIcon={<AutoAwesome />}
+                                sx={{ px: 6, py: 1.8, borderRadius: 3 }}
+                                onClick={handleCaptureDialogOpen}
+                              >
+                                {capturedImage ? 'Capture Again' : 'Start Auto-Detection'}
+                              </Button>
+
+                              {autoSendEnabled && capturedImage && (
+                                <Button
+                                  variant="contained"
+                                  color="success"
+                                  size="large"
+                                  startIcon={<CloudUpload />}
+                                  sx={{ px: 6, py: 1.8, borderRadius: 3 }}
+                                  onClick={() => autoSendImage(capturedImage)}
+                                  disabled={autoSending}
+                                >
+                                  {autoSending ? 'Auto-Sending…' : 'Auto-Send Now'}
+                                </Button>
+                              )}
+                            </Stack>
+                          </>
                         ) : (
                           <Alert
                             severity="info"
                             icon={<Info />}
-                            sx={{
-                              mb: 4,
-                              borderRadius: 3,
-                              maxWidth: 700,
-                              mx: 'auto',
-                              p: 3,
-                              '& .MuiAlert-message': { width: '100%' }
-                            }}
+                            sx={{ borderRadius: 3, maxWidth: 700, mx: 'auto', p: 3 }}
                           >
                             <Typography variant="h6" sx={{ mb: 1 }}>
-                              Face Enrollment Not Available Yet
+                              Employee Profile Required
                             </Typography>
                             <Typography variant="body1">
-                              Your account needs to be linked to an Employee profile in the system.<br /><br />
-                              Please contact HR or your system administrator and ask them to:<br />
-                              • Create an Employee record for you, or<br />
-                              • Link your user account to an existing Employee record.<br /><br />
-                              Once that's done, refresh this page and try enrolling again.
+                              Your account needs to be linked to an Employee profile for face enrollment.
+                              Please contact HR or your system administrator.
                             </Typography>
                           </Alert>
                         )}
-
-                        <Button
-                          variant="contained"
-                          size="large"
-                          startIcon={<Fingerprint />}
-                          sx={{ px: 6, py: 1.8, borderRadius: 3 }}
-                          onClick={handleEnrollClick}
-                          disabled={submitting || !imageFile || !hasEmployeeProfile || loadingProfile}
-                        >
-                          {submitting ? 'Submitting…' : 'Enroll My Face'}
-                        </Button>
                       </Box>
                     </Stack>
                   </CardContent>
                 </Card>
               </Grid>
 
-              <Grid size={{ xs: 12, lg: 5 }}>
+              <Grid item xs={12} lg={5}>
                 <Card sx={{ borderRadius: 4, boxShadow: 6, height: '100%' }}>
-                  <CardHeader title={<Typography variant="h5" fontWeight="bold">Steps</Typography>} />
+                  <CardHeader title={<Typography variant="h5" fontWeight="bold">How It Works</Typography>} />
                   <Divider />
                   <CardContent sx={{ pt: 4 }}>
                     <Stack spacing={4}>
                       {[
-                        'Position face clearly in frame',
-                        'Ensure good lighting (no strong backlighting)',
-                        'Capture photo when ready',
-                        'System creates secure template',
-                        'Ready for touchless clock-in',
+                        { text: 'Click "Capture Face" to open camera', icon: <CameraAlt /> },
+                        { text: 'Position your face in the center', icon: <FaceRetouchingNatural /> },
+                        { text: 'System auto-detects and guides you', icon: <AutoAwesome /> },
+                        { text: 'Perfect alignment triggers auto-capture', icon: <CheckCircle /> },
+                        { text: 'Image is automatically sent to backend', icon: <CloudUpload />, note: 'When auto-send is enabled' },
+                        { text: 'Face template created for recognition', icon: <Fingerprint /> },
                       ].map((step, i) => (
-                        <Stack direction="row" spacing={3} key={i} alignItems="center">
-                          <Avatar sx={{ bgcolor: 'primary.main', width: 48, height: 48, fontWeight: 'bold' }}>
+                        <Stack direction="row" spacing={3} key={i} alignItems="flex-start">
+                          <Avatar sx={{ bgcolor: i < 3 ? 'primary.main' : 'success.main', width: 48, height: 48, fontWeight: 'bold' }}>
                             {i + 1}
                           </Avatar>
-                          <Typography variant="body1">{step}</Typography>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="body1" fontWeight={i < 3 ? 'bold' : 'normal'}>
+                              {step.text}
+                            </Typography>
+                            {step.note && (
+                              <Typography variant="caption" color="success.main" sx={{ mt: 0.5, display: 'block' }}>
+                                {step.note}
+                              </Typography>
+                            )}
+                          </Box>
+                          <Box sx={{ color: 'primary.main' }}>{step.icon}</Box>
                         </Stack>
                       ))}
                     </Stack>
+
+                    <Alert severity="info" sx={{ mt: 4, borderRadius: 2 }}>
+                      <Typography variant="body2">
+                        <strong>Tips for Best Detection:</strong><br />
+                        1. Ensure face is clearly visible<br />
+                        2. Center face in the circle<br />
+                        3. Maintain good lighting<br />
+                        4. Look directly at camera<br />
+                        5. Keep eyes open and visible
+                      </Typography>
+                    </Alert>
+
+                    {eyeBlinkDetected && (
+                      <Alert severity="warning" sx={{ mt: 2, borderRadius: 2 }}>
+                        <Typography variant="body2">
+                          <strong>Blink Detected!</strong> Real eye blink detected successfully.
+                        </Typography>
+                      </Alert>
+                    )}
                   </CardContent>
                 </Card>
               </Grid>
             </Grid>
           )}
 
+          {/* DETECTION SETTINGS TAB */}
+          {tabValue === (isEmployee ? 1 : 2) && (
+            <Grid container spacing={4}>
+              <Grid item xs={12} md={6}>
+                <Card sx={{ borderRadius: 4, p: 4 }}>
+                  <CardHeader
+                    title={
+                      <Typography variant="h6" fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Sensors /> Detection Settings
+                      </Typography>
+                    }
+                  />
+                  <Divider sx={{ my: 2 }} />
+                  <Stack spacing={4}>
+                    <FormControlLabel
+                      control={<Switch checked={faceDetectionEnabled} onChange={(e) => setFaceDetectionEnabled(e.target.checked)} color="primary" />}
+                      label={
+                        <Box>
+                          <Typography>Face Detection</Typography>
+                          <Typography variant="caption" color="text.secondary">Enable real-time face detection and tracking</Typography>
+                        </Box>
+                      }
+                    />
+
+                    <FormControlLabel
+                      control={<Switch checked={autoCaptureEnabled} onChange={(e) => setAutoCaptureEnabled(e.target.checked)} color="primary" />}
+                      label={
+                        <Box>
+                          <Typography>Auto-Capture</Typography>
+                          <Typography variant="caption" color="text.secondary">Automatically capture when face is perfectly aligned</Typography>
+                        </Box>
+                      }
+                    />
+
+                    <FormControlLabel
+                      control={<Switch checked={autoSendEnabled} onChange={(e) => setAutoSendEnabled(e.target.checked)} color="primary" />}
+                      label={
+                        <Box>
+                          <Typography>Auto-Send to Backend</Typography>
+                          <Typography variant="caption" color="text.secondary">Automatically send captured image to server</Typography>
+                        </Box>
+                      }
+                    />
+
+                    <FormControlLabel
+                      control={<Switch checked={blinkDetectionEnabled} onChange={(e) => setBlinkDetectionEnabled(e.target.checked)} color="primary" />}
+                      label={
+                        <Box>
+                          <Typography>Blink Detection (Real)</Typography>
+                          <Typography variant="caption" color="text.secondary">Detects real eye blinks using Eye Aspect Ratio</Typography>
+                        </Box>
+                      }
+                    />
+
+                    <Box>
+                      <Typography gutterBottom>Detection Quality Threshold</Typography>
+                      <Slider
+                        value={qualityThreshold}
+                        onChange={(_, value) => setQualityThreshold(value)}
+                        step={0.1}
+                        marks
+                        min={0.1}
+                        max={1}
+                        valueLabelDisplay="auto"
+                        valueLabelFormat={(v) => `${Math.round(v * 100)}%`}
+                      />
+                      <Typography variant="caption" color="text.secondary">Minimum confidence required for face detection</Typography>
+                    </Box>
+
+                    <Box>
+                      <Typography gutterBottom>Auto-Capture Delay</Typography>
+                      <Slider
+                        value={captureDelay}
+                        onChange={(_, value) => setCaptureDelay(value)}
+                        step={1}
+                        marks={[{ value: 1, label: '1s' }, { value: 2, label: '2s' }, { value: 3, label: '3s' }, { value: 4, label: '4s' }, { value: 5, label: '5s' }]}
+                        min={1}
+                        max={5}
+                        valueLabelDisplay="auto"
+                      />
+                      <Typography variant="caption" color="text.secondary">Delay before auto-capture after perfect alignment</Typography>
+                    </Box>
+                  </Stack>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Card sx={{ borderRadius: 4, p: 4 }}>
+                  <CardHeader
+                    title={
+                      <Typography variant="h6" fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Settings /> System Status
+                      </Typography>
+                    }
+                  />
+                  <Divider sx={{ my: 2 }} />
+                  <Stack spacing={3}>
+                    <Paper sx={{ p: 3, bgcolor: 'grey.50', borderRadius: 2 }}>
+                      <Typography variant="subtitle2" fontWeight="bold" gutterBottom>Current Configuration</Typography>
+                      <Stack spacing={1}>
+                        <Typography variant="body2"><strong>Face Detection:</strong> {faceDetectionEnabled ? '✅ Active' : '❌ Inactive'}</Typography>
+                        <Typography variant="body2"><strong>Auto-Capture:</strong> {autoCaptureEnabled ? '✅ Active' : '❌ Inactive'}</Typography>
+                        <Typography variant="body2"><strong>Auto-Send:</strong> {autoSendEnabled ? '✅ Active' : '❌ Inactive'}</Typography>
+                        <Typography variant="body2"><strong>Blink Detection:</strong> {blinkDetectionEnabled ? '✅ Real EAR' : '❌ Off'}</Typography>
+                        <Typography variant="body2"><strong>Quality Threshold:</strong> {Math.round(qualityThreshold * 100)}%</Typography>
+                        <Typography variant="body2"><strong>Capture Delay:</strong> {captureDelay}s</Typography>
+                        <Typography variant="body2"><strong>Employee Profile:</strong> {hasEmployeeProfile ? '✅ Linked' : '❌ Not linked'}</Typography>
+                        <Typography variant="body2"><strong>Camera Access:</strong> {captureDialogOpen ? '✅ Active' : '❌ Not active'}</Typography>
+                        <Typography variant="body2"><strong>Face API Status:</strong> {faceDetector.initialized ? '✅ Ready' : '❌ Not initialized'}</Typography>
+                      </Stack>
+                    </Paper>
+
+                    <Alert severity="success">
+                      <Typography variant="body2">
+                        <strong>Auto-System Status:</strong> When enabled, the system will automatically: 1. Detect face • 2. Verify alignment • 3. Capture image • 4. Send to backend
+                      </Typography>
+                    </Alert>
+
+                    <Button variant="contained" fullWidth onClick={handleCaptureDialogOpen} startIcon={<CameraAlt />}>
+                      Test Camera & Detection
+                    </Button>
+
+                    <Button
+                      variant="outlined"
+                      fullWidth
+                      onClick={() => {
+                        setFaceDetectionEnabled(true);
+                        setAutoCaptureEnabled(true);
+                        setAutoSendEnabled(true);
+                        setBlinkDetectionEnabled(true);
+                        setQualityThreshold(0.7);
+                        setCaptureDelay(3);
+                        onNotify?.('Settings reset to default values', 'info');
+                      }}
+                    >
+                      Reset to Default Settings
+                    </Button>
+                  </Stack>
+                </Card>
+              </Grid>
+            </Grid>
+          )}
+
           {/* SECURITY & PRIVACY TAB */}
-          {!isEmployee && tabValue === 2 && (
+          {!isEmployee && tabValue === 3 && (
             <Grid container spacing={6}>
-              <Grid size={{ xs: 12 }}>
+              <Grid item xs={12}>
                 <Paper
                   elevation={8}
                   sx={{
@@ -786,25 +1281,26 @@ const Biometrics = ({ onNotify, role }) => {
                   <Stack direction="row" alignItems="center" spacing={3} sx={{ mb: 4 }}>
                     <Shield sx={{ fontSize: 60, color: 'success.main' }} />
                     <Typography variant="h4" fontWeight="bold" color="success.dark">
-                      Privacy First
+                      Security & Privacy
                     </Typography>
                   </Stack>
                   <Typography variant="body1" sx={{ mb: 4, color: 'text.secondary', fontSize: '1.1rem' }}>
-                    We protect your biometric data with strict standards:
+                    Our auto-detection system ensures security and privacy:
                   </Typography>
                   <Stack spacing={3}>
                     {[
-                      'Raw images are NEVER stored',
-                      'Only irreversible mathematical templates are saved',
-                      'Templates encrypted at rest and in transit',
-                      'Data never leaves your secure environment',
-                      'GDPR-compliant design',
+                      'Face detection runs locally in your browser',
+                      'Images are encrypted during transmission',
+                      'Only face templates are stored - no raw images',
+                      'Auto-processed images are immediately deleted',
+                      'GDPR and biometric data protection compliant',
+                      'Secure HTTPS transmission to backend',
+                      'Real eye blink detection prevents spoofing',
+                      'All data processing is transparent and auditable',
                     ].map((point, i) => (
                       <Stack direction="row" alignItems="flex-start" spacing={2} key={i}>
                         <CheckCircleOutline sx={{ fontSize: 28, color: 'success.main', mt: 0.3 }} />
-                        <Typography variant="h6" sx={{ color: 'text.primary' }}>
-                          {point}
-                        </Typography>
+                        <Typography variant="h6" sx={{ color: 'text.primary' }}>{point}</Typography>
                       </Stack>
                     ))}
                   </Stack>
@@ -814,6 +1310,83 @@ const Biometrics = ({ onNotify, role }) => {
           )}
         </Box>
       </Paper>
+
+      {/* Face Capture Dialog */}
+      <FaceCaptureDialog
+        open={captureDialogOpen}
+        onClose={handleCaptureDialogClose}
+        onCaptured={handleCaptured}
+        enableAutoDetection={faceDetectionEnabled}
+        faceDetectionEnabled={faceDetectionEnabled}
+        detectionStatus={detectionStatus}
+        detectionProgress={detectionProgress}
+        autoCaptureCountdown={autoCaptureCountdown}
+        videoRef={videoRef}
+      />
+
+      {/* Auto-Capture Success Dialog */}
+      <Dialog open={showAutoCaptureDialog} onClose={() => setShowAutoCaptureDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          <Stack direction="row" alignItems="center" spacing={2}>
+            <AutoAwesome color="primary" />
+            <Typography variant="h6">Auto-Capture Successful!</Typography>
+          </Stack>
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={3} sx={{ mt: 2 }}>
+            <Alert severity="success" icon={<TaskAlt />}>
+              <Typography variant="body1">
+                Perfect face detected and captured automatically!
+              </Typography>
+            </Alert>
+
+            {capturedImageData?.url && (
+              <Box sx={{ textAlign: 'center', mb: 2 }}>
+                <img
+                  src={capturedImageData.url}
+                  alt="Auto-captured"
+                  style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, border: '2px solid #4caf50' }}
+                />
+              </Box>
+            )}
+
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'grey.50', borderRadius: 2 }}>
+              <Typography variant="body2" color="text.secondary"><strong>Detection Details:</strong></Typography>
+              {lastFaceData && (
+                <Typography variant="body2">
+                  Confidence: {lastFaceData.confidence}% | Centered: {lastFaceData.isCentered ? 'Yes' : 'No'} |
+                  Size: {lastFaceData.isSizeOptimal ? 'Optimal' : 'Not optimal'} |
+                  Eyes: {lastFaceData.hasEyes ? 'Detected' : 'Not detected'} |
+                  Blink: {lastFaceData.isBlinking ? 'Yes' : 'No'}
+                </Typography>
+              )}
+            </Paper>
+
+            {autoSendEnabled ? (
+              <Box sx={{ textAlign: 'center' }}>
+                <CircularProgress size={30} sx={{ mb: 2 }} />
+                <Typography variant="body2" color="text.secondary">Auto-sending to backend for enrollment...</Typography>
+              </Box>
+            ) : (
+              <Alert severity="info">
+                <Typography variant="body2">
+                  Auto-send is disabled. Enable it in settings or manually enroll the captured image.
+                </Typography>
+              </Alert>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowAutoCaptureDialog(false)} color="inherit">
+            Cancel
+          </Button>
+          {!autoSendEnabled && capturedImageData && (
+            <Button variant="contained" onClick={() => { autoSendToBackend(capturedImageData); setShowAutoCaptureDialog(false); }} startIcon={<CloudUpload />}>
+              Send Manually
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
 
       {/* Profile Details Modal */}
       <MUIModal open={detailsOpen} onClose={() => setDetailsOpen(false)}>

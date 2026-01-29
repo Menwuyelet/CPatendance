@@ -350,6 +350,7 @@ export const api = {
     if (filters?.status) params.append('status', filters.status);
     if (filters?.mine) params.append('mine', 'true');
     if (filters?.session_id) params.append('session_id', filters.session_id);
+    if (filters?.department_id) params.append('department_id', filters.department_id);
     
     const query = params.toString();
     return await request(`/attendance/attendance/${query ? `?${query}` : ''}`, { method: 'GET' });
@@ -365,24 +366,36 @@ export const api = {
     return await request(`/attendance/attendance/${query ? `?${query}` : ''}`, { method: 'GET' });
   },
 
-  checkInAttendance: async (imageFile) => {
+  checkInAttendance: async (imageFile, blinkCount = 0) => {
     const form = new FormData();
     form.append('image', imageFile);
+    if (blinkCount > 0) {
+      form.append('blink_count', blinkCount);
+    }
     return await requestForm('/attendance/attendance-check-in/', form);
   },
 
   // ============ BIOMETRICS METHODS ============
-  getAllProfiles: async () => {
-    return await request('/biometrics/profiles/', { method: 'GET' });
+  getAllProfiles: async (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters?.department_id) params.append('department_id', filters.department_id);
+    if (filters?.is_active !== undefined) params.append('is_active', String(filters.is_active));
+    
+    const query = params.toString();
+    return await request(`/biometrics/profiles/${query ? `?${query}` : ''}`, { method: 'GET' });
   },
 
-  enrollFace: async (data) => {
+  enrollFace: async (data, blinkCount = 0) => {
     if (data instanceof FormData) {
+      if (blinkCount > 0) {
+        data.append('blink_count', blinkCount);
+      }
       return await requestForm('/biometrics/face/enroll/', data);
     }
+    const payload = typeof data === 'object' ? { ...data, blink_count: blinkCount } : { data, blink_count: blinkCount };
     return await request('/biometrics/face/enroll/', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
   },
 

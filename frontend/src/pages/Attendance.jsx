@@ -144,6 +144,11 @@ const Attendance = ({ role, onNotify, initialSection }) => {
   const [sessionError, setSessionError] = useState('');
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
   const [selectedShiftForSession, setSelectedShiftForSession] = useState('');
+  
+  // Session filters
+  const [sessionStatusFilter, setSessionStatusFilter] = useState('ALL');
+  const [sessionShiftFilter, setSessionShiftFilter] = useState('ALL');
+  const [sessionSearchQuery, setSessionSearchQuery] = useState('');
 
   // --- Employee Shifts state ---
   const [employeeShifts, setEmployeeShifts] = useState([]);
@@ -962,6 +967,72 @@ const Attendance = ({ role, onNotify, initialSection }) => {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Start and manage attendance sessions for shifts.
           </Typography>
+          {/* Session Filters Card */}
+          <Card sx={{ mb: 2 }}>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2 }}>Filter Sessions</Typography>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    placeholder="Search by started by..."
+                    value={sessionSearchQuery}
+                    onChange={(e) => setSessionSearchQuery(e.target.value)}
+                    label="Search"
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Status</InputLabel>
+                    <Select
+                      value={sessionStatusFilter}
+                      label="Status"
+                      onChange={(e) => setSessionStatusFilter(e.target.value)}
+                    >
+                      <MenuItem value="ALL">All Status</MenuItem>
+                      <MenuItem value="ACTIVE">Active Only</MenuItem>
+                      <MenuItem value="CLOSED">Closed Only</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Shift</InputLabel>
+                    <Select
+                      value={sessionShiftFilter}
+                      label="Shift"
+                      onChange={(e) => setSessionShiftFilter(e.target.value)}
+                    >
+                      <MenuItem value="ALL">All Shifts</MenuItem>
+                      {shifts.map((shift) => (
+                        <MenuItem key={shift?.id} value={shift?.id}>
+                          {shift?.name || 'Unnamed'}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    size="small"
+                    onClick={() => {
+                      setSessionStatusFilter('ALL');
+                      setSessionShiftFilter('ALL');
+                      setSessionSearchQuery('');
+                    }}
+                    sx={{ height: '40px' }}
+                  >
+                    Clear Filters
+                  </Button>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+
+          {/* Active Sessions Card */}
           <Card>
             <CardContent>
               <Stack
@@ -992,10 +1063,52 @@ const Attendance = ({ role, onNotify, initialSection }) => {
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                   <CircularProgress size={32} />
                 </Box>
-              ) : sessions.length === 0 ? (
-                <Alert severity="info">No attendance sessions found.</Alert>
-              ) : (
-                <Table size="small">
+              ) : (() => {
+                // Filter sessions
+                const filteredSessions = sessions.filter((session) => {
+                  // Status filter
+                  if (sessionStatusFilter === 'ACTIVE' && !session?.is_active) return false;
+                  if (sessionStatusFilter === 'CLOSED' && session?.is_active) return false;
+                  
+                  // Shift filter
+                  if (sessionShiftFilter !== 'ALL') {
+                    const shiftId = String(session?.shift?.id || session?.shift || '');
+                    if (shiftId !== String(sessionShiftFilter)) return false;
+                  }
+                  
+                  // Search filter
+                  if (sessionSearchQuery.trim()) {
+                    const query = sessionSearchQuery.toLowerCase();
+                    const startedBy = (session?.started_by?.email || session?.started_by?.full_name || '').toLowerCase();
+                    const shiftName = (session?.shift?.name || '').toLowerCase();
+                    if (!startedBy.includes(query) && !shiftName.includes(query)) return false;
+                  }
+                  
+                  return true;
+                });
+                
+                return filteredSessions.length === 0 ? (
+                  <Alert severity="info">
+                    {sessionSearchQuery || sessionStatusFilter !== 'ALL' || sessionShiftFilter !== 'ALL'
+                      ? 'No sessions match your filters.'
+                      : 'No attendance sessions found.'}
+                  </Alert>
+                ) : (
+                  <>
+                    <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
+                      <Chip label={`Total: ${filteredSessions.length}`} size="small" color="primary" />
+                      <Chip
+                        label={`Active: ${filteredSessions.filter(s => s?.is_active).length}`}
+                        size="small"
+                        color="success"
+                      />
+                      <Chip
+                        label={`Closed: ${filteredSessions.filter(s => !s?.is_active).length}`}
+                        size="small"
+                        color="default"
+                      />
+                    </Stack>
+                    <Table size="small">
                   <TableHead>
                     <TableRow>
                       <TableCell><strong>Shift</strong></TableCell>
@@ -1006,7 +1119,7 @@ const Attendance = ({ role, onNotify, initialSection }) => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {sessions.map((session) => (
+                    {filteredSessions.map((session) => (
                       <TableRow key={session?.id || Math.random()} hover>
                         <TableCell>{session?.shift?.name || 'Unknown'}</TableCell>
                         <TableCell>{session?.started_by?.email || session?.started_by?.full_name || 'Unknown'}</TableCell>
@@ -1037,7 +1150,9 @@ const Attendance = ({ role, onNotify, initialSection }) => {
                     ))}
                   </TableBody>
                 </Table>
-              )}
+                  </>
+                );
+              })()}
             </CardContent>
           </Card>
 

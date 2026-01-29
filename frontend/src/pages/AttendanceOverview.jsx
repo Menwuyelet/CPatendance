@@ -88,6 +88,32 @@ const AttendanceOverview = ({ role, onNotify }) => {
         list = data.data;
       }
       
+      // Fetch employee data to enrich the attendance records
+      let employeeMap = {};
+      try {
+        const employeesRes = await api.get('/employees/employees/');
+        const employeesList = Array.isArray(employeesRes) ? employeesRes : employeesRes?.results || [];
+        employeeMap = Object.fromEntries(
+          employeesList.map(emp => [String(emp.id), emp])
+        );
+      } catch (empErr) {
+        console.warn('Could not load employees:', empErr);
+      }
+      
+      // Enrich attendance records with full employee data
+      list = list.map(row => {
+        const empId = String(row?.employee?.id || row?.employee || '');
+        const fullEmployee = employeeMap[empId];
+        
+        if (fullEmployee) {
+          return {
+            ...row,
+            employee: fullEmployee
+          };
+        }
+        return row;
+      });
+      
       // Additional filtering for employees if backend doesn't support 'mine' param
       if (isEmployee && list.length > 0) {
         try {
@@ -136,18 +162,23 @@ const AttendanceOverview = ({ role, onNotify }) => {
   const getEmployeeName = (row) => {
     if (!row) return '—';
 
-    const name = row?.employee?.full_name ||
-                (row?.employee?.first_name ? `${row.employee.first_name} ${row.employee.last_name || ''}`.trim() : '') ||
+    // Try to get employee object
+    const employee = row?.employee;
+    
+    if (!employee) return 'No Employee Data';
+
+    // Try different name sources in order of preference
+    const name = employee?.full_name ||
+                (employee?.first_name ? `${employee.first_name} ${employee.last_name || ''}`.trim() : '') ||
+                employee?.user?.full_name ||
+                (employee?.user?.first_name ? `${employee.user.first_name} ${employee.user.last_name || ''}`.trim() : '') ||
+                employee?.employee_code ||
+                (employee?.user?.email ? employee.user.email.split('@')[0] : '') ||
                 row?.employee_name ||
                 row?.name ||
-                row?.employee?.user?.full_name ||
-                row?.employee?.user?.username ||
-                row?.employee?.employee_code ||
-                row?.employee_code ||
-                (row?.employee?.user?.email ? row.employee.user.email.split('@')[0] : '') ||
-                'No Name Available';
+                'Unknown Employee';
     
-    return name.trim() || '—';
+    return name.trim() || 'Unknown Employee';
   };
 
   const filteredRows = rows.filter((row) => {
