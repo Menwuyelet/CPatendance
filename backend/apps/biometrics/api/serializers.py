@@ -1,13 +1,12 @@
 """Module backend/apps/biometrics/api/serializers.py
 
-Auto-generated module docstring.
+This file contains serializers for the biometrics app.
 """
 
 from rest_framework import serializers
 from biometrics.models import BiometricProfile
 
 class BiometricEnrollmentSerializer(serializers.Serializer):
-    # employee_id = serializers.UUIDField()
     """Serializer for enrollment requests.
 
     Validates the requested biometric type and any transient input

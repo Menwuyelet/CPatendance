@@ -1,6 +1,6 @@
 """Module backend/apps/attendance/services/shift_resolution_service.py
 
-Auto-generated module docstring.
+This file contains the shift resolution services used to manage shift and user relations.
 """
 
 from django.core.exceptions import ValidationError
@@ -32,7 +32,6 @@ class ShiftResolutionService:
             if shift.applies_today(date)
         ]
 
-        # 🔒 enforce max 2 shifts per day
         if len(applicable_shifts) > 2:
             raise ValidationError(
                 "Employee cannot have more than 2 shifts per day."

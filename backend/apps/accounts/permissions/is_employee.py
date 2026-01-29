@@ -1,6 +1,6 @@
 """Module backend/apps/accounts/permissions/is_employee.py
 
-Auto-generated module docstring.
+This file contains the logic to validate if the user is EMPLOYEE.
 """
 
 from rest_framework.permissions import BasePermission

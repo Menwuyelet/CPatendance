@@ -1,6 +1,6 @@
 """Module backend/apps/attendance/api/serializers.py
 
-Auto-generated module docstring.
+This file contains the serializers for the attendance app.
 """
 
 from rest_framework import serializers
@@ -20,7 +20,6 @@ class AttendanceCheckInSerializer(serializers.Serializer):
     check_in_time = serializers.DateTimeField(required=False)
 
     def validate(self, attrs):
-        # employee_id optional → self check-in
         """Validate incoming check-in payload.
 
         Currently this method is a passthrough but keeps a hook for future

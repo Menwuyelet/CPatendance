@@ -1,6 +1,6 @@
 """Module backend/apps/accounts/constants.py
 
-Auto-generated module docstring.
+This file contains the declerations of the role constants.
 """
 
 class Roles:

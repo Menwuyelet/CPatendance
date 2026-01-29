@@ -1,6 +1,6 @@
 """Module backend/apps/biometrics/api/permissions.py
 
-Auto-generated module docstring.
+This file contains the permission for the biometrics related tasks.
 """
 
 from rest_framework.permissions import BasePermission

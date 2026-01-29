@@ -1,6 +1,6 @@
 """Module backend/apps/accounts/policies/leave.py
 
-Auto-generated module docstring.
+This file contains the leave policy for feature implimentations.
 """
 
 from .common import BasePolicy

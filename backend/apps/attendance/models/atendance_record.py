@@ -1,6 +1,6 @@
 """Module backend/apps/attendance/models/atendance_record.py
 
-Auto-generated module docstring.
+This file contains the implimentation of the representation of attendance records.
 """
 
 from django.db import models

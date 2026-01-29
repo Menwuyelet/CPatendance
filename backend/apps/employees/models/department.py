@@ -1,6 +1,6 @@
 """Module backend/apps/employees/models/department.py
 
-Auto-generated module docstring.
+This file contains the implimentation for the department representation.
 """
 
 from django.db import models

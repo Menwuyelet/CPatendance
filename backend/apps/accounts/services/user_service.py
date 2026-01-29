@@ -1,6 +1,6 @@
 """Module backend/apps/accounts/services/user_service.py
 
-Auto-generated module docstring.
+This file contains the service for the user management actions.
 """
 
 from accounts.models import User, Role
@@ -56,3 +56,4 @@ def get_users_for_user(request_user):
         return User.objects.none()
     else:
         return User.objects.filter(id=request_user.id)
+    

@@ -1,6 +1,6 @@
 """Module backend/apps/accounts/models/role.py
 
-Auto-generated module docstring.
+This file contains the implimentation of the role entities.
 """
 
 from django.db import models

@@ -1,6 +1,7 @@
 """Module backend/apps/biometrics/services/face_engine.py
 
-Auto-generated module docstring.
+This file contains the FaceEngine that handles the extraction of embedding 
+from the provided raw image.
 """
 
 import cv2

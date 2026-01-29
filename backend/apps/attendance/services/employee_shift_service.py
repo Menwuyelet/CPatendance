@@ -1,11 +1,12 @@
 """Module backend/apps/attendance/services/employee_shift_service.py
 
-Auto-generated module docstring.
+This file contains the services used to manage shift and employee relation.
 """
 
 from attendance.models import EmployeeShift
 from django.core.exceptions import ValidationError
 from attendance.services.shift_resolution_service import ShiftResolutionService
+from django.utils import timezone
 
 class EmployeeShiftService:
     """Service helpers for assigning and querying EmployeeShift records."""
@@ -16,8 +17,6 @@ class EmployeeShiftService:
         Raises `ValidationError` when assignment would violate constraints
         (e.g. more than two applicable shifts for the same day).
         """
-        from django.utils import timezone
-
         today = timezone.now().date()
         existing_shifts = ShiftResolutionService.get_employee_shifts_for_date(
             employee, today

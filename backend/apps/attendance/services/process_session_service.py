@@ -1,6 +1,6 @@
 """Module backend/apps/attendance/services/process_session_service.py
 
-Auto-generated module docstring.
+This file contains the service used to process the attendance marking for present users.
 """
 
 # attendance/services/process_session.py

@@ -1,6 +1,6 @@
 """Module backend/apps/biometrics/services/encryption_service.py
 
-Auto-generated module docstring.
+This file contains the encrypting and decrypting methods to perform encryption tasks.
 """
 
 from cryptography.fernet import Fernet

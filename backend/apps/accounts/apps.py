@@ -1,6 +1,5 @@
 """Module backend/apps/accounts/apps.py
 
-Auto-generated module docstring.
 """
 
 from django.apps import AppConfig

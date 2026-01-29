@@ -1,11 +1,10 @@
 """Module backend/apps/biometrics/models/biometric_record.py
 
-Auto-generated module docstring.
+This file contains the implimentation of representation models of biometric app entities.
 """
 
 # apps/biometrics/models.py
 from django.db import models
-from django.core.validators import MinLengthValidator
 
 class BiometricProfile(models.Model):
     """Stores encrypted biometric templates for an `Employee`.
@@ -19,7 +18,7 @@ class BiometricProfile(models.Model):
         FINGERPRINT = "FINGERPRINT", "Fingerprint"
 
     employee = models.ForeignKey(
-        "employees.Employee",  # Adjust if your Employee model is in different app
+        "employees.Employee",  
         on_delete=models.CASCADE,
         related_name="biometric_profiles"
     )

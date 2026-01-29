@@ -1,6 +1,6 @@
 """Module backend/apps/attendance/services/shift_service.py
 
-Auto-generated module docstring.
+This file contains services used to manage and control shift activities.
 """
 
 from attendance.models.shift import Shift

@@ -1,6 +1,6 @@
 """Module backend/apps/accounts/policies/biometric.py
 
-Auto-generated module docstring.
+This file contains the policies for the biometric profile management.
 """
 
 class BiometricPolicy:

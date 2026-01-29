@@ -1,11 +1,11 @@
 """Module backend/apps/employees/api/serializers.py
 
-Auto-generated module docstring.
+This file contains the serializer classes for the employee app models 
+department and employee, 
 """
 
 from rest_framework import serializers
 from employees.models import Employee, Department
-from accounts.models import User
 from accounts.api.serializers import UserSerializer
 
 

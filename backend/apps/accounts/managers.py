@@ -1,6 +1,6 @@
 """Module backend/apps/accounts/managers.py
 
-Auto-generated module docstring.
+This file contains the User manager.
 """
 
 # accounts/managers.py

@@ -175,12 +175,6 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Auth User Model
 AUTH_USER_MODEL = "accounts.User"
 
-## face engine
-# FACE_ENGINE = "biometrics.engines.simple_engine.SimpleFaceEngine"
-# FACE_ENGINE = "biometrics.engines.insightface_engine.InsightFaceEngine"
-# FACE_ENGINE = "biometrics.engines.custom_engine.CustomFaceEngine"
-
-
 # spectacular setting
 SPECTACULAR_SETTINGS = {
     "TITLE": "Attendance Management API",

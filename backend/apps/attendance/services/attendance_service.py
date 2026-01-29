@@ -1,6 +1,6 @@
 """Module backend/apps/attendance/services/attendance_service.py
 
-Auto-generated module docstring.
+This file contains the attendance taking services for marking attendance status.
 """
 
 from django.utils import timezone
@@ -10,6 +10,8 @@ from .status import evaluate_status
 from django.db import transaction
 from attendance.models import EmployeeShift
 from employees.models import Employee
+from rest_framework.response import Response
+from rest_framework import status
 
 def mark_attendance(employee, user, session, check_in_time=None):
     """Record a check-in for `employee` taken by `user` during `session`.
@@ -25,8 +27,11 @@ def mark_attendance(employee, user, session, check_in_time=None):
         the caller is not permitted to record attendance.
     """
     if not AttendancePolicy.can_take_attendance(user, employee):
-        return None
-
+        return Response(
+                {"detail": "Unauthorized to take attendance."},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+    
     shift = session.shift
     employee_shift = EmployeeShift.objects.get(
         employee=employee,
@@ -71,17 +76,14 @@ class AttendanceAbsenceService:
 
         print(f"[INFO] Evaluating absences for session {session.id}")
 
-        # 1. Employees assigned to this shift
         employee_ids = EmployeeShift.objects.filter(
             shift=shift
         ).values_list("employee_id", flat=True)
 
-        # 2. Attendance records created during this session
         session_records = AttendanceSessionEntry.objects.filter(
             session=session
         )
 
-        # 3. Employees who WERE detected
         detected_employee_ids = set(
             session_records
             .filter(recognized_at__isnull=False)
@@ -119,6 +121,4 @@ class AttendanceAbsenceService:
 
             absent_count += 1
 
-        print(f"[INFO] Marked {absent_count} employees as ABSENT")
         return absent_count
-

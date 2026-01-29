@@ -1,6 +1,6 @@
 """Module backend/apps/attendance/services/status.py
 
-Auto-generated module docstring.
+This file contains the services used to evaluate the users status. 
 """
 
 from django.utils import timezone    

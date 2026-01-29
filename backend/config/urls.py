@@ -33,9 +33,8 @@ urlpatterns = [
     path('api/employees/', include('employees.api.urls')),
     path("api/attendance/", include("attendance.api.urls")),
     path("api/biometrics/", include("biometrics.api.urls")),
-    # path("api/biometrics/", include("biometrics.api.urls")),
 
-        path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
 
     # Swagger UI
     path(

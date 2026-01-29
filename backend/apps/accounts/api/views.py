@@ -1,6 +1,6 @@
 """Module backend/apps/accounts/api/views.py
 
-Auto-generated module docstring.
+This file contains the views for the accounts app.
 """
 
 from accounts.permissions.hr_or_manager import IsHRorManager

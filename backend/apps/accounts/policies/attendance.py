@@ -1,6 +1,6 @@
 """Module backend/apps/accounts/policies/attendance.py
 
-Auto-generated module docstring.
+This file contains the attendance policies used to handle autorization.
 """
 
 from .common import BasePolicy

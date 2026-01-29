@@ -1,6 +1,6 @@
 """Module backend/apps/attendance/api/views.py
 
-Auto-generated module docstring.
+This file contains the views for the attendance app.
 """
 
 from accounts.permissions.is_hr import IsHR
@@ -9,13 +9,6 @@ from rest_framework.viewsets import ViewSet
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
-from attendance.api.serializers import (
-    AttendanceSerializer,
-    AttendanceSessionSerializer,
-    ShiftSerializer,
-    EmployeeShiftSerializer
-)
-
 from rest_framework.permissions import IsAuthenticated
 from accounts.permissions import IsAdmin, IsHRorManager
 from attendance.models import AttendanceRecord
@@ -27,12 +20,19 @@ from attendance.services.shift_service import ShiftService
 from attendance.services.employee_shift_service import EmployeeShiftService
 from attendance.permissions.employee_shift_permission import CanManageEmployeeShift
 from rest_framework.parsers import MultiPartParser
+from attendance.api.serializers import (
+    AttendanceSerializer,
+    AttendanceSessionSerializer,
+    ShiftSerializer,
+    EmployeeShiftSerializer
+)
+
 class AttendanceSessionCreateViewSet(ViewSet):
     """
     HR / Manager starts attendance session
     """
 
-    permission_classes = [IsAuthenticated, IsHRorManager | IsAdmin]  # set is later isHrorManager only
+    permission_classes = [IsAuthenticated, IsHRorManager | IsAdmin]  
 
     def create(self, request):
         """Start a new attendance session for a given shift.
@@ -55,32 +55,6 @@ class AttendanceSessionCreateViewSet(ViewSet):
             },
             status=status.HTTP_201_CREATED,
         )
-
-    # def create(self, request):
-    #     """
-    #     START SESSION
-    #     """
-    #     shift_id = request.data.get("shift_id")
-    #     if not shift_id:
-    #         return Response(
-    #             {"detail": "shift_id is required"},
-    #             status=status.HTTP_400_BAD_REQUEST
-    #         )
-
-    #     shift = get_object_or_404(Shift, id=shift_id)
-
-    #     service = AttendanceSessionService.start_session(
-    #         shift=shift,
-    #         user=request.user
-    #     )
-
-    #     return Response(
-    #         {
-    #             "session_id": service.session.id,
-    #             "shift_id": shift.id
-    #         },
-    #         status=status.HTTP_201_CREATED
-    #     )
 
     def destroy(self, request, pk=None):
         """Close an active attendance session identified by `pk`.
@@ -119,21 +93,23 @@ class AttendanceSessionViewSet(ViewSet):
     - update (active state only)
     """
 
-    # -------------------------
-    # LIST
-    # -------------------------
     def list(self, request):
         """List attendance sessions visible to the requesting user."""
         qs = AttendanceSession.objects.select_related(
-            "shift",
-            "started_by"
-        ).order_by("-started_at")
-
-        # ---- ROLE SCOPING ----
+                        "shift",
+                        "started_by"
+                    ).order_by("-started_at")
         if request.user.is_admin() or request.user.is_hr():
+            """
+            Admin and HR can see all the attendance sessions.
+            """
             pass
 
+       
         elif request.user.is_department_manager():
+            """
+            Department manager can only see the attendance sessions of its own team.
+            """
             employee = getattr(request.user, "employee", None)
 
             if employee and employee.department_id:
@@ -144,10 +120,9 @@ class AttendanceSessionViewSet(ViewSet):
                 qs = qs.none()
 
         else:
-            # Employees see nothing
             qs = qs.none()
 
-        # ---- FILTERS ----
+        
         active = request.query_params.get("active")
         if active is not None:
             qs = qs.filter(is_active=(active.lower() == "true"))
@@ -161,9 +136,7 @@ class AttendanceSessionViewSet(ViewSet):
             status=status.HTTP_200_OK
         )
 
-    # -------------------------
-    # RETRIEVE
-    # -------------------------
+
     def retrieve(self, request, pk=None):
         """Retrieve a single attendance session by id after permission checks."""
         session = get_object_or_404(AttendanceSession, id=pk)
@@ -174,9 +147,7 @@ class AttendanceSessionViewSet(ViewSet):
             status=status.HTTP_200_OK
         )
 
-    # -------------------------
-    # UPDATE
-    # -------------------------
+
     def update(self, request, pk=None):
         """Partially update an attendance session (e.g., mark closed)."""
         session = get_object_or_404(AttendanceSession, id=pk)
@@ -196,7 +167,6 @@ class AttendanceSessionViewSet(ViewSet):
         )
         serializer.is_valid(raise_exception=True)
 
-        # Handle manual close
         if (
             "is_active" in serializer.validated_data
             and serializer.validated_data["is_active"] is False
@@ -211,9 +181,7 @@ class AttendanceSessionViewSet(ViewSet):
             status=status.HTTP_200_OK
         )
 
-    # -------------------------
-    # INTERNAL PERMISSION CHECK
-    # -------------------------
+   
     def _check_permission(self, request, session):
         """Internal helper that raises when the `request.user` cannot access `session`.
 
@@ -280,20 +248,15 @@ class AttendanceRecordViewSet(ViewSet):
     - update (manual correction)
     """
 
-    # -------------------------
-    # LIST
-    # -------------------------
     def list(self, request):
         """List attendance sessions visible to the requesting user."""
         qs = AttendanceRecord.objects.select_related(
-            "employee",
-            "employee_shift"
-        )
+                    "employee",
+                    "employee_shift"
+                )
 
-        # ---- ROLE SCOPING ----
         if request.user.is_admin() or request.user.is_hr():
             pass
-
         elif request.user.is_department_manager():
             if hasattr(request.user, "employee") and request.user.employee.department:
                 qs = qs.filter(
@@ -327,9 +290,7 @@ class AttendanceRecordViewSet(ViewSet):
             status=status.HTTP_200_OK
         )
 
-    # -------------------------
-    # RETRIEVE
-    # -------------------------
+
     def retrieve(self, request, pk=None):
         """Retrieve a single attendance session by id after permission checks."""
         record = get_object_or_404(AttendanceRecord, id=pk)
@@ -341,9 +302,6 @@ class AttendanceRecordViewSet(ViewSet):
             status=status.HTTP_200_OK
         )
 
-    # -------------------------
-    # UPDATE (Manual correction)
-    # -------------------------
     def update(self, request, pk=None):
         """Partially update an attendance session (e.g., mark closed)."""
         record = get_object_or_404(AttendanceRecord, id=pk)
@@ -368,9 +326,6 @@ class AttendanceRecordViewSet(ViewSet):
             status=status.HTTP_200_OK
         )
 
-    # -------------------------
-    # INTERNAL PERMISSION CHECK
-    # -------------------------
     def _check_object_permission(self, request, record):
         """Ensure `request.user` may access the given `AttendanceRecord`.
 
@@ -392,8 +347,6 @@ class AttendanceRecordViewSet(ViewSet):
             return
 
         raise PermissionError("Not allowed to view this attendance record")
-
-## Shift Logic
 
 class ShiftViewSet(ViewSet):
     """API operations for managing shifts (list, create, update, delete).
@@ -500,3 +453,4 @@ class EmployeeShiftViewSet(ViewSet):
             )
 
         return False
+    

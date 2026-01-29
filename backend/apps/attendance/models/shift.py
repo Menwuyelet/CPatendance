@@ -1,8 +1,7 @@
 """Module backend/apps/attendance/models/shift.py
 
-Auto-generated module docstring.
+This file contains the implimentation of the representation of shift.
 """
-
 from django.db import models
 
 class Shift(models.Model):

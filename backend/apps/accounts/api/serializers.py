@@ -1,6 +1,6 @@
 """Module backend/apps/accounts/api/serializers.py
 
-Auto-generated module docstring.
+This file contains the serializers for the accounts app.
 """
 
 from rest_framework import serializers

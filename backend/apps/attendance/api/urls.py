@@ -1,6 +1,6 @@
 """Module backend/apps/attendance/api/urls.py
 
-Auto-generated module docstring.
+This file contains the url routing for the attendance app using DefaultRouter form routers.
 """
 
 from rest_framework.routers import DefaultRouter
@@ -12,6 +12,7 @@ from attendance.api.views import (
                             EmployeeShiftViewSet,
                             ShiftViewSet
                         )
+
 router = DefaultRouter()
 router.register("attendance", AttendanceRecordViewSet, basename="attendance")
 router.register("attendance-sessions", AttendanceSessionCreateViewSet, basename="attendance-sessions")  

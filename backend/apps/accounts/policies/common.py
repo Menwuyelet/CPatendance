@@ -1,6 +1,6 @@
 """Module backend/apps/accounts/policies/common.py
 
-Auto-generated module docstring.
+This file contains some common policy logics.
 """
 
 from accounts.constants import Roles

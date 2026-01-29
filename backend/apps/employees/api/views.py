@@ -1,16 +1,14 @@
 """Module backend/apps/employees/api/views.py
 
-Auto-generated module docstring.
+This file contatins the views for the employees app.
 """
 
-from rest_framework import viewsets, filters, status
+from rest_framework import viewsets, filters
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.pagination import PageNumberPagination
-# from django.shortcuts import get_object_or_404
-
 from employees.models import Employee, Department
 from .serializers import EmployeeSerializer, EmployeeUpdateSerializer, DepartmentSerializer
 from employees.services.employee_service import update_employee, get_employees_for_user
@@ -62,22 +60,26 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """Return the employee queryset appropriate for the requesting user."""
+
         return get_employees_for_user(self.request.user)
 
     def get_serializer_class(self):
         """Return the serializer class appropriate for the current action."""
+
         if self.action in ['update', 'partial_update']:
             return EmployeeUpdateSerializer
         return EmployeeSerializer
 
     def get_permissions(self):
         """Adjust permissions for mutating endpoints (admins only)."""
+
         if self.action in ['update', 'partial_update', 'destroy']:
             self.permission_classes = [IsAdmin]
         return super().get_permissions()
 
     def perform_update(self, serializer):
         """Apply validated updates and persist employee changes via service."""
+        
         data = serializer.validated_data
         employee = update_employee(self.get_object(), **data)
         serializer.instance = employee

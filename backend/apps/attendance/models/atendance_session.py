@@ -1,6 +1,6 @@
 """Module backend/apps/attendance/models/atendance_session.py
 
-Auto-generated module docstring.
+This file contains the implimentation of the representation of attendance sessions.
 """
 
 from django.db import models

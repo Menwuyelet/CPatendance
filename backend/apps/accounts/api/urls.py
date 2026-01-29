@@ -1,6 +1,6 @@
 """Module backend/apps/accounts/api/urls.py
 
-Auto-generated module docstring.
+This file contains the url routing for the accounts app.
 """
 
 from django.urls import path, include

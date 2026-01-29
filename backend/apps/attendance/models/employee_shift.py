@@ -1,6 +1,6 @@
 """Module backend/apps/attendance/models/employee_shift.py
 
-Auto-generated module docstring.
+This file contains the implimentation of the representation of employee and shift relation.
 """
 
 from django.db import models

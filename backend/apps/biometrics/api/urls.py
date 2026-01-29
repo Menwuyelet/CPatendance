@@ -1,6 +1,6 @@
 """Module backend/apps/biometrics/api/urls.py
 
-Auto-generated module docstring.
+This file contains the url routing for the biometrics app using DefaultRouter from routers.
 """
 
 from rest_framework.routers import DefaultRouter

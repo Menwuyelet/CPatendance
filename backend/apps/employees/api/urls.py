@@ -1,6 +1,6 @@
 """Module backend/apps/employees/api/urls.py
 
-Auto-generated module docstring.
+This file contains the url routing for the employee app using DefaultRouter from routers.
 """
 
 from django.urls import path, include

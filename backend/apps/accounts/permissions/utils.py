@@ -1,6 +1,6 @@
 """Module backend/apps/accounts/permissions/utils.py
 
-Auto-generated module docstring.
+This file contains the logic to retrive users role.
 """
 
 def user_has_role(user, role_name: str) -> bool:

@@ -1,6 +1,6 @@
 """Module backend/apps/attendance/permissions/employee_shift_permission.py
 
-Auto-generated module docstring.
+This file contains the permission logic of the employee and their shift.
 """
 
 from rest_framework.permissions import BasePermission, SAFE_METHODS

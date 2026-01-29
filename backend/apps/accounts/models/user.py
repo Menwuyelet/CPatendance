@@ -1,6 +1,6 @@
 """Module backend/apps/accounts/models/user.py
 
-Auto-generated module docstring.
+This file contains the implimentation of the user entitie.
 """
 
 import uuid

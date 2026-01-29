@@ -1,6 +1,7 @@
 """Module backend/apps/attendance/models/session_entry.py
 
-Auto-generated module docstring.
+This file contains the implimentation of the representation of temp attendance records
+for one specific session.
 """
 
 from django.db import models    

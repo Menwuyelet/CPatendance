@@ -1,6 +1,6 @@
 """Module backend/apps/employees/models/employee.py
 
-Auto-generated module docstring.
+This file contains the implimentation for the representation of employee.
 """
 
 # core/models/employee.py
@@ -8,6 +8,8 @@ import uuid
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
+from attendance.models import EmployeeShift
+from attendance.services.shift_resolution_service import ShiftResolutionService
 
 class Employee(models.Model):
     """Represents an employee and links to the system `User`.
@@ -62,9 +64,7 @@ class Employee(models.Model):
     
     def get_shift_for_date(self, date):
         """Get the first EmployeeShift assignment for the given date (if shift applies on that date)"""
-        from attendance.models import EmployeeShift
-        from attendance.services.shift_resolution_service import ShiftResolutionService
-        
+
         try:
             shifts = ShiftResolutionService.get_employee_shifts_for_date(self, date)
             if shifts:

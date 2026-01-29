@@ -1,6 +1,6 @@
 """Module backend/apps/accounts/permissions/hr_or_manager.py
 
-Auto-generated module docstring.
+This file contains the logic to validate if the user is HR OR MANAGER.
 """
 
 from rest_framework.permissions import BasePermission

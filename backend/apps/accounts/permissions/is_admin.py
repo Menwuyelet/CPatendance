@@ -1,6 +1,6 @@
 """Module backend/apps/accounts/permissions/is_admin.py
 
-Auto-generated module docstring.
+This file contains the logic to validate if the user is ADMIN.
 """
 
 from rest_framework.permissions import BasePermission
