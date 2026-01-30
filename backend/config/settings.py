@@ -199,26 +199,23 @@ LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        "standard": {
-            "format": "[{asctime}] {levelname} {name} :: {message}",
-            "style": "{",
-        },
-        "verbose": {
-            "format": "[{asctime}] {levelname} {name} ({filename}:{lineno}) :: {message}",
-            "style": "{",
+        "structured": {
+            "format": "%(asctime)s %(levelname)s %(name)s %(message)s",
         },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "standard",
+            "level": "WARNING",
+            "formatter": "structured",
         },
         "file": {
             "class": "logging.handlers.RotatingFileHandler",
-            "filename": BASE_DIR / "logs/app.log",
-            "maxBytes": 1024 * 1024 * 5,
-            "backupCount": 5,
-            "formatter": "verbose",
+            "filename": BASE_DIR / "logs/backend.log",
+            "maxBytes": 10_000_000,
+            "backupCount": 10,
+            "formatter": "structured",
+            "level": "INFO",
         },
     },
     "root": {
