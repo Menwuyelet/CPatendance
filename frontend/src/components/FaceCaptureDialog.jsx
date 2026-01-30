@@ -1,267 +1,227 @@
-// src/components/FaceCaptureDialog.jsx
-import React, { useEffect, useRef, useState, useCallback, memo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import * as faceapi from 'face-api.js';
 import {
   Dialog,
-  DialogTitle,
   DialogContent,
-  DialogActions,
-  Button,
-  Stack,
   Typography,
   Box,
-  Alert,
-  Chip,
-  CircularProgress,
-  Paper,
+  Stack,
+  Button,
+  LinearProgress,
 } from '@mui/material';
-import { PhotoCamera, AutoAwesome } from '@mui/icons-material';
-import { faceDetector } from '../utils/faceDetector';
 
-const FaceCaptureDialog = memo(function FaceCaptureDialog({
-  open,
-  onClose,
-  onCaptured,
-  faceDetectionEnabled = true,
-}) {
+export default function FaceCaptureDialog({ open, onClose, onCaptured }) {
   const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const rafRef = useRef(null);
-  const streamRef = useRef(null);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [faceDetected, setFaceDetected] = useState(false);
-  const [modelReady, setModelReady] = useState(false);
+  const [status, setStatus] = useState('Initializing...');
+  const [isFaceValid, setIsFaceValid] = useState(false);
+  const [countdown, setCountdown] = useState(null);
+  const isCapturing = useRef(false);
+  const countdownInterval = useRef(null);
+  const detectionInterval = useRef(null);
 
-  // Initialize camera and face detector
+  // Reset all states when dialog opens (Allows re-capture)
   useEffect(() => {
-    if (!open) return;
+    if (open) {
+      isCapturing.current = false;
+      setIsFaceValid(false);
+      setCountdown(null);
+      setStatus('Loading Models...');
+      loadModels();
+    } else {
+      stopCamera();
+    }
+  }, [open]);
 
-    let mounted = true;
+  const loadModels = async () => {
+    try {
+      const MODEL_URL = '/models';
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+      ]);
+      setStatus('Ready! Center your face');
+      startCamera();
+    } catch (e) {
+      setStatus('Error: Models not found');
+    }
+  };
 
-    const initialize = async () => {
-      try {
-        setLoading(true);
-        setError('');
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { width: 640, height: 480, facingMode: 'user' } 
+      });
+      if (videoRef.current) videoRef.current.srcObject = stream;
+    } catch (e) {
+      setStatus('Camera Access Denied');
+    }
+  };
 
-        // Start camera first (don't wait for model)
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-        });
+  const stopCamera = () => {
+    const stream = videoRef.current?.srcObject;
+    stream?.getTracks().forEach(t => t.stop());
+    if (videoRef.current) videoRef.current.srcObject = null;
+    clearInterval(detectionInterval.current);
+    clearInterval(countdownInterval.current);
+  };
 
-        if (!mounted) {
-          stream.getTracks().forEach(track => track.stop());
+  const onPlay = () => {
+    detectionInterval.current = setInterval(async () => {
+      if (!videoRef.current || isCapturing.current) return;
+
+      const detection = await faceapi.detectSingleFace(
+        videoRef.current,
+        new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.5 })
+      ).withFaceLandmarks();
+
+      if (detection) {
+        const box = detection.detection.box;
+        const landmarks = detection.landmarks;
+        
+        // 1. Check if face is too small (too far away)
+        if (box.width < 150) {
+          setStatus('Please move closer to the camera');
+          setIsFaceValid(false);
+          resetCountdown();
           return;
         }
 
-        streamRef.current = stream;
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.muted = true;
-          videoRef.current.playsInline = true;
-          await videoRef.current.play().catch(() => {});
+        // 2. Check if face is roughly centered in video (640x480)
+        const faceCenterX = box.x + box.width / 2;
+        if (faceCenterX < 150 || faceCenterX > 490) {
+          setStatus('Center your face in the circle');
+          setIsFaceValid(false);
+          resetCountdown();
+          return;
         }
 
-        // Initialize face detector in parallel
-        const initialized = await faceDetector.init();
-        if (!mounted) return;
-
-        if (!initialized) {
-          setError('Face detection unavailable. You can still capture manually.');
+        // 3. Face is valid
+        if (!isFaceValid) {
+          setIsFaceValid(true);
+          startCountdown();
         }
+        setStatus('Looking good! Hold still...');
 
-        setModelReady(initialized);
-        setLoading(false);
-      } catch (err) {
-        if (mounted) {
-          setError('Camera access failed. Please check permissions.');
-          setLoading(false);
+        // Instant Capture on Blink
+        if (checkBlink(landmarks.getLeftEye()) || checkBlink(landmarks.getRightEye())) {
+          triggerCapture();
         }
+      } else {
+        setIsFaceValid(false);
+        resetCountdown();
+        setStatus('No face detected. Look at the camera');
       }
-    };
+    }, 200);
+  };
 
-    initialize();
-
-    return () => {
-      mounted = false;
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
+  const startCountdown = () => {
+    if (countdownInterval.current) clearInterval(countdownInterval.current);
+    let count = 5; // Increased to 5 seconds for better client ease
+    setCountdown(count);
+    countdownInterval.current = setInterval(() => {
+      count -= 1;
+      if (count > 0) {
+        setCountdown(count);
+      } else {
+        clearInterval(countdownInterval.current);
+        triggerCapture();
       }
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-    };
-  }, [open]);
+    }, 1000);
+  };
 
-  // Face detection loop using faceDetector utility
-  useEffect(() => {
-    if (!open || !modelReady || !faceDetectionEnabled) return;
+  const resetCountdown = () => {
+    clearInterval(countdownInterval.current);
+    countdownInterval.current = null;
+    setCountdown(null);
+  };
 
-    let running = true;
-    let lastTime = 0;
+  const checkBlink = (eye) => {
+    const height = Math.abs(eye[1].y - eye[5].y);
+    const width = Math.abs(eye[0].x - eye[3].x);
+    return (height / width) < 0.20;
+  };
 
-    const detectLoop = (timestamp) => {
-      if (!running) return;
-      
-      // Throttle to ~30fps for performance
-      if (timestamp - lastTime < 33) {
-        rafRef.current = requestAnimationFrame(detectLoop);
-        return;
-      }
-      lastTime = timestamp;
-
-      if (!videoRef.current || videoRef.current.readyState < 2) {
-        rafRef.current = requestAnimationFrame(detectLoop);
-        return;
-      }
-
-      try {
-        const detection = faceDetector.detect(videoRef.current);
-        setFaceDetected(!!detection);
-
-        // Draw detection overlay
-        if (canvasRef.current) {
-          faceDetector.drawDetection(canvasRef.current, videoRef.current, detection);
-        }
-      } catch {
-        // Silently handle detection errors
-      }
-
-      if (running) {
-        rafRef.current = requestAnimationFrame(detectLoop);
-      }
-    };
-
-    rafRef.current = requestAnimationFrame(detectLoop);
-
-    return () => {
-      running = false;
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-    };
-  }, [open, modelReady, faceDetectionEnabled]);
-
-  // Capture handler
-  const handleCapture = useCallback(() => {
-    if (!videoRef.current) return;
-
+  const triggerCapture = () => {
+    if (isCapturing.current) return;
+    isCapturing.current = true;
+    
+    clearInterval(detectionInterval.current);
+    resetCountdown();
+    setStatus('Capturing Attendance...');
+    
+    const video = videoRef.current;
     const canvas = document.createElement('canvas');
-    canvas.width = videoRef.current.videoWidth || 640;
-    canvas.height = videoRef.current.videoHeight || 480;
-    canvas.getContext('2d')?.drawImage(videoRef.current, 0, 0);
-
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0);
+    
     canvas.toBlob((blob) => {
-      if (blob) {
-        const file = new File([blob], `face_${Date.now()}.jpg`, { type: 'image/jpeg' });
-        onCaptured(file);
-        onClose();
-      }
-    }, 'image/jpeg', 0.92);
-  }, [onCaptured, onClose]);
+      const file = new File([blob], 'attendance.jpg', { type: 'image/jpeg' });
+      onCaptured(file);
+      onClose();
+    }, 'image/jpeg', 0.95);
+  };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>
-        <Stack direction="row" spacing={2} alignItems="center">
-          <PhotoCamera />
-          <Typography variant="h6">Face Enrollment</Typography>
-          {faceDetectionEnabled && (
-            <Chip label="Auto-Detection Active" color="success" size="small" icon={<AutoAwesome />} />
-          )}
-        </Stack>
-      </DialogTitle>
-
-      <DialogContent sx={{ p: 3 }}>
-        {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
-
-        <Box
-          sx={{
-            position: 'relative',
-            width: '100%',
-            aspectRatio: '4/3',
-            bgcolor: 'black',
-            borderRadius: 2,
+    <Dialog open={open} onClose={onClose} PaperProps={{ sx: { borderRadius: 4 } }}>
+      <DialogContent>
+        <Stack alignItems="center" spacing={3} sx={{ py: 2, px: 1 }}>
+          <Box sx={{ 
+            position: 'relative', 
+            width: 320, 
+            height: 320, 
+            borderRadius: '50%', 
             overflow: 'hidden',
-          }}
-        >
-          {loading ? (
-            <Stack sx={{ height: '100%' }} alignItems="center" justifyContent="center">
-              <CircularProgress color="primary" />
-              <Typography sx={{ mt: 2, color: 'white' }}>Loading face detection model...</Typography>
-            </Stack>
-          ) : (
-            <>
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
+            border: '8px solid',
+            borderColor: isFaceValid ? '#4caf50' : '#ff9800', // Green if good, Orange if warning
+            boxShadow: isFaceValid ? '0 0 30px rgba(76, 175, 80, 0.5)' : 'none',
+            transition: 'all 0.3s ease',
+            bgcolor: '#000'
+          }}>
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              onPlay={onPlay}
+              playsInline
+              style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
+            />
 
-              <canvas
-                ref={canvasRef}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                }}
-              />
+            {countdown && (
+              <Box sx={{
+                position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'rgba(0,0,0,0.3)', pointerEvents: 'none'
+              }}>
+                <Typography sx={{ fontSize: '7rem', color: '#fff', fontWeight: 'bold' }}>
+                  {countdown}
+                </Typography>
+              </Box>
+            )}
+          </Box>
 
-              {faceDetected ? (
-                <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-                  <Typography sx={{ color: '#00ff88', bgcolor: 'rgba(0,0,0,0.5)', px: 4, py: 1.5, borderRadius: 2, fontWeight: 'bold' }}>
-                    Face Detected – Ready to Capture
-                  </Typography>
-                </Box>
-              ) : (
-                <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-                  <Box sx={{ width: '50%', height: '65%', border: '3px dashed #ffffff', borderRadius: '50%', opacity: 0.7 }} />
-                  <Typography sx={{ position: 'absolute', bottom: 40, color: 'white', bgcolor: 'rgba(0,0,0,0.7)', px: 3, py: 1, borderRadius: 2 }}>
-                    Center your face in the circle
-                  </Typography>
-                </Box>
-              )}
-            </>
+          <Box sx={{ width: '100%', textAlign: 'center', minHeight: '60px' }}>
+            <Typography variant="h6" sx={{ fontWeight: 'bold', color: isFaceValid ? '#2e7d32' : '#d32f2f' }}>
+              {status}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Attendance Liveness Detection
+            </Typography>
+          </Box>
+
+          {isFaceValid && !isCapturing.current && (
+            <LinearProgress color="success" sx={{ width: '100%', height: 6, borderRadius: 3 }} />
           )}
-        </Box>
 
-        <Paper sx={{ p: 2, mt: 3, bgcolor: 'info.light' }}>
-          <Typography variant="subtitle2">Tips for Best Detection</Typography>
-          <ul style={{ margin: '8px 0 0 20px' }}>
-            <li>Good even lighting from the front</li>
-            <li>Face 30–50 cm from camera</li>
-            <li>Look straight into the camera</li>
-            <li>Remove glasses/hat if possible</li>
-            <li>If no video: check browser permissions or restart</li>
-          </ul>
-        </Paper>
+          <Button onClick={onClose} variant="outlined" color="inherit" fullWidth>
+            Cancel
+          </Button>
+        </Stack>
       </DialogContent>
-
-      <DialogActions sx={{ px: 3, pb: 3 }}>
-        <Button onClick={onClose} color="inherit">
-          Cancel
-        </Button>
-        <Button
-          variant="contained"
-          startIcon={<PhotoCamera />}
-          onClick={handleCapture}
-          disabled={loading}
-          color={faceDetected ? 'success' : 'primary'}
-        >
-          {faceDetected ? 'Capture Face' : 'Capture Anyway'}
-        </Button>
-      </DialogActions>
     </Dialog>
   );
-});
-
-FaceCaptureDialog.displayName = 'FaceCaptureDialog';
-
-export default FaceCaptureDialog;
+}
