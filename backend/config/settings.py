@@ -11,6 +11,9 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -194,5 +197,4 @@ SPECTACULAR_SETTINGS = {
     "AUTHENTICATION_WHITELIST": [],
 }
 
-from cryptography.fernet import Fernet
-BIOMETRIC_SECRET_KEY = "-iXAOkcJoFyq58EXoeskOOfltPP6qrm_4vCnTbc_o-c="
+BIOMETRIC_SECRET_KEY = os.environ.get('BIOMETRIC_SECRET_KEY')
