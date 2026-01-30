@@ -64,8 +64,8 @@ const Header = memo(({ user, onLogout }) => {
         </Typography>
 
         <Typography variant="body2" sx={{ mr: 3, minWidth: 140, textAlign: 'right' }}>
-          {dateLabel}<br />
-          <span style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{timeLabel}</span>
+          {dateLabel}
+          <span style={{ fontSize: '1.1rem', paddingLeft: 10,  fontWeight: 'bold' }}>{timeLabel}</span>
         </Typography>
 
         <Typography variant="body2" sx={{ mr: 3 }}>

@@ -237,129 +237,129 @@ const Biometrics = ({ onNotify, role }) => {
   // ─────────────────────────────────────────────────────────────
   // Real face detection loop – using faceDetector from faceDetector.js
   // ─────────────────────────────────────────────────────────────
-  const startFaceDetection = useCallback(() => {
-    if (!captureDialogOpen || !faceDetectionEnabled || !videoRef.current || detectionActiveRef.current) {
-      return;
-    }
+  // const startFaceDetection = useCallback(() => {
+  //   if (!captureDialogOpen || !faceDetectionEnabled || !videoRef.current || detectionActiveRef.current) {
+  //     return;
+  //   }
 
-    detectionActiveRef.current = true;
+  //   detectionActiveRef.current = true;
 
-    detectionIntervalRef.current = setInterval(() => {
-      if (!videoRef.current || videoRef.current.readyState < 2) return;
+  //   detectionIntervalRef.current = setInterval(() => {
+  //     if (!videoRef.current || videoRef.current.readyState < 2) return;
 
-      try {
-        const face = faceDetector.detect(videoRef.current);
+  //     try {
+  //       const face = faceDetector.detect(videoRef.current);
 
-        if (face) {
-          const confidence = face.confidence || 0.6;
-          const videoWidth = videoRef.current.videoWidth;
-          const videoHeight = videoRef.current.videoHeight;
+  //       if (face) {
+  //         const confidence = face.confidence || 0.6;
+  //         const videoWidth = videoRef.current.videoWidth;
+  //         const videoHeight = videoRef.current.videoHeight;
 
-          if (!videoWidth || !videoHeight) return;
+  //         if (!videoWidth || !videoHeight) return;
 
-          const bbox = face.boundingBox;
-          const faceX = bbox.x + bbox.width / 2;
-          const faceY = bbox.y + bbox.height / 2;
-          const faceSize = Math.max(bbox.width, bbox.height);
+  //         const bbox = face.boundingBox;
+  //         const faceX = bbox.x + bbox.width / 2;
+  //         const faceY = bbox.y + bbox.height / 2;
+  //         const faceSize = Math.max(bbox.width, bbox.height);
 
-          const isInFrame = confidence > qualityThreshold;
-          const isCentered =
-            Math.abs(faceX - videoWidth / 2) < videoWidth * 0.15 &&
-            Math.abs(faceY - videoHeight / 2) < videoHeight * 0.15;
-          const isSizeOptimal =
-            faceSize > Math.min(videoWidth, videoHeight) * 0.25 &&
-            faceSize < Math.min(videoWidth, videoHeight) * 0.45;
+  //         const isInFrame = confidence > qualityThreshold;
+  //         const isCentered =
+  //           Math.abs(faceX - videoWidth / 2) < videoWidth * 0.15 &&
+  //           Math.abs(faceY - videoHeight / 2) < videoHeight * 0.15;
+  //         const isSizeOptimal =
+  //           faceSize > Math.min(videoWidth, videoHeight) * 0.25 &&
+  //           faceSize < Math.min(videoWidth, videoHeight) * 0.45;
 
-          let progress = 0;
-          if (isInFrame) progress += 25;
-          if (isCentered) progress += 25;
-          if (isSizeOptimal) progress += 25;
-          if (face.hasEyes) progress += 25;
+  //         let progress = 0;
+  //         if (isInFrame) progress += 25;
+  //         if (isCentered) progress += 25;
+  //         if (isSizeOptimal) progress += 25;
+  //         if (face.hasEyes) progress += 25;
 
-          let status = 'Detecting...';
-          if (!isInFrame) {
-            status = 'Move face into frame';
-            consecutiveFramesRef.current = 0;
-          } else if (!isCentered) {
-            status = 'Center your face in the circle';
-            consecutiveFramesRef.current = 0;
-          } else if (!isSizeOptimal) {
-            status = faceSize < Math.min(videoWidth, videoHeight) * 0.3 ? 'Move closer' : 'Move farther';
-            consecutiveFramesRef.current = 0;
-          } else {
-            status = 'Perfect! Hold still for auto-capture';
-            consecutiveFramesRef.current = Math.min(consecutiveFramesRef.current + 1, 10);
-          }
+  //         let status = 'Detecting...';
+  //         if (!isInFrame) {
+  //           status = 'Move face into frame';
+  //           consecutiveFramesRef.current = 0;
+  //         } else if (!isCentered) {
+  //           status = 'Center your face in the circle';
+  //           consecutiveFramesRef.current = 0;
+  //         } else if (!isSizeOptimal) {
+  //           status = faceSize < Math.min(videoWidth, videoHeight) * 0.3 ? 'Move closer' : 'Move farther';
+  //           consecutiveFramesRef.current = 0;
+  //         } else {
+  //           status = 'Perfect! Hold still for auto-capture';
+  //           consecutiveFramesRef.current = Math.min(consecutiveFramesRef.current + 1, 10);
+  //         }
 
-          // ── REAL BLINK DETECTION ── (from faceDetector.js)
-          if (blinkDetectionEnabled && face.hasEyes && face.isBlinking) {
-            setEyeBlinkDetected(true);
-            setTimeout(() => setEyeBlinkDetected(false), 500); // show for 0.5s
-          }
+  //         // ── REAL BLINK DETECTION ── (from faceDetector.js)
+  //         if (blinkDetectionEnabled && face.hasEyes && face.isBlinking) {
+  //           setEyeBlinkDetected(true);
+  //           setTimeout(() => setEyeBlinkDetected(false), 500); // show for 0.5s
+  //         }
 
-          setDetectionStatus(status);
-          setDetectionProgress(progress);
+  //         setDetectionStatus(status);
+  //         setDetectionProgress(progress);
 
-          setLastFaceData({
-            confidence: Math.round(confidence * 100),
-            isCentered,
-            isSizeOptimal,
-            isInFrame,
-            hasEyes: face.hasEyes,
-            x: Math.round(faceX),
-            y: Math.round(faceY),
-            ear: face.ear ? face.ear.toFixed(3) : null,
-            isBlinking: face.isBlinking || false,
-          });
+  //         setLastFaceData({
+  //           confidence: Math.round(confidence * 100),
+  //           isCentered,
+  //           isSizeOptimal,
+  //           isInFrame,
+  //           hasEyes: face.hasEyes,
+  //           x: Math.round(faceX),
+  //           y: Math.round(faceY),
+  //           ear: face.ear ? face.ear.toFixed(3) : null,
+  //           isBlinking: face.isBlinking || false,
+  //         });
 
-          if (
-            autoCaptureEnabled &&
-            isInFrame &&
-            isCentered &&
-            isSizeOptimal &&
-            consecutiveFramesRef.current >= 5 &&
-            !autoCaptureCountdown
-          ) {
-            setAutoCaptureCountdown(captureDelay);
-          }
-        } else {
-          setDetectionStatus('No face detected');
-          setDetectionProgress(0);
-          consecutiveFramesRef.current = 0;
-          setLastFaceData(null);
-          setEyeBlinkDetected(false);
-        }
-      } catch (error) {
-        console.warn('Detection error:', error);
-        setDetectionStatus('Detection error - check console');
-        setDetectionProgress(0);
-      }
-    }, 300);
-  }, [
-    captureDialogOpen,
-    faceDetectionEnabled,
-    qualityThreshold,
-    autoCaptureEnabled,
-    autoCaptureCountdown,
-    captureDelay,
-    blinkDetectionEnabled,
-  ]);
+  //         if (
+  //           autoCaptureEnabled &&
+  //           isInFrame &&
+  //           isCentered &&
+  //           isSizeOptimal &&
+  //           consecutiveFramesRef.current >= 5 &&
+  //           !autoCaptureCountdown
+  //         ) {
+  //           setAutoCaptureCountdown(captureDelay);
+  //         }
+  //       } else {
+  //         setDetectionStatus('No face detected');
+  //         setDetectionProgress(0);
+  //         consecutiveFramesRef.current = 0;
+  //         setLastFaceData(null);
+  //         setEyeBlinkDetected(false);
+  //       }
+  //     } catch (error) {
+  //       console.warn('Detection error:', error);
+  //       setDetectionStatus('Detection error - check console');
+  //       setDetectionProgress(0);
+  //     }
+  //   }, 300);
+  // }, [
+  //   captureDialogOpen,
+  //   faceDetectionEnabled,
+  //   qualityThreshold,
+  //   autoCaptureEnabled,
+  //   autoCaptureCountdown,
+  //   captureDelay,
+  //   blinkDetectionEnabled,
+  // ]);
 
-  const clearDetectionInterval = useCallback(() => {
-    if (detectionIntervalRef.current) {
-      clearInterval(detectionIntervalRef.current);
-      detectionIntervalRef.current = null;
-    }
-    detectionActiveRef.current = false;
-    consecutiveFramesRef.current = 0;
-  }, []);
+  // const clearDetectionInterval = useCallback(() => {
+  //   if (detectionIntervalRef.current) {
+  //     clearInterval(detectionIntervalRef.current);
+  //     detectionIntervalRef.current = null;
+  //   }
+  //   detectionActiveRef.current = false;
+  //   consecutiveFramesRef.current = 0;
+  // }, []);
 
-  const clearCaptureTimeout = useCallback(() => {
-    if (captureTimeoutRef.current) {
-      clearTimeout(captureTimeoutRef.current);
-      captureTimeoutRef.current = null;
-    }
-  }, []);
+  // const clearCaptureTimeout = useCallback(() => {
+  //   if (captureTimeoutRef.current) {
+  //     clearTimeout(captureTimeoutRef.current);
+  //     captureTimeoutRef.current = null;
+  //   }
+  // }, []);
 
   const handleCaptureDialogOpen = () => {
     setCaptureDialogOpen(true);
@@ -384,9 +384,51 @@ const Biometrics = ({ onNotify, role }) => {
     }, 500);
   };
 
+// 2. Use useEffect to trigger the camera ONLY when the Dialog is actually open
+useEffect(() => {
+  let activeStream = null;
+
+  const initializeSystem = async () => {
+    if (captureDialogOpen) {
+      try {
+        setDetectionStatus('Initializing AI...');
+        await faceDetector.init();
+        
+        setDetectionStatus('Accessing Camera...');
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { width: 1280, height: 720 } 
+        });
+        
+        activeStream = stream;
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          // Important: Explicitly call play() after setting srcObject
+          await videoRef.current.play();
+          setCameraReady(true);
+          setDetectionStatus('Ready');
+          console.log("Camera hardware is streaming.");
+        }
+      } catch (err) {
+        console.error("Setup Error:", err);
+        onNotify?.('Failed to start camera or AI', 'error');
+      }
+    }
+  };
+
+  initializeSystem();
+
+  // CLEANUP: This stops the camera immediately when dialog closes
+  return () => {
+    if (activeStream) {
+      activeStream.getTracks().forEach(track => track.stop());
+    }
+  };
+}, [captureDialogOpen]); // This runs every time the dialog opens/closes
+
   const handleCaptureDialogClose = () => {
     setCaptureDialogOpen(false);
-    clearDetectionInterval();
+    // clearDetectionInterval();
     clearCaptureTimeout();
     consecutiveFramesRef.current = 0;
     setAutoCaptureCountdown(null);
@@ -1316,12 +1358,12 @@ const Biometrics = ({ onNotify, role }) => {
         open={captureDialogOpen}
         onClose={handleCaptureDialogClose}
         onCaptured={handleCaptured}
-        enableAutoDetection={faceDetectionEnabled}
-        faceDetectionEnabled={faceDetectionEnabled}
-        detectionStatus={detectionStatus}
-        detectionProgress={detectionProgress}
-        autoCaptureCountdown={autoCaptureCountdown}
-        videoRef={videoRef}
+        // enableAutoDetection={faceDetectionEnabled}
+        // faceDetectionEnabled={faceDetectionEnabled}
+        // detectionStatus={detectionStatus}
+        // detectionProgress={detectionProgress}
+        // autoCaptureCountdown={autoCaptureCountdown}
+        // videoRef={videoRef}
       />
 
       {/* Auto-Capture Success Dialog */}
@@ -1348,7 +1390,9 @@ const Biometrics = ({ onNotify, role }) => {
                   style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, border: '2px solid #4caf50' }}
                 />
               </Box>
+              
             )}
+            
 
             <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'grey.50', borderRadius: 2 }}>
               <Typography variant="body2" color="text.secondary"><strong>Detection Details:</strong></Typography>

@@ -8,6 +8,14 @@
   box-sizing: border-box;
 }
 
+html, body, #root {
+  width: 100%;
+  min-height: 100vh;
+  /* Fixes the "white gap" at the bottom of pages */
+  display: flex;
+  flex-direction: column;
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -18,13 +26,13 @@ body {
   color: var(--text-primary);
   transition: background-color 0.3s ease, color 0.3s ease;
   line-height: 1.6;
+  overflow-x: hidden; /* Prevent horizontal "jitter" or scrollbars */
 }
 
 /* ====================== */
 /* CSS VARIABLES          */
 /* ====================== */
 :root {
-  /* Colors - Light Mode */
   --bg-primary: #f4f6f9;
   --bg-sidebar: #ffffff;
   --bg-card: #ffffff;
@@ -35,31 +43,20 @@ body {
   --text-muted: #718096;
   --border: #e2e8f0;
   --border-subtle: #e2e8f0;
-  
-  /* Accent Colors */
   --accent: #6366f1;
   --accent-hover: #5a5ce0;
   --accent-soft: rgba(99, 102, 241, 0.12);
   --accent-strong: #6366f1;
-  
-  /* Status Colors */
   --success: #48bb78;
   --warning: #ed8936;
   --error: #f56565;
   --danger: #dc2626;
-  
-  /* Shadows */
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
   --shadow: 0 4px 20px rgba(0,0,0,0.08);
   --shadow-lg: 0 10px 40px rgba(0,0,0,0.12);
-  
-  /* Hover states */
   --hover-bg: rgba(0, 0, 0, 0.04);
 }
 
-/* ====================== */
-/* DARK MODE              */
-/* ====================== */
 [data-theme="dark"],
 :root[data-theme="dark"] {
   --bg-primary: #0f172a;
@@ -84,6 +81,27 @@ body {
   --shadow: 0 4px 20px rgba(0,0,0,0.3);
   --shadow-lg: 0 10px 40px rgba(0,0,0,0.4);
   --hover-bg: rgba(255, 255, 255, 0.04);
+}
+
+/* ====================== */
+/* FORCE FULL SPACE       */
+/* ====================== */
+
+/* Disable MUI's default container padding/max-width that causes "unwanted space" */
+.MuiContainer-root {
+  max-width: 100% !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Fixes MUI Grid "negative margin" causing side-scrolling */
+.MuiGrid-container {
+  width: 100% !important;
+  margin: 0 !important;
+}
+
+.MuiGrid-item {
+  padding-top: 16px !important; /* Standard spacing fallback */
 }
 
 /* ====================== */
@@ -123,96 +141,19 @@ body {
   padding: 10px 24px !important;
 }
 
-.MuiButton-containedPrimary:hover {
-  box-shadow: var(--shadow) !important;
-  transform: translateY(-2px);
-}
-
 /* Inputs & Forms */
-.MuiTextField-root {
-  border-radius: 12px !important;
-}
-
 .MuiOutlinedInput-root {
   border-radius: 12px !important;
   background-color: var(--bg-card);
-  transition: all 0.2s ease;
-}
-
-.MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
-  border-color: var(--accent) !important;
-}
-
-.MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
-  border-color: var(--accent) !important;
-  border-width: 2px !important;
-}
-
-/* Tabs */
-.MuiTabs-root {
-  border-radius: 12px 12px 0 0;
-  overflow: hidden;
-}
-
-.MuiTab-root {
-  text-transform: none !important;
-  font-weight: 600 !important;
-  border-radius: 12px 12px 0 0 !important;
 }
 
 /* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(100, 100, 100, 0.3);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 100, 100, 0.5);
-}
-
-[data-theme="dark"] ::-webkit-scrollbar-thumb {
-  background: rgba(150, 150, 150, 0.4);
-}
-
-/* Typography Enhancements */
-h1, h2, h3, h4, h5, h6 {
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.MuiTypography-h3 {
-  font-size: 2.5rem !important;
-  font-weight: 800 !important;
-}
-
-.MuiTypography-h5 {
-  font-weight: 700 !important;
-  color: var(--text-primary);
-}
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(100, 100, 100, 0.3); border-radius: 4px; }
 
 /* Alerts */
-.MuiAlert-root {
-  border-radius: 12px !important;
-  font-weight: 500;
-}
-
-/* Quick Action Cards Hover */
-.quick-action-card {
-  transition: all 0.4s ease !important;
-}
-
-.quick-action-card:hover {
-  transform: translateY(-12px) scale(1.03) !important;
-  box-shadow: var(--shadow-lg) !important;
-}
+.MuiAlert-root { border-radius: 12px !important; }
 
 /* Sidebar Enhancements */
 .sidebar {
@@ -220,33 +161,7 @@ h1, h2, h3, h4, h5, h6 {
   border-right: 1px solid var(--border);
 }
 
-/* Toast Notification */
-.MuiAlert-standardSuccess {
-  background-color: rgba(72, 187, 120, 0.1) !important;
-  color: var(--success);
-  border: 1px solid var(--success);
-}
-
-.MuiAlert-standardError {
-  background-color: rgba(245, 101, 101, 0.1) !important;
-  color: var(--error);
-  border: 1px solid var(--error);
-}
-
-.MuiAlert-standardWarning {
-  background-color: rgba(237, 137, 54, 0.1) !important;
-  color: var(--warning);
-  border: 1px solid var(--warning);
-}
-
-/* Loading Spinner */
-.MuiCircularProgress-root {
-  color: var(--accent) !important;
-}
-
 /* Responsive Improvements */
 @media (max-width: 960px) {
-  .MuiTypography-h3 {
-    font-size: 2rem !important;
-  }
+  .MuiTypography-h3 { font-size: 2rem !important; }
 }
