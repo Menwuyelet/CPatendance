@@ -1,9 +1,25 @@
-// src/pages/EmployeeDashboard.jsx
-import { Grid, Card, CardContent, Typography, Button, Box, Chip, Stack, Alert, CircularProgress } from '@mui/material';
+import {
+  Grid,
+  Card,
+  CardContent,
+  Typography,
+  Button,
+  Box,
+  Chip,
+  Stack,
+  Alert,
+  CircularProgress,
+} from '@mui/material';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api.service.js';
-import { AccessTime, CheckCircle, Schedule, EventNote, CameraAlt } from '@mui/icons-material';
+import {
+  AccessTime,
+  CheckCircle,
+  Schedule,
+  EventNote,
+  CameraAlt,
+} from '@mui/icons-material';
 import { format } from 'date-fns';
 import FaceCaptureDialog from '../components/FaceCaptureDialog.jsx';
 
@@ -15,33 +31,72 @@ const EmployeeDashboard = ({ onNotify }) => {
   const [success, setSuccess] = useState('');
   const [scanOpen, setScanOpen] = useState(false);
   const [scanSubmitting, setScanSubmitting] = useState(false);
+
   const navigate = useNavigate();
 
   useEffect(() => {
     loadDashboardData();
   }, []);
 
+  /* ----------------------------- helpers ----------------------------- */
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      const user = await api.getCurrentUser();
+      setUserData(user || {});
+
+      const today = new Date().toISOString().split('T')[0];
+      let todayAttendance = null;
+
+      try {
+        const res = await api.getAttendance({ from: today, to: today, mine: true });
+        const list = api.extractArray(res);
+        todayAttendance =
+          list.find(
+            (a) =>
+              (a?.date || a?.attendance_date) === today
+          ) || null;
+      } catch {
+        const fallback = await api.get('/attendance/attendance/');
+        const list = api.extractArray(fallback);
+        todayAttendance =
+          list.find(
+            (a) =>
+              (a?.date || a?.attendance_date) === today
+          ) || null;
+      }
+
+      setAttendanceToday(todayAttendance);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to load dashboard data.');
+      onNotify?.('Failed to load dashboard data', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const submitFaceScan = async (imageFile) => {
     setScanSubmitting(true);
     setError('');
     setSuccess('');
+
     try {
       const res = await api.checkInAttendance(imageFile);
-      const rawResult = res?.result ?? res;
-      const result = String(rawResult || '').toUpperCase();
+      const result = String(res?.result ?? res ?? '').toUpperCase();
 
       if (result.includes('SUCCESS')) {
-        setSuccess('Face recognized. Your check-in was recorded in the active session.');
+        setSuccess('Face recognized. Check-in recorded.');
       } else if (result.includes('DUPLICATE')) {
-        setSuccess('Already recorded in this session (duplicate scan).');
+        setSuccess('Already checked in for this session.');
       } else {
-        setError('Face not recognized (or no active session). Please try again.');
+        setError('Face not recognized. Try again.');
       }
 
-      // Refresh dashboard info
       await loadDashboardData();
     } catch (err) {
-      console.error('Face scan failed:', err);
       setError(err?.message || 'Face scan failed.');
     } finally {
       setScanSubmitting(false);
@@ -49,81 +104,39 @@ const EmployeeDashboard = ({ onNotify }) => {
     }
   };
 
-  const loadDashboardData = async () => {
-    try {
-      setLoading(true);
-      setError('');
-
-      // Load user data
-      const user = await api.getCurrentUser();
-      setUserData(user || {});
-
-      // Load today's attendance
-      const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
-      
-      // Try multiple approaches to get today's attendance
-      let todayAttendance = null;
-      
-      try {
-        // Approach 1: Get all attendance and filter locally
-        const attendanceData = await api.getAttendance({ from: today, to: today, mine: true });
-        const attendanceList = api.extractArray(attendanceData);
-        
-        // Find today's attendance
-        todayAttendance = attendanceList.find(a => {
-          const attendanceDate = a?.date || a?.attendance_date;
-          return attendanceDate === today;
-        }) || null;
-        
-      } catch (attendanceErr) {
-        console.warn('Could not load attendance via filtered API:', attendanceErr);
-        
-        // Approach 2: Get all attendance and filter manually
-        try {
-          const allAttendance = await api.get('/attendance/attendance/');
-          const allList = api.extractArray(allAttendance);
-          
-          // Filter for today and current user
-          todayAttendance = allList.find(a => {
-            const attendanceDate = a?.date || a?.attendance_date;
-            const isToday = attendanceDate === today;
-            // Check if it belongs to current user (simplified check)
-            return isToday;
-          }) || null;
-        } catch (fallbackErr) {
-          console.error('Fallback attendance load also failed:', fallbackErr);
-        }
-      }
-      
-      setAttendanceToday(todayAttendance || null);
-      
-    } catch (err) {
-      console.error('Failed to load dashboard data:', err);
-      setError('Failed to load dashboard data. Please try again.');
-      onNotify?.('Failed to load dashboard data', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  /* ----------------------------- loading ----------------------------- */
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+      <Box
+        sx={{
+          minHeight: '60vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '100%',
+        }}
+      >
         <CircularProgress />
       </Box>
     );
   }
 
+  const todayFormatted = format(new Date(), 'EEEE, MMMM d, yyyy');
   const currentTime = new Date().toLocaleTimeString();
-  const today = format(new Date(), 'EEEE, MMMM d, yyyy');
+  const attendance = attendanceToday || {};
+  const user = userData || {};
 
-  // Safe data access
-  const safeAttendanceToday = attendanceToday || {};
-  const safeUserData = userData || {};
-
+  /* ------------------------------ UI ------------------------------ */
   return (
-    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: '1200px', mx: 'auto' }}>
-      <Typography variant="h5" fontWeight="bold" sx={{ mb: 3 }}>
+    <Box
+      sx={{
+        width: '100%',
+        px: { xs: 1.5, sm: 2, md: 3 },
+        py: 2,
+        overflowX: 'hidden', // 🔥 prevents right-side scroll
+      }}
+    >
+      <Typography variant="h5" fontWeight="bold" mb={2}>
         My Dashboard
       </Typography>
 
@@ -138,116 +151,113 @@ const EmployeeDashboard = ({ onNotify }) => {
         </Alert>
       )}
 
-      <Grid container spacing={2}>
-        {/* Today's Attendance Info Card */}
-        <Grid item xs={12} md={4}>
-          <Card sx={{ height: '100%', borderRadius: 2 }}>
+      <Grid
+        container
+        spacing={2}
+        sx={{
+          width: '100%',
+          m: 0,
+        }}
+      >
+        {/* ---------------- Attendance Card ---------------- */}
+        <Grid item xs={12} md={4} sx={{ minWidth: 0 }}>
+          <Card sx={{ height: '100%', width: '100%' }}>
             <CardContent>
-              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+              <Stack direction="row" spacing={1} alignItems="center" mb={1}>
                 <AccessTime color="primary" />
-                <Typography variant="h6" fontWeight="bold">
-                  Today's Attendance
-                </Typography>
+                <Typography fontWeight="bold">Today's Attendance</Typography>
               </Stack>
 
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                {today}
+              <Typography variant="body2" color="text.secondary" mb={2}>
+                {todayFormatted}
               </Typography>
 
-              <Box sx={{ mb: 2 }}>
-                {safeAttendanceToday.date || safeAttendanceToday.attendance_date ? (
-                  <>
-                    <Chip
-                      icon={<CheckCircle />}
-                      label={safeAttendanceToday.check_in_time && !safeAttendanceToday.check_out_time ? 'Clocked In' : 'Completed'}
-                      color={safeAttendanceToday.check_in_time && !safeAttendanceToday.check_out_time ? 'success' : 'default'}
-                      sx={{ mb: 1 }}
-                    />
-                    {safeAttendanceToday.check_in_time && (
-                      <Typography variant="body2" sx={{ mt: 1 }}>
-                        In: {new Date(safeAttendanceToday.check_in_time).toLocaleTimeString()}
-                      </Typography>
-                    )}
-                    {safeAttendanceToday.check_out_time && (
-                      <Typography variant="body2">
-                        Out: {new Date(safeAttendanceToday.check_out_time).toLocaleTimeString()}
-                      </Typography>
-                    )}
-                  </>
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No attendance record for today
-                  </Typography>
-                )}
-              </Box>
+              {attendance?.date || attendance?.attendance_date ? (
+                <>
+                  <Chip
+                    icon={<CheckCircle />}
+                    label={
+                      attendance.check_in_time && !attendance.check_out_time
+                        ? 'Clocked In'
+                        : 'Completed'
+                    }
+                    color="success"
+                    size="small"
+                    sx={{ mb: 1 }}
+                  />
 
-              <Stack direction="row" spacing={1}>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  fullWidth
-                  onClick={() => navigate('/attendance')}
-                >
-                  View History
+                  {attendance.check_in_time && (
+                    <Typography variant="body2">
+                      In:{' '}
+                      {new Date(attendance.check_in_time).toLocaleTimeString()}
+                    </Typography>
+                  )}
+                  {attendance.check_out_time && (
+                    <Typography variant="body2">
+                      Out:{' '}
+                      {new Date(attendance.check_out_time).toLocaleTimeString()}
+                    </Typography>
+                  )}
+                </>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No attendance record for today
+                </Typography>
+              )}
+
+              <Stack direction="row" spacing={1} mt={2}>
+                <Button fullWidth size="small" onClick={() => navigate('/attendance')}>
+                  History
                 </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  fullWidth
-                  onClick={() => navigate('/reports')}
-                >
-                  My Reports
+                <Button fullWidth size="small" onClick={() => navigate('/reports')}>
+                  Reports
                 </Button>
               </Stack>
             </CardContent>
           </Card>
         </Grid>
 
-        {/* Today's Info */}
-        <Grid item xs={12} md={4}>
-          <Card sx={{ height: '100%', borderRadius: 2 }}>
+        {/* ---------------- Today Info ---------------- */}
+        <Grid item xs={12} md={4} sx={{ minWidth: 0 }}>
+          <Card sx={{ height: '100%', width: '100%' }}>
             <CardContent>
-              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+              <Stack direction="row" spacing={1} alignItems="center" mb={1}>
                 <Schedule color="primary" />
-                <Typography variant="h6" fontWeight="bold">
-                  Today's Info
-                </Typography>
+                <Typography fontWeight="bold">Today's Info</Typography>
               </Stack>
 
-              <Typography variant="body1" sx={{ mb: 1 }}>
+              <Typography variant="body2">
                 <strong>Current Time:</strong> {currentTime}
               </Typography>
 
-              {safeAttendanceToday.date || safeAttendanceToday.attendance_date ? (
-                <Box sx={{ mt: 2 }}>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Status
-                  </Typography>
-                  <Chip
-                    label={safeAttendanceToday.status || 'Not Checked In'}
-                    color={(safeAttendanceToday.status || '').toUpperCase() === 'PRESENT' ? 'success' : 'default'}
-                    size="small"
-                  />
-                </Box>
-              ) : null}
+              {attendance?.status && (
+                <Chip
+                  label={attendance.status}
+                  size="small"
+                  sx={{ mt: 2 }}
+                  color={
+                    attendance.status === 'PRESENT' ? 'success' : 'default'
+                  }
+                />
+              )}
 
-              <Box sx={{ mt: 3 }}>
+              <Box mt={3}>
                 <Typography variant="body2" color="text.secondary">
                   • Remember to clock in/out
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  • Contact HR for shift changes
+                  • Contact HR for changes
                 </Typography>
               </Box>
             </CardContent>
           </Card>
         </Grid>
 
-        {/* Quick Actions */}
-        <Grid item xs={12} md={4}>
-          <Card sx={{ height: '100%', borderRadius: 2 }}>
+        {/* ---------------- Quick Actions ---------------- */}
+        <Grid item xs={12} md={4} sx={{ minWidth: 0 }}>
+          <Card sx={{ height: '100%', width: '100%' }}>
             <CardContent>
-              <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
+              <Typography fontWeight="bold" mb={2}>
                 Quick Actions
               </Typography>
 
@@ -255,9 +265,9 @@ const EmployeeDashboard = ({ onNotify }) => {
                 <Button
                   variant="contained"
                   fullWidth
-                  onClick={() => setScanOpen(true)}
                   startIcon={<CameraAlt />}
                   disabled={scanSubmitting}
+                  onClick={() => setScanOpen(true)}
                 >
                   {scanSubmitting ? 'Submitting…' : 'Scan Face (Check In)'}
                 </Button>
@@ -266,41 +276,46 @@ const EmployeeDashboard = ({ onNotify }) => {
                   open={scanOpen}
                   title="Scan Face for Attendance"
                   onClose={() => setScanOpen(false)}
-                  onCaptured={(file) => submitFaceScan(file)}
+                  onCaptured={submitFaceScan}
                 />
 
                 <Button
-                  variant="outlined"
                   fullWidth
-                  onClick={() => navigate('/attendance')}
+                  variant="outlined"
                   startIcon={<EventNote />}
+                  onClick={() => navigate('/attendance')}
                 >
-                  View Attendance
+                  Attendance
                 </Button>
+
                 <Button
-                  variant="outlined"
                   fullWidth
-                  onClick={() => navigate('/leaves')}
+                  variant="outlined"
                   startIcon={<Schedule />}
+                  onClick={() => navigate('/leaves')}
                 >
                   Leave Requests
                 </Button>
+
                 <Button
-                  variant="outlined"
                   fullWidth
+                  variant="outlined"
                   onClick={() => navigate('/reports')}
                 >
-                  View Reports
+                  Reports
                 </Button>
               </Stack>
 
-              {safeUserData.full_name || safeUserData.email ? (
-                <Box sx={{ mt: 3, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+              {(user.full_name || user.email) && (
+                <Box mt={3} pt={2} borderTop={1} borderColor="divider">
                   <Typography variant="body2" color="text.secondary">
-                    Welcome, {safeUserData.full_name || safeUserData.email?.split('@')[0] || 'User'}
+                    Welcome,{' '}
+                    {user.full_name ||
+                      user.email?.split('@')[0] ||
+                      'User'}
                   </Typography>
                 </Box>
-              ) : null}
+              )}
             </CardContent>
           </Card>
         </Grid>
