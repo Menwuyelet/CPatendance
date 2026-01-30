@@ -1,5 +1,5 @@
 // src/components/Header.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -19,41 +19,42 @@ import {
 import { Notifications, Logout, CheckCircle } from '@mui/icons-material';
 import { useNotifications } from '../context/NotificationContext';
 
-const Header = ({ user, onLogout }) => {
-  // Safe fallback if context not available
-  let notifications = [];
-  let unreadCount = 0;
-  let markAsRead = () => {};
-  let markAllAsRead = () => {};
-
-  try {
-    const context = useNotifications();
-    if (context) {
-      ({ notifications, unreadCount, markAsRead, markAllAsRead } = context);
-    }
-  } catch (e) {
-    console.warn('NotificationContext not available (likely outside provider)');
-  }
+const Header = memo(({ user, onLogout }) => {
+  // Get notifications from context with safe fallback
+  const notificationContext = useNotifications();
+  const {
+    notifications = [],
+    unreadCount = 0,
+    markAsRead = () => {},
+    markAllAsRead = () => {},
+  } = notificationContext || {};
 
   const [now, setNow] = useState(new Date());
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
 
-  const handleBellClick = (event) => {
+  const handleBellClick = useCallback((event) => {
     setAnchorEl(event.currentTarget);
-  };
+  }, []);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setAnchorEl(null);
-  };
+  }, []);
 
-  React.useEffect(() => {
+  // Update clock every minute
+  useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(interval);
   }, []);
 
-  const dateLabel = now.toLocaleDateString('en-GB'); // 29/12/2025
-  const timeLabel = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  // Memoize date/time formatting
+  const dateLabel = useMemo(() => now.toLocaleDateString('en-GB'), [now]);
+  const timeLabel = useMemo(() => now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), [now]);
+  
+  // Memoize user initial
+  const userInitial = useMemo(() => 
+    user?.name?.[0]?.toUpperCase() || user?.role?.[0] || '?'
+  , [user?.name, user?.role]);
 
   return (
     <AppBar position="static" color="default" elevation={1}>
@@ -152,7 +153,7 @@ const Header = ({ user, onLogout }) => {
         <IconButton sx={{ mx: 1 }}>
           <Avatar sx={{ bgcolor: 'primary.main', width: 40, height: 40 }}>
             <Typography variant="subtitle1" fontWeight="bold">
-              {user?.name?.[0]?.toUpperCase() || user?.role?.[0] || '?'}
+              {userInitial}
             </Typography>
           </Avatar>
         </IconButton>
@@ -164,6 +165,8 @@ const Header = ({ user, onLogout }) => {
       </Toolbar>
     </AppBar>
   );
-};
+});
+
+Header.displayName = 'Header';
 
 export default Header;

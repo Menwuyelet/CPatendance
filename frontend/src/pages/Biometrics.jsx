@@ -244,11 +244,11 @@ const Biometrics = ({ onNotify, role }) => {
 
     detectionActiveRef.current = true;
 
-    detectionIntervalRef.current = setInterval(async () => {
+    detectionIntervalRef.current = setInterval(() => {
       if (!videoRef.current || videoRef.current.readyState < 2) return;
 
       try {
-        const face = await faceDetector.detect(videoRef.current);
+        const face = faceDetector.detect(videoRef.current);
 
         if (face) {
           const confidence = face.confidence || 0.6;

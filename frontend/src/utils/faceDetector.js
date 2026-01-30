@@ -3,50 +3,71 @@ export class FaceDetector {
   constructor() {
     this.landmarker = null;
     this.initialized = false;
+    this.lastDetectionTime = 0;
   }
 
   async init() {
-    if (this.initialized) return true;
+    if (this.initialized && this.landmarker) return true;
 
     try {
-      console.log('[FaceDetector] Starting MediaPipe initialization...');
-
       const { FilesetResolver, FaceLandmarker } = await import('@mediapipe/tasks-vision');
 
       const vision = await FilesetResolver.forVisionTasks(
         'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.17/wasm'
       );
 
-      this.landmarker = await FaceLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath:
-            'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task',
-          delegate: 'GPU', // try 'CPU' if still black
-        },
-        runningMode: 'VIDEO',
-        numFaces: 1,
-        outputFaceBlendshapes: true,
-      });
+      // Try GPU first, fall back to CPU if it fails
+      try {
+        this.landmarker = await FaceLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath:
+              'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task',
+            delegate: 'GPU',
+          },
+          runningMode: 'VIDEO',
+          numFaces: 1,
+          outputFaceBlendshapes: true,
+        });
+      } catch {
+        // Fallback to CPU delegate
+        this.landmarker = await FaceLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath:
+              'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task',
+            delegate: 'CPU',
+          },
+          runningMode: 'VIDEO',
+          numFaces: 1,
+          outputFaceBlendshapes: true,
+        });
+      }
 
       this.initialized = true;
-      console.log('[FaceDetector] MediaPipe initialized successfully');
       return true;
     } catch (err) {
-      console.error('[FaceDetector] Init failed:', err);
+      console.error('FaceDetector init failed:', err);
       return false;
     }
   }
 
-  async detect(video) {
-    if (!this.initialized) await this.init();
+  detect(video) {
+    if (!this.initialized || !this.landmarker) return null;
     if (!video || video.readyState < 2 || video.videoWidth === 0) return null;
 
     try {
-      const results = await this.landmarker.detectForVideo(video, performance.now());
+      // MediaPipe requires monotonically increasing timestamps
+      const now = performance.now();
+      if (now <= this.lastDetectionTime) {
+        return null; // Skip this frame
+      }
+      this.lastDetectionTime = now;
 
-      if (results.faceLandmarks?.length > 0) {
+      const results = this.landmarker.detectForVideo(video, now);
+
+      if (results?.faceLandmarks?.length > 0) {
         const lm = results.faceLandmarks[0];
-        const bs = results.faceBlendshapes?.[0] || [];
+        // faceBlendshapes is array of objects with categories array
+        const blendshapes = results.faceBlendshapes?.[0]?.categories || [];
 
         const xs = lm.map(p => p.x * video.videoWidth);
         const ys = lm.map(p => p.y * video.videoHeight);
@@ -55,20 +76,23 @@ export class FaceDetector {
         const width = Math.max(...xs) - x;
         const height = Math.max(...ys) - y;
 
-        const leftBlink = bs.find(b => b.categoryName === 'eyeBlinkLeft')?.score || 0;
-        const rightBlink = bs.find(b => b.categoryName === 'eyeBlinkRight')?.score || 0;
-        const isBlinking = (leftBlink + rightBlink) / 2 > 0.65;
+        // Find blink scores from blendshapes categories
+        const leftBlink = blendshapes.find(b => b.categoryName === 'eyeBlinkLeft')?.score || 0;
+        const rightBlink = blendshapes.find(b => b.categoryName === 'eyeBlinkRight')?.score || 0;
+        const isBlinking = (leftBlink + rightBlink) / 2 > 0.5;
 
         return {
           boundingBox: { x, y, width, height },
           confidence: 0.92,
           landmarks: lm,
-          isBlinking
+          isBlinking,
+          hasEyes: true,
+          blinkScores: { left: leftBlink, right: rightBlink }
         };
       }
       return null;
     } catch (err) {
-      console.warn('[Detect error]', err);
+      console.error('FaceDetector detect error:', err);
       return null;
     }
   }

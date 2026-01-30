@@ -4,3 +4,4 @@ AICALL.md
 AI/
 backend/*.sqlite3
 db.sqlite3
+node_modules

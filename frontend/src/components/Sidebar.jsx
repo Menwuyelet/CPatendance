@@ -1,146 +1,164 @@
 // src/components/Sidebar.jsx
-import React from 'react';
+import React, { useMemo, useCallback, memo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import {
+  Dashboard as DashboardIcon,
+  People as PeopleIcon,
+  Domain as DomainIcon,
+  CalendarToday as CalendarTodayIcon,
+  Settings as SettingsIcon,
+  Groups as GroupsIcon,
+  EventNote as EventNoteIcon,
+  Schedule as ScheduleIcon,
+  ExitToApp as ExitToAppIcon,
+  Fingerprint as FingerprintIcon,
+} from '@mui/icons-material';
 
-// Material-UI Icons
-import DashboardIcon from '@mui/icons-material/Dashboard';
-import PeopleIcon from '@mui/icons-material/People';
-import DomainIcon from '@mui/icons-material/Domain';
-import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
-import SettingsIcon from '@mui/icons-material/Settings';
-import GroupsIcon from '@mui/icons-material/Groups';
-import EventNoteIcon from '@mui/icons-material/EventNote';
-import ScheduleIcon from '@mui/icons-material/Schedule';
-import ExitToAppIcon from '@mui/icons-material/ExitToApp';
-import FingerprintIcon from '@mui/icons-material/Fingerprint';
+// Menu configuration - defined outside component to prevent recreation
+const MENU_CONFIG = {
+  Admin: [
+    { text: 'Dashboard', icon: 'dashboard', path: '/dashboard' },
+    { text: 'User Management', icon: 'people', path: '/users' },
+    { text: 'Departments', icon: 'domain', path: '/companies' },
+    { text: 'Attendance', icon: 'calendar', path: '/attendance' },
+    { text: 'Shifts', icon: 'schedule', path: '/attendance/shifts' },
+    { text: 'Sessions', icon: 'event', path: '/attendance/sessions' },
+    { text: 'Biometrics', icon: 'fingerprint', path: '/biometrics' },
+    { text: 'Settings', icon: 'settings', path: '/settings' },
+  ],
+  HR: [
+    { text: 'Dashboard', icon: 'dashboard', path: '/dashboard' },
+    { text: 'Employees', icon: 'people', path: '/employees' },
+    { text: 'Attendance', icon: 'calendar', path: '/attendance' },
+    { text: 'Shifts', icon: 'schedule', path: '/attendance/shifts' },
+    { text: 'Sessions', icon: 'event', path: '/attendance/sessions' },
+    { text: 'Biometrics', icon: 'fingerprint', path: '/biometrics' },
+    { text: 'Settings', icon: 'settings', path: '/settings' },
+  ],
+  Manager: [
+    { text: 'Dashboard', icon: 'dashboard', path: '/manager/dashboard' },
+    { text: 'Team', icon: 'groups', path: '/manager/team' },
+    { text: 'Attendance', icon: 'calendar', path: '/attendance' },
+    { text: 'Shifts', icon: 'schedule', path: '/attendance/shifts' },
+    { text: 'Sessions', icon: 'event', path: '/attendance/sessions' },
+    { text: 'Biometrics', icon: 'fingerprint', path: '/biometrics' },
+    { text: 'Settings', icon: 'settings', path: '/settings' },
+  ],
+  Employee: [
+    { text: 'My Dashboard', icon: 'dashboard', path: '/dashboard' },
+    { text: 'My Attendance', icon: 'event', path: '/attendance' },
+    { text: 'Biometrics', icon: 'fingerprint', path: '/biometrics' },
+    { text: 'Settings', icon: 'settings', path: '/settings' },
+  ],
+};
 
-const Sidebar = ({ role, userName, onLogout }) => {
+// Icon mapping
+const ICONS = {
+  dashboard: <DashboardIcon />,
+  people: <PeopleIcon />,
+  domain: <DomainIcon />,
+  calendar: <CalendarTodayIcon />,
+  settings: <SettingsIcon />,
+  groups: <GroupsIcon />,
+  event: <EventNoteIcon />,
+  schedule: <ScheduleIcon />,
+  fingerprint: <FingerprintIcon />,
+};
+
+// Styles defined outside component
+const styles = {
+  sidebar: {
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100vh',
+    width: '260px',
+    backgroundColor: 'var(--bg-sidebar)',
+    color: 'var(--text-primary)',
+    fontFamily: '"Inter", system-ui, sans-serif',
+    boxShadow: '2px 0 10px rgba(0,0,0,0.05)',
+    overflowY: 'auto',
+  },
+  userSection: {
+    padding: '1.5rem',
+    borderBottom: '1px solid var(--border-subtle)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+  },
+  avatar: {
+    width: '48px',
+    height: '48px',
+    borderRadius: '50%',
+    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: '18px',
+    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+  },
+  nav: { flex: 1, padding: '1rem 0.5rem' },
+  bottomSection: {
+    marginTop: 'auto',
+    padding: '1.5rem',
+    borderTop: '1px solid var(--border-subtle)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+  },
+};
+
+const Sidebar = memo(({ role, userName, onLogout }) => {
   const location = useLocation();
+  const currentMenu = useMemo(() => MENU_CONFIG[role] || MENU_CONFIG.Employee, [role]);
 
-  const menuItems = {
-    Admin: [
-      { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-      { text: 'User Management', icon: <PeopleIcon />, path: '/users' },
-      { text: 'Departments', icon: <DomainIcon />, path: '/companies' },
-      { text: 'Attendance', icon: <CalendarTodayIcon />, path: '/attendance' },
-      { text: 'Shifts', icon: <ScheduleIcon />, path: '/attendance/shifts' },
-      { text: 'Sessions', icon: <EventNoteIcon />, path: '/attendance/sessions' },
-      { text: 'Biometrics', icon: <FingerprintIcon />, path: '/biometrics' },
-      { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
-    ],
-    HR: [
-      { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-      { text: 'Employees', icon: <PeopleIcon />, path: '/employees' },
-      { text: 'Attendance', icon: <CalendarTodayIcon />, path: '/attendance' },
-      { text: 'Shifts', icon: <ScheduleIcon />, path: '/attendance/shifts' },
-      { text: 'Sessions', icon: <EventNoteIcon />, path: '/attendance/sessions' },
-      { text: 'Biometrics', icon: <FingerprintIcon />, path: '/biometrics' },
-      { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
-    ],
-    Manager: [
-      { text: 'Dashboard', icon: <DashboardIcon />, path: '/manager/dashboard' },
-      { text: 'Team', icon: <GroupsIcon />, path: '/manager/team' },
-      { text: 'Attendance', icon: <CalendarTodayIcon />, path: '/attendance' },
-      { text: 'Shifts', icon: <ScheduleIcon />, path: '/attendance/shifts' },
-      { text: 'Sessions', icon: <EventNoteIcon />, path: '/attendance/sessions' },
-      { text: 'Biometrics', icon: <FingerprintIcon />, path: '/biometrics' },
-      { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
-    ],
-    Employee: [
-      { text: 'My Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-      { text: 'My Attendance', icon: <EventNoteIcon />, path: '/attendance' },
-      { text: 'Biometrics', icon: <FingerprintIcon />, path: '/biometrics' }, // NOW ADDED FOR EMPLOYEES!
-      { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
-    ],
-  };
-
-  const currentMenu = menuItems[role] || menuItems.Employee;
-
-  const isActive = (path) => {
+  const isActive = useCallback((path) => {
     return location.pathname === path || location.pathname.startsWith(path + '/');
-  };
+  }, [location.pathname]);
+
+  // Get link styles based on active state
+  const getLinkStyle = useCallback((active) => ({
+    display: 'flex',
+    alignItems: 'center',
+    gap: '14px',
+    padding: '12px 16px',
+    margin: '4px 8px',
+    borderRadius: '10px',
+    textDecoration: 'none',
+    color: active ? 'var(--accent-strong)' : 'var(--text-muted)',
+    backgroundColor: active ? 'var(--accent-soft)' : 'transparent',
+    transition: 'all 0.25s ease',
+    fontSize: '14.5px',
+    fontWeight: active ? '600' : '500',
+  }), []);
 
   return (
-    <div
-      className="sidebar"
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100vh',
-        width: '260px',
-        backgroundColor: 'var(--bg-sidebar)',
-        color: 'var(--text-primary)',
-        fontFamily: '"Inter", system-ui, sans-serif',
-        boxShadow: '2px 0 10px rgba(0,0,0,0.05)',
-        overflowY: 'auto',
-      }}
-    >
+    <div className="sidebar" style={styles.sidebar}>
       {/* User Profile Section */}
-      <div
-        style={{
-          padding: '1.5rem',
-          borderBottom: '1px solid var(--border-subtle)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-        }}
-      >
-        <div
-          style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '50%',
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            fontWeight: 'bold',
-            fontSize: '18px',
-            boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
-          }}
-        >
+      <div style={styles.userSection}>
+        <div style={styles.avatar}>
           {userName?.charAt(0)?.toUpperCase() || 'U'}
         </div>
         <div>
           <div style={{ fontWeight: '600', fontSize: '15px', color: 'var(--text-primary)' }}>
             {userName || 'User'}
           </div>
-          <div
-            style={{
-              fontSize: '12px',
-              color: 'var(--text-muted)',
-              textTransform: 'capitalize',
-            }}
-          >
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
             {role?.toLowerCase() || 'employee'}
           </div>
         </div>
       </div>
 
       {/* Navigation Menu */}
-      <nav style={{ flex: 1, padding: '1rem 0.5rem' }}>
+      <nav style={styles.nav}>
         {currentMenu.map((item) => {
           const active = isActive(item.path);
-
           return (
             <Link
-              key={item.text}
+              key={item.path}
               to={item.path}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '14px',
-                padding: '12px 16px',
-                margin: '4px 8px',
-                borderRadius: '10px',
-                textDecoration: 'none',
-                color: active ? 'var(--accent-strong)' : 'var(--text-muted)',
-                backgroundColor: active ? 'var(--accent-soft)' : 'transparent',
-                transition: 'all 0.25s ease',
-                fontSize: '14.5px',
-                fontWeight: active ? '600' : '500',
-              }}
+              style={getLinkStyle(active)}
               onMouseEnter={(e) => {
                 if (!active) {
                   e.currentTarget.style.backgroundColor = 'var(--hover-bg)';
@@ -154,15 +172,8 @@ const Sidebar = ({ role, userName, onLogout }) => {
                 }
               }}
             >
-              <span
-                style={{
-                  opacity: active ? 1 : 0.7,
-                  display: 'flex',
-                  alignItems: 'center',
-                  fontSize: '20px',
-                }}
-              >
-                {item.icon}
+              <span style={{ opacity: active ? 1 : 0.7, display: 'flex', alignItems: 'center', fontSize: '20px' }}>
+                {ICONS[item.icon]}
               </span>
               <span>{item.text}</span>
             </Link>
@@ -170,20 +181,11 @@ const Sidebar = ({ role, userName, onLogout }) => {
         })}
       </nav>
 
-      {/* Bottom Section - Logout & Status */}
-      <div
-        style={{
-          marginTop: 'auto',
-          padding: '1.5rem',
-          borderTop: '1px solid var(--border-subtle)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px',
-        }}
-      >
-        {/* Logout Button */}
+      {/* Bottom Section */}
+      <div style={styles.bottomSection}>
         <button
           onClick={onLogout}
+          type="button"
           style={{
             width: '100%',
             display: 'flex',
@@ -212,23 +214,22 @@ const Sidebar = ({ role, userName, onLogout }) => {
           <span>Logout</span>
         </button>
 
-        {/* System Status */}
-        <div
-          style={{
-            padding: '10px',
-            fontSize: '11.5px',
-            color: 'var(--text-muted)',
-            background: 'rgba(34, 197, 94, 0.1)',
-            borderRadius: '8px',
-            textAlign: 'center',
-            fontWeight: '500',
-          }}
-        >
+        <div style={{
+          padding: '10px',
+          fontSize: '11.5px',
+          color: 'var(--text-muted)',
+          background: 'rgba(34, 197, 94, 0.1)',
+          borderRadius: '8px',
+          textAlign: 'center',
+          fontWeight: '500',
+        }}>
           System: <span style={{ color: '#22c55e' }}>● Online</span>
         </div>
       </div>
     </div>
   );
-};
+});
+
+Sidebar.displayName = 'Sidebar';
 
 export default Sidebar;

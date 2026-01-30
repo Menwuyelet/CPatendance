@@ -1,30 +1,30 @@
 // src/components/Toast.jsx
-import React, { useEffect } from 'react';
+import React, { useEffect, memo, useMemo } from 'react';
 import { Box, Typography, IconButton } from '@mui/material';
 import { CheckCircle, Info, Warning, Error as ErrorIcon, Close } from '@mui/icons-material';
 
-const Toast = ({ message, type = 'success', onClose }) => {
-  // Move useEffect BEFORE the early return
+// Toast configuration - defined outside component
+const TOAST_CONFIG = {
+  success: { icon: <CheckCircle />, color: '#4caf50', bg: '#e8f5e9' },
+  info: { icon: <Info />, color: '#2196f3', bg: '#e3f2fd' },
+  warning: { icon: <Warning />, color: '#ff9800', bg: '#fff8e1' },
+  error: { icon: <ErrorIcon />, color: '#f44336', bg: '#ffebee' },
+};
+
+const Toast = memo(({ message, type = 'success', onClose }) => {
+  // Auto-dismiss timer
   useEffect(() => {
     if (!message) return;
-
-    const timer = setTimeout(() => {
-      onClose?.();
-    }, 4000);
-
+    const timer = setTimeout(() => onClose?.(), 4000);
     return () => clearTimeout(timer);
   }, [message, onClose]);
 
+  // Get config for current type
+  const { icon, color, bg } = useMemo(() => 
+    TOAST_CONFIG[type] || TOAST_CONFIG.success
+  , [type]);
+
   if (!message) return null;
-
-  const config = {
-    success: { icon: <CheckCircle />, color: '#4caf50', bg: '#e8f5e9' },
-    info: { icon: <Info />, color: '#2196f3', bg: '#e3f2fd' },
-    warning: { icon: <Warning />, color: '#ff9800', bg: '#fff8e1' },
-    error: { icon: <ErrorIcon />, color: '#f44336', bg: '#ffebee' },
-  };
-
-  const { icon, color, bg } = config[type] || config.success;
 
   return (
     <Box
@@ -60,6 +60,8 @@ const Toast = ({ message, type = 'success', onClose }) => {
       </IconButton>
     </Box>
   );
-};
+});
+
+Toast.displayName = 'Toast';
 
 export default Toast;
