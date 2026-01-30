@@ -28,14 +28,22 @@ def create_user(email, password, roles=None, employee_data=None):
 
 def update_user(user, **kwargs):
     """
-    Updates user fields and roles.
+    Updates user fields and roles safely.
     """
-    roles = kwargs.pop('roles', None)
+    roles = kwargs.pop("roles", None)
+    password = kwargs.pop("password", None)
+
     for attr, value in kwargs.items():
         setattr(user, attr, value)
+
+    if password:
+        user.set_password(password)
+
     user.save()
+
     if roles is not None:
         user.roles.set(roles)
+
     return user
 
 
