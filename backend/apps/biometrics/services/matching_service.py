@@ -19,112 +19,84 @@ class BiometricMatchingService:
     @staticmethod
     def match_face(embedding, shift):
         """
-        Match a captured embedding against stored embeddings
-        for employees assigned to the given shift.
-
         Returns:
-            employee_id (int) if match found
-            None if no match
+            employee_id if match found
+            None if no match or error
         """
+
         if embedding is None:
-            return Response(
-                {"detail": "No embedding provided to perform matching."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            return None
 
-            )
-
-        """
-        Load {employee_id: embedding} for the given shift
-        """
         stored_embeddings = ShiftEmbeddingLoader.load_for_shift(shift=shift)
 
         if not stored_embeddings:
-            return Response(
-                {"detail": "No stored embeddings found."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-        
-        """
-        This normalizes the provided embedding.
-        """
+            return None
+
         normalized_embedding = BiometricMatchingService._normalize(embedding)
         if normalized_embedding is None:
-            return Response(
-                {"detail": "No Normalized embedding found."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return None
 
         for employee_id, stored_embedding in stored_embeddings.items():
-            """
-            This normalizes the stored embeddings and try to match them with the provided embedding.
-            """
             normalized_stored = BiometricMatchingService._normalize(stored_embedding)
             if normalized_stored is None:
                 continue
 
-            """
-            This uses the _is_match method to compare the embeddings and give output.
-            """
             if BiometricMatchingService._is_match(
-                normalized_embedding, normalized_stored
+                normalized_embedding,
+                normalized_stored
             ):
                 return employee_id
 
-        return Response(
-                {"detail": "No stored embeddings matches the users embedidng."},
-                status=status.HTTP_404_NOT_FOUND
-        )
-
+        return None
 
     @staticmethod
     def _normalize(vector):
         """
-        This method is used to normalize the embeddings to perform matching actions.
+        Normalize embedding to unit length.
+
+        Returns:
+            np.ndarray (512,)
+            None if invalid
         """
         try:
             vector = np.array(vector, dtype=np.float32).reshape(-1).copy()
 
+            # Must be 512-d
             if vector.shape[0] != 512:
-                return Response(
-                            {"detail": "The given embedding is not the right size."},
-                            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
+                # print("[WARN] Embedding size mismatch:", vector.shape)
+                return None
 
+            # NaN check
             if np.isnan(vector).any():
-                return Response(
-                    {"detail": "Invalid type of embedding used."},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
+                # print("[WARN] Embedding contains NaN")
+                return None
 
             norm = np.linalg.norm(vector)
             if norm == 0:
-                return Response(
-                    {"detail": "Normalization faild."},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
+                # print("[WARN] Zero norm embedding")
+                return None
 
             return vector / norm
 
         except Exception as e:
-            return Response(
-                    {"ERROR": "Normalization faild.", "detail": e},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
+            # print("[ERROR] Normalize failed:", e)
+            return None
 
 
     @staticmethod
     def _is_match(embedding, stored_embedding, threshold=0.6):
         """
-        This method performs the cossine comparation to determine match faces.
+        Cosine similarity comparison.
+
+        Both embeddings assumed normalized.
         """
+
         embedding = np.array(embedding, dtype=np.float32).flatten()
         stored_embedding = np.array(stored_embedding, dtype=np.float32).flatten()
 
         if embedding.shape != stored_embedding.shape:
-            return Response(
-                    {"detail": "Shape of the embeddings mismatch"},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
+            print("[WARN] Shape mismatch:", embedding.shape, stored_embedding.shape)
+            return False
 
         similarity = float(np.dot(embedding, stored_embedding))
 

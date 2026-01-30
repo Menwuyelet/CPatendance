@@ -52,11 +52,12 @@ class ShiftEmbeddingLoader:
                 decrypted,
                 dtype=np.float32
             )
-            
-            if embedding.size == 0:
+            embedding = embedding.reshape(-1)
+
+            if embedding.shape[0] != 512:
                 return None
             
-            return embedding
+            return embedding.copy()
 
         except Exception:
             return None
