@@ -306,7 +306,7 @@ const Departments = ({ onNotify }) => {
   }
 
   return (
-    <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: '1200px', mx: 'auto' }}>
+    <Box >
       <Card sx={{ mb: 3 }}>
         <CardHeader
           title="Departments"
