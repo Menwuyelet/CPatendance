@@ -83,6 +83,7 @@ class BiometricProfileViewSet(ViewSet):
     - List biometric profiles
     - Activate / Deactivate biometric access
     """
+    serializer_class = BiometricProfileSerializer
     
     def list(self, request):
         """
