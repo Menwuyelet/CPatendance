@@ -55,9 +55,18 @@ class AttendanceSessionService:
         )
 
         if not created:
-            print(f"[WARN] Duplicate entry for {entry.employee}")
+            logger.warning(
+                "SESSION_DUPLICATE_ENTRY | session_id=%s | employee_id=%s",
+                self.session.id,
+                employee_id,
+            )
             return "STOP_DUPLICATE"
 
+        logger.warning(
+            "SESSION_DUPLICATE_ENTRY | session_id=%s | employee_id=%s",
+            self.session.id,
+            employee_id,
+        )
         return "STOP_SUCCESS"
 
     def check_in_next_worker(self, image_bytes):
@@ -65,6 +74,11 @@ class AttendanceSessionService:
 
         Returns the same status strings as `process_embedding`.
         """
+        logger.info(
+            "SESSION_IMAGE_RECEIVED | session_id=%s",
+            self.session.id,
+        )
+
         embedding = FaceEngine.image_to_embedding(image_bytes)
 
         if embedding is None:
@@ -82,12 +96,28 @@ class AttendanceSessionService:
         Does NOT create AttendanceRecord.
         """
         if not self.session.is_active:
+            logger.warning(
+                "SESSION_CLOSE_SKIPPED | reason=already_closed | session_id=%s",
+                self.session.id,
+            )
             return []
 
-        AttendanceAbsenceService.mark_absent_for_session(self.session)
+        logger.info(
+            "SESSION_CLOSE_STARTED | session_id=%s",
+            self.session.id,
+        )
+
+        absent_count = AttendanceAbsenceService.mark_absent_for_session(self.session)
+
         self.session.is_active = False
         self.session.ended_at = timezone.now()
         self.session.save(update_fields=["is_active", "ended_at"])
+
+        logger.info(
+            "SESSION_CLOSE_COMPLETED | session_id=%s | absent_count=%s",
+            self.session.id,
+            absent_count,
+        )
 
         return list(
             self.session.entries.select_related("employee").order_by("recognized_at")

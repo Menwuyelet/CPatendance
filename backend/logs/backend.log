@@ -659,3 +659,34 @@
 2026-01-31 08:33:47,497 INFO django.utils.autoreload Watching for file changes with StatReloader
 2026-01-31 08:33:49,741 INFO attendance-backend.biometrics.services.face_engine FACE_ENGINE_INIT_STARTED
 2026-01-31 08:33:53,140 INFO attendance-backend.biometrics.services.face_engine FACE_ENGINE_INIT_SUCCESS
+2026-01-31 08:49:34,601 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-31 08:49:37,927 INFO attendance-backend.biometrics.services.face_engine FACE_ENGINE_INIT_STARTED
+2026-01-31 08:49:42,511 INFO attendance-backend.biometrics.services.face_engine FACE_ENGINE_INIT_SUCCESS
+2026-01-31 08:50:35,164 INFO attendance-backend.employees.services.employee_service event=employee_list_started user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-31 08:50:35,177 INFO attendance-backend.employees.services.employee_service event=employee_list_granted role=hr user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-31 08:50:35,345 INFO attendance-backend.employees.services.employee_service event=employee_list_started user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-31 08:50:35,350 INFO attendance-backend.employees.services.employee_service event=employee_list_granted role=hr user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-31 08:50:49,787 INFO attendance-backend.biometrics.services.face_engine FACE_EMBEDDING_EXTRACTION_STARTED | image_size=60233
+2026-01-31 08:50:51,995 INFO attendance-backend.biometrics.services.face_engine FACE_EMBEDDING_EXTRACTION_SUCCESS | embedding_dim=512
+2026-01-31 08:50:52,000 INFO attendance-backend.biometrics.services.matching_service BIOMETRIC_MATCH_STARTED | shift_id=9
+2026-01-31 08:50:52,013 INFO attendance-backend.biometrics.services.employe_embedding_load_service event=shift_embedding_load_started context={'shift_id': 9}
+2026-01-31 08:50:52,037 INFO attendance-backend.biometrics.services.encryption_service BIOMETRIC_DECRYPT_STARTED | payload_size=2828
+2026-01-31 08:50:52,060 INFO attendance-backend.biometrics.services.encryption_service BIOMETRIC_DECRYPT_SUCCESS | decrypted_size=2048
+2026-01-31 08:50:52,060 INFO attendance-backend.biometrics.services.employe_embedding_load_service event=shift_embedding_load_completed status=success context={'shift_id': 9, 'loaded_embeddings': 1, 'duration': 0.047}
+2026-01-31 08:50:52,062 INFO attendance-backend.biometrics.services.matching_service BIOMETRIC_SIMILARITY_COMPUTED | similarity=0.5533 | threshold=0.60
+2026-01-31 08:50:52,062 INFO attendance-backend.biometrics.services.matching_service BIOMETRIC_MATCH_FAILED | shift_id=9
+2026-01-31 08:50:52,063 INFO attendance-backend.attendance.services.attendance_session_service SESSION_EMBEDDING_PROCESS_STARTED | session_id=44
+2026-01-31 08:50:52,064 WARNING django.request Bad Request: /api/attendance/attendance-check-in/
+2026-01-31 08:51:45,944 INFO attendance-backend.biometrics.services.face_engine FACE_EMBEDDING_EXTRACTION_STARTED | image_size=63864
+2026-01-31 08:51:48,009 INFO attendance-backend.biometrics.services.face_engine FACE_EMBEDDING_EXTRACTION_SUCCESS | embedding_dim=512
+2026-01-31 08:51:48,012 INFO attendance-backend.biometrics.services.matching_service BIOMETRIC_MATCH_STARTED | shift_id=9
+2026-01-31 08:51:48,013 INFO attendance-backend.biometrics.services.employe_embedding_load_service event=shift_embedding_load_started context={'shift_id': 9}
+2026-01-31 08:51:48,016 INFO attendance-backend.biometrics.services.encryption_service BIOMETRIC_DECRYPT_STARTED | payload_size=2828
+2026-01-31 08:51:48,017 INFO attendance-backend.biometrics.services.encryption_service BIOMETRIC_DECRYPT_SUCCESS | decrypted_size=2048
+2026-01-31 08:51:48,018 INFO attendance-backend.biometrics.services.employe_embedding_load_service event=shift_embedding_load_completed status=success context={'shift_id': 9, 'loaded_embeddings': 1, 'duration': 0.005}
+2026-01-31 08:51:48,018 INFO attendance-backend.biometrics.services.matching_service BIOMETRIC_SIMILARITY_COMPUTED | similarity=0.6396 | threshold=0.60
+2026-01-31 08:51:48,018 INFO attendance-backend.biometrics.services.matching_service BIOMETRIC_MATCH_SUCCESS | shift_id=9 | employee_id=9dc9c1c7-3587-4880-9790-1d229f8a5a28
+2026-01-31 08:51:48,025 WARNING django.request Bad Request: /api/attendance/attendance-check-in/
+2026-01-31 08:58:43,839 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/attendance/services/attendance_session_service.py changed, reloading.
+2026-01-31 08:58:49,364 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-31 08:58:53,307 INFO attendance-backend.biometrics.services.face_engine FACE_ENGINE_INIT_STARTED
