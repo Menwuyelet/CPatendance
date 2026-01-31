@@ -7,12 +7,15 @@ from django.utils import timezone
 from attendance.models import AttendanceSessionEntry
 from biometrics.services.matching_service import BiometricMatchingService
 from attendance.services.attendance_service import AttendanceAbsenceService
-
 from biometrics.services.face_engine import FaceEngine
+from config.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 class AttendanceSessionService:
     """
-    Attendance business logic 
+    Attendance business logic
     """
 
     def __init__(self, session):
@@ -27,7 +30,7 @@ class AttendanceSessionService:
         - "TRY_AGAIN" when no matching employee
         - "STOP_DUPLICATE" when the employee already has an entry
         - "STOP_SUCCESS" when an entry was created
-        - ""NO_FACE_DETECTED" when no face is detected on the image sent
+        - "NO_FACE_DETECTED" when no face is detected on the image sent
         """
         if not self.session.is_active:
             logger.warning(
@@ -36,9 +39,7 @@ class AttendanceSessionService:
             )
             return "NO_ACTIVE_SESSION"
 
-        employee_id = BiometricMatchingService.match_face(
-            embedding, self.session.shift
-        )
+        employee_id = BiometricMatchingService.match_face(embedding, self.session.shift)
 
         if not employee_id:
             logger.info(
@@ -58,7 +59,6 @@ class AttendanceSessionService:
             return "STOP_DUPLICATE"
 
         return "STOP_SUCCESS"
-
 
     def check_in_next_worker(self, image_bytes):
         """Convert an uploaded image to an embedding and process it.
@@ -83,14 +83,12 @@ class AttendanceSessionService:
         """
         if not self.session.is_active:
             return []
-        
+
         AttendanceAbsenceService.mark_absent_for_session(self.session)
         self.session.is_active = False
         self.session.ended_at = timezone.now()
         self.session.save(update_fields=["is_active", "ended_at"])
 
         return list(
-            self.session.entries
-            .select_related("employee")
-            .order_by("recognized_at")
+            self.session.entries.select_related("employee").order_by("recognized_at")
         )
