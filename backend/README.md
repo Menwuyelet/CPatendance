@@ -1,0 +1,1 @@
+## donnot forget on setting to do a secure ssl redirect
