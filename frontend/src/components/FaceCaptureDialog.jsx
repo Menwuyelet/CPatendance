@@ -8,66 +8,96 @@ import {
   Stack,
   Button,
   LinearProgress,
+  Alert,
+  IconButton
 } from '@mui/material';
+import { Close as CloseIcon } from '@mui/icons-material';
 
 export default function FaceCaptureDialog({ open, onClose, onCaptured }) {
   const videoRef = useRef(null);
   const [status, setStatus] = useState('Initializing...');
+  const [error, setError] = useState(null);
   const [isFaceValid, setIsFaceValid] = useState(false);
   const [countdown, setCountdown] = useState(null);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  
   const isCapturing = useRef(false);
   const countdownInterval = useRef(null);
   const detectionInterval = useRef(null);
 
-  // Reset all states when dialog opens (Allows re-capture)
+  // 1. Load Models on Mount
   useEffect(() => {
-    if (open) {
-      isCapturing.current = false;
-      setIsFaceValid(false);
-      setCountdown(null);
-      setStatus('Loading Models...');
-      loadModels();
-    } else {
-      stopCamera();
-    }
-  }, [open]);
+    const loadModels = async () => {
+      try {
+        const MODEL_URL = '/models'; 
+        // Using Task.all to ensure both are ready
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+        ]);
+        setModelsLoaded(true);
+        setStatus('Ready');
+      } catch (e) {
+        console.error("Model Load Error:", e);
+        setError('Face models could not be loaded. Check /public/models path.');
+      }
+    };
+    loadModels();
+  }, []);
 
-  const loadModels = async () => {
-    try {
-      const MODEL_URL = '/models';
-      await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-      ]);
-      setStatus('Ready! Center your face');
-      startCamera();
-    } catch (e) {
-      setStatus('Error: Models not found');
+  // 2. Camera Management
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const tracks = videoRef.current.srcObject.getTracks();
+      tracks.forEach(track => track.stop());
+      videoRef.current.srcObject = null;
     }
+    clearInterval(detectionInterval.current);
+    clearInterval(countdownInterval.current);
+    resetState();
+  };
+
+  const resetState = () => {
+    setIsFaceValid(false);
+    setCountdown(null);
+    isCapturing.current = false;
+    countdownInterval.current = null;
   };
 
   const startCamera = async () => {
+    setError(null);
+    setStatus('Starting Camera...');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { width: 640, height: 480, facingMode: 'user' } 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { 
+          facingMode: 'user',
+          width: { ideal: 640 },
+          height: { ideal: 480 }
+        }
       });
-      if (videoRef.current) videoRef.current.srcObject = stream;
-    } catch (e) {
-      setStatus('Camera Access Denied');
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+        setStatus('Align your face');
+      }
+    } catch (err) {
+      setError(err.name === 'NotAllowedError' ? 'Camera access denied.' : 'No camera found or HTTPS required.');
     }
   };
 
-  const stopCamera = () => {
-    const stream = videoRef.current?.srcObject;
-    stream?.getTracks().forEach(t => t.stop());
-    if (videoRef.current) videoRef.current.srcObject = null;
-    clearInterval(detectionInterval.current);
-    clearInterval(countdownInterval.current);
-  };
+  useEffect(() => {
+    if (open && modelsLoaded) {
+      startCamera();
+    } else {
+      stopCamera();
+    }
+    return () => stopCamera();
+  }, [open, modelsLoaded]);
 
+  // 3. Face Detection Logic
   const onPlay = () => {
     detectionInterval.current = setInterval(async () => {
-      if (!videoRef.current || isCapturing.current) return;
+      if (!videoRef.current || isCapturing.current || !modelsLoaded) return;
 
       const detection = await faceapi.detectSingleFace(
         videoRef.current,
@@ -75,58 +105,45 @@ export default function FaceCaptureDialog({ open, onClose, onCaptured }) {
       ).withFaceLandmarks();
 
       if (detection) {
-        const box = detection.detection.box;
-        const landmarks = detection.landmarks;
+        const { box } = detection.detection;
         
-        // 1. Check if face is too small (too far away)
-        if (box.width < 150) {
-          setStatus('Please move closer to the camera');
+        // Logical bounds for a 640x480 stream inside a 280x280 circle
+        const isCentered = box.x > 80 && (box.x + box.width) < 560;
+        const isRightSize = box.width > 150 && box.width < 350;
+
+        if (isCentered && isRightSize) {
+          if (!isFaceValid) {
+            setIsFaceValid(true);
+            startCountdown();
+          }
+          setStatus('Perfect, hold still...');
+        } else {
           setIsFaceValid(false);
           resetCountdown();
-          return;
-        }
-
-        // 2. Check if face is roughly centered in video (640x480)
-        const faceCenterX = box.x + box.width / 2;
-        if (faceCenterX < 150 || faceCenterX > 490) {
-          setStatus('Center your face in the circle');
-          setIsFaceValid(false);
-          resetCountdown();
-          return;
-        }
-
-        // 3. Face is valid
-        if (!isFaceValid) {
-          setIsFaceValid(true);
-          startCountdown();
-        }
-        setStatus('Looking good! Hold still...');
-
-        // Instant Capture on Blink
-        if (checkBlink(landmarks.getLeftEye()) || checkBlink(landmarks.getRightEye())) {
-          triggerCapture();
+          setStatus(isRightSize ? 'Center your face' : 'Move closer');
         }
       } else {
         setIsFaceValid(false);
         resetCountdown();
-        setStatus('No face detected. Look at the camera');
+        setStatus('Scanning for face...');
       }
     }, 200);
   };
 
   const startCountdown = () => {
-    if (countdownInterval.current) clearInterval(countdownInterval.current);
-    let count = 5; // Increased to 5 seconds for better client ease
+    if (countdownInterval.current) return;
+    let count = 3;
     setCountdown(count);
+    
     countdownInterval.current = setInterval(() => {
       count -= 1;
-      if (count > 0) {
-        setCountdown(count);
-      } else {
+      if (count <= 0) {
         clearInterval(countdownInterval.current);
         triggerCapture();
+      } else {
+        setCountdown(count);
       }
-    }, 1000);
+    }, 800);
   };
 
   const resetCountdown = () => {
@@ -135,19 +152,10 @@ export default function FaceCaptureDialog({ open, onClose, onCaptured }) {
     setCountdown(null);
   };
 
-  const checkBlink = (eye) => {
-    const height = Math.abs(eye[1].y - eye[5].y);
-    const width = Math.abs(eye[0].x - eye[3].x);
-    return (height / width) < 0.20;
-  };
-
+  // 4. Capture and Send to Parent
   const triggerCapture = () => {
     if (isCapturing.current) return;
     isCapturing.current = true;
-    
-    clearInterval(detectionInterval.current);
-    resetCountdown();
-    setStatus('Capturing Attendance...');
     
     const video = videoRef.current;
     const canvas = document.createElement('canvas');
@@ -155,71 +163,89 @@ export default function FaceCaptureDialog({ open, onClose, onCaptured }) {
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
     
+    // Mirror the frame to match what the user sees
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0);
     
     canvas.toBlob((blob) => {
-      const file = new File([blob], 'attendance.jpg', { type: 'image/jpeg' });
-      onCaptured(file);
-      onClose();
-    }, 'image/jpeg', 0.95);
+      const file = new File([blob], 'face_capture.jpg', { type: 'image/jpeg' });
+      // Send to Biometrics.jsx component
+      onCaptured(file); 
+      // Stop and Close
+      stopCamera();
+    }, 'image/jpeg', 0.95); // High quality to reduce "Face not clear" errors
   };
 
   return (
-    <Dialog open={open} onClose={onClose} PaperProps={{ sx: { borderRadius: 4 } }}>
-      <DialogContent>
-        <Stack alignItems="center" spacing={3} sx={{ py: 2, px: 1 }}>
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 4 } }}>
+      <Box sx={{ position: 'absolute', right: 8, top: 8, zIndex: 10 }}>
+        <IconButton onClick={onClose}><CloseIcon /></IconButton>
+      </Box>
+
+      <DialogContent sx={{ p: 4 }}>
+        <Stack spacing={3} alignItems="center">
+          <Typography variant="h6" fontWeight="bold">Face Verification</Typography>
+          
+          {error && <Alert severity="error" sx={{ width: '100%' }}>{error}</Alert>}
+          
+          {/* Circular Video Container */}
           <Box sx={{ 
-            position: 'relative', 
-            width: 320, 
-            height: 320, 
-            borderRadius: '50%', 
-            overflow: 'hidden',
-            border: '8px solid',
-            borderColor: isFaceValid ? '#4caf50' : '#ff9800', // Green if good, Orange if warning
-            boxShadow: isFaceValid ? '0 0 30px rgba(76, 175, 80, 0.5)' : 'none',
-            transition: 'all 0.3s ease',
-            bgcolor: '#000'
+            position: 'relative', width: 260, height: 260, borderRadius: '50%', 
+            overflow: 'hidden', border: '5px solid', 
+            borderColor: isFaceValid ? 'success.main' : 'primary.main',
+            boxShadow: isFaceValid ? '0 0 20px rgba(76, 175, 80, 0.4)' : 'none',
+            bgcolor: 'black', transition: 'all 0.3s ease'
           }}>
             <video
               ref={videoRef}
               autoPlay
               muted
-              onPlay={onPlay}
               playsInline
+              onPlay={onPlay}
               style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
             />
+            
+            {/* Detection HUD */}
+            <Box sx={{
+                position: 'absolute', inset: 0, 
+                border: '2px dashed rgba(255,255,255,0.3)', 
+                borderRadius: '50%', m: 2, pointerEvents: 'none'
+            }} />
 
-            {countdown && (
+            {countdown !== null && (
               <Box sx={{
-                position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'rgba(0,0,0,0.3)', pointerEvents: 'none'
+                position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', 
+                justifyContent: 'center', bgcolor: 'rgba(0,0,0,0.3)', zIndex: 2
               }}>
-                <Typography sx={{ fontSize: '7rem', color: '#fff', fontWeight: 'bold' }}>
+                <Typography variant="h1" sx={{ color: 'white', fontWeight: '900', textShadow: '2px 2px 10px rgba(0,0,0,0.5)' }}>
                   {countdown}
                 </Typography>
               </Box>
             )}
           </Box>
 
-          <Box sx={{ width: '100%', textAlign: 'center', minHeight: '60px' }}>
-            <Typography variant="h6" sx={{ fontWeight: 'bold', color: isFaceValid ? '#2e7d32' : '#d32f2f' }}>
+          <Box sx={{ width: '100%', textAlign: 'center' }}>
+            <Typography variant="body1" sx={{ 
+              fontWeight: 'bold', 
+              color: isFaceValid ? 'success.main' : 'text.primary',
+              minHeight: '1.5em'
+            }}>
               {status}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Attendance Liveness Detection
-            </Typography>
+            <LinearProgress 
+              variant={isFaceValid ? "determinate" : "indeterminate"} 
+              value={isFaceValid ? (4 - countdown) * 25 : 100}
+              color={isFaceValid ? "success" : "primary"}
+              sx={{ mt: 2, borderRadius: 2, height: 8 }}
+            />
           </Box>
 
-          {isFaceValid && !isCapturing.current && (
-            <LinearProgress color="success" sx={{ width: '100%', height: 6, borderRadius: 3 }} />
-          )}
+          <Typography variant="caption" color="text.secondary" textAlign="center">
+            Make sure you are in a bright area and looking directly at the camera.
+          </Typography>
 
-          <Button onClick={onClose} variant="outlined" color="inherit" fullWidth>
-            Cancel
-          </Button>
+          <Button onClick={onClose} fullWidth color="inherit">Cancel</Button>
         </Stack>
       </DialogContent>
     </Dialog>
