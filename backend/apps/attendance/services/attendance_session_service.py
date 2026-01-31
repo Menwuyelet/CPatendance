@@ -23,20 +23,29 @@ class AttendanceSessionService:
         """Process a single face embedding and record a session entry.
 
         Returns a status string indicating how the caller should proceed:
-        - "STOP_UNKNOWN" when session inactive or error
-        - "CONTINUE" when no matching employee
+        - "NO_ACTIVE_SESSION" when session inactive or error
+        - "TRY_AGAIN" when no matching employee
         - "STOP_DUPLICATE" when the employee already has an entry
         - "STOP_SUCCESS" when an entry was created
+        - ""NO_FACE_DETECTED" when no face is detected on the image sent
         """
         if not self.session.is_active:
-            return "STOP_UNKNOWN"
+            logger.warning(
+                "SESSION_PROCESS_DENIED | reason=session_inactive | session_id=%s",
+                self.session.id,
+            )
+            return "NO_ACTIVE_SESSION"
 
         employee_id = BiometricMatchingService.match_face(
             embedding, self.session.shift
         )
 
         if not employee_id:
-            return "CONTINUE"
+            logger.info(
+                "SESSION_EMBEDDING_PROCESS_STARTED | session_id=%s",
+                self.session.id,
+            )
+            return "TRY_AGAIN"
 
         entry, created = AttendanceSessionEntry.objects.get_or_create(
             session=self.session,
@@ -59,7 +68,11 @@ class AttendanceSessionService:
         embedding = FaceEngine.image_to_embedding(image_bytes)
 
         if embedding is None:
-            return "CONTINUE"
+            logger.info(
+                "SESSION_NO_FACE_DETECTED | session_id=%s",
+                self.session.id,
+            )
+            return "NO_FACE_DETECTED"
 
         return self.process_embedding(embedding)
 
