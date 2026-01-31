@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -30,6 +31,14 @@ DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
 
+# SECURE_SSL_REDIRECT = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+
+
+X_FRAME_OPTIONS = 'DENY'
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
 
 # Application definition
 
@@ -195,7 +204,7 @@ SPECTACULAR_SETTINGS = {
 }
 
 
-BIOMETRIC_SECRET_KEY = os.environ.get('BIOMETRIC_SECRET_KEY')
+BIOMETRIC_SECRET_KEY = os.environ.get("BIOMETRIC_SECRET_KEY")
 
 from cryptography.fernet import Fernet
 
@@ -229,4 +238,3 @@ LOGGING = {
         "level": "INFO",
     },
 }
-
