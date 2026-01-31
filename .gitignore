@@ -7,3 +7,5 @@ backend/venv
 backend/.env
 node_modules
 backend/logs/*.log
+
+
