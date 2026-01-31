@@ -24,15 +24,16 @@ from attendance.api.serializers import (
     AttendanceSerializer,
     AttendanceSessionSerializer,
     ShiftSerializer,
-    EmployeeShiftSerializer
+    EmployeeShiftSerializer,
 )
+
 
 class AttendanceSessionCreateViewSet(ViewSet):
     """
     HR / Manager starts attendance session
     """
 
-    permission_classes = [IsAuthenticated, IsHRorManager | IsAdmin]  
+    permission_classes = [IsAuthenticated, IsHRorManager | IsAdmin]
 
     def create(self, request):
         """Start a new attendance session for a given shift.
@@ -65,8 +66,7 @@ class AttendanceSessionCreateViewSet(ViewSet):
 
         if not session.is_active:
             return Response(
-                {"detail": "Session already closed"},
-                status=status.HTTP_400_BAD_REQUEST
+                {"detail": "Session already closed"}, status=status.HTTP_400_BAD_REQUEST
             )
 
         service = AttendanceSessionService(session)
@@ -79,9 +79,9 @@ class AttendanceSessionCreateViewSet(ViewSet):
             {
                 "session_id": session.id,
                 "entries_count": len(raw_entries),
-                "status": "closed"
+                "status": "closed",
             },
-            status=status.HTTP_200_OK
+            status=status.HTTP_200_OK,
         )
 
 
@@ -95,17 +95,15 @@ class AttendanceSessionViewSet(ViewSet):
 
     def list(self, request):
         """List attendance sessions visible to the requesting user."""
-        qs = AttendanceSession.objects.select_related(
-                        "shift",
-                        "started_by"
-                    ).order_by("-started_at")
+        qs = AttendanceSession.objects.select_related("shift", "started_by").order_by(
+            "-started_at"
+        )
         if request.user.is_admin() or request.user.is_hr():
             """
             Admin and HR can see all the attendance sessions.
             """
             pass
 
-       
         elif request.user.is_department_manager():
             """
             Department manager can only see the attendance sessions of its own team.
@@ -122,7 +120,6 @@ class AttendanceSessionViewSet(ViewSet):
         else:
             qs = qs.none()
 
-        
         active = request.query_params.get("active")
         if active is not None:
             qs = qs.filter(is_active=(active.lower() == "true"))
@@ -132,10 +129,8 @@ class AttendanceSessionViewSet(ViewSet):
             qs = qs.filter(shift_id=shift_id)
 
         return Response(
-            AttendanceSessionSerializer(qs, many=True).data,
-            status=status.HTTP_200_OK
+            AttendanceSessionSerializer(qs, many=True).data, status=status.HTTP_200_OK
         )
-
 
     def retrieve(self, request, pk=None):
         """Retrieve a single attendance session by id after permission checks."""
@@ -143,10 +138,8 @@ class AttendanceSessionViewSet(ViewSet):
         self._check_permission(request, session)
 
         return Response(
-            AttendanceSessionSerializer(session).data,
-            status=status.HTTP_200_OK
+            AttendanceSessionSerializer(session).data, status=status.HTTP_200_OK
         )
-
 
     def update(self, request, pk=None):
         """Partially update an attendance session (e.g., mark closed)."""
@@ -157,13 +150,11 @@ class AttendanceSessionViewSet(ViewSet):
         if not (request.user.is_admin() or request.user.is_hr()):
             return Response(
                 {"detail": "Not allowed to modify attendance sessions"},
-                status=status.HTTP_403_FORBIDDEN
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         serializer = AttendanceSessionSerializer(
-            session,
-            data=request.data,
-            partial=True
+            session, data=request.data, partial=True
         )
         serializer.is_valid(raise_exception=True)
 
@@ -177,11 +168,9 @@ class AttendanceSessionViewSet(ViewSet):
         serializer.save()
 
         return Response(
-            AttendanceSessionSerializer(session).data,
-            status=status.HTTP_200_OK
+            AttendanceSessionSerializer(session).data, status=status.HTTP_200_OK
         )
 
-   
     def _check_permission(self, request, session):
         """Internal helper that raises when the `request.user` cannot access `session`.
 
@@ -201,12 +190,13 @@ class AttendanceSessionViewSet(ViewSet):
 
         raise PermissionError("Not allowed to access this session")
 
+
 class AttendanceTakingViewSet(ViewSet):
     """
     One button click → one worker check-in (via facial recognition)
     """
-    parser_classes = [MultiPartParser]
 
+    parser_classes = [MultiPartParser]
 
     def create(self, request):
         """Handle POST with image to perform a single facial check-in.
@@ -218,10 +208,9 @@ class AttendanceTakingViewSet(ViewSet):
 
         if not image:
             return Response({"detail": "Image required"}, status=400)
-        
+
         session = (
-            AttendanceSession.objects
-            .filter(is_active=True)
+            AttendanceSession.objects.filter(is_active=True)
             .order_by("-started_at")
             .first()
         )
@@ -235,11 +224,36 @@ class AttendanceTakingViewSet(ViewSet):
         service = AttendanceSessionService(session)
         result = service.check_in_next_worker(image.read())
 
+        if result == "NO_ACTIVE_SESSION":
+            return Response(
+                {"detail": "No active attendance session"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        elif result == "TRY_AGAIN":
+            return Response(
+                {"detail": "Face not clear. Please try again."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        elif result == "NO_FACE_DETECTED":
+            return Response(
+                {"detail": "No face detected"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        elif result == "STOP_DUPLICATE":
+            return Response(
+                {"detail": "Attendance already recorded"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         return Response(
-            {"result": result}
+            {"detail": "Attendance recorded successfully"},
+            status=status.HTTP_200_OK,
         )
 
-    
+
 class AttendanceRecordViewSet(ViewSet):
     """
     AttendanceRecord operations:
@@ -250,18 +264,13 @@ class AttendanceRecordViewSet(ViewSet):
 
     def list(self, request):
         """List attendance sessions visible to the requesting user."""
-        qs = AttendanceRecord.objects.select_related(
-                    "employee",
-                    "employee_shift"
-                )
+        qs = AttendanceRecord.objects.select_related("employee", "employee_shift")
 
         if request.user.is_admin() or request.user.is_hr():
             pass
         elif request.user.is_department_manager():
             if hasattr(request.user, "employee") and request.user.employee.department:
-                qs = qs.filter(
-                    employee__department=request.user.employee.department
-                )
+                qs = qs.filter(employee__department=request.user.employee.department)
             else:
                 qs = qs.none()
 
@@ -286,10 +295,8 @@ class AttendanceRecordViewSet(ViewSet):
             qs = qs.filter(employee_shift__shift_id=shift_id)
 
         return Response(
-            AttendanceSerializer(qs, many=True).data,
-            status=status.HTTP_200_OK
+            AttendanceSerializer(qs, many=True).data, status=status.HTTP_200_OK
         )
-
 
     def retrieve(self, request, pk=None):
         """Retrieve a single attendance session by id after permission checks."""
@@ -297,10 +304,7 @@ class AttendanceRecordViewSet(ViewSet):
 
         self._check_object_permission(request, record)
 
-        return Response(
-            AttendanceSerializer(record).data,
-            status=status.HTTP_200_OK
-        )
+        return Response(AttendanceSerializer(record).data, status=status.HTTP_200_OK)
 
     def update(self, request, pk=None):
         """Partially update an attendance session (e.g., mark closed)."""
@@ -310,21 +314,14 @@ class AttendanceRecordViewSet(ViewSet):
         if not (request.user.is_admin() or request.user.is_hr()):
             return Response(
                 {"detail": "Not allowed to modify attendance records"},
-                status=status.HTTP_403_FORBIDDEN
+                status=status.HTTP_403_FORBIDDEN,
             )
 
-        serializer = AttendanceSerializer(
-            record,
-            data=request.data,
-            partial=True
-        )
+        serializer = AttendanceSerializer(record, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save(taken_by=request.user)
 
-        return Response(
-            serializer.data,
-            status=status.HTTP_200_OK
-        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def _check_object_permission(self, request, record):
         """Ensure `request.user` may access the given `AttendanceRecord`.
@@ -343,10 +340,14 @@ class AttendanceRecordViewSet(ViewSet):
             ):
                 return
 
-        if hasattr(request.user, "employee") and record.employee == request.user.employee:
+        if (
+            hasattr(request.user, "employee")
+            and record.employee == request.user.employee
+        ):
             return
 
         raise PermissionError("Not allowed to view this attendance record")
+
 
 class ShiftViewSet(ViewSet):
     """API operations for managing shifts (list, create, update, delete).
@@ -354,6 +355,7 @@ class ShiftViewSet(ViewSet):
     Provides CRUD endpoints used by HR/admins to maintain shift
     definitions used across attendance sessions.
     """
+
     permission_classes = [IsAuthenticated, IsHRorManager | IsAdmin]
 
     def get_permissions(self):
@@ -362,10 +364,10 @@ class ShiftViewSet(ViewSet):
         For mutating shift endpoints (create/update/destroy) restrict access
         to authenticated HR users.
         """
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+        if self.action in ["create", "update", "partial_update", "destroy"]:
             self.permission_classes = [IsAuthenticated, IsHR]
         return super().get_permissions()
-    
+
     def list(self, request):
         """Return all configured shifts serialized for clients."""
         shifts = ShiftService.list_shifts()
@@ -378,10 +380,7 @@ class ShiftViewSet(ViewSet):
         serializer.is_valid(raise_exception=True)
 
         shift = ShiftService.create_shift(serializer.validated_data)
-        return Response(
-            ShiftSerializer(shift).data,
-            status=status.HTTP_201_CREATED
-        )
+        return Response(ShiftSerializer(shift).data, status=status.HTTP_201_CREATED)
 
     def update(self, request, pk=None):
         """Update an existing `Shift` with provided partial data."""
@@ -398,6 +397,7 @@ class ShiftViewSet(ViewSet):
         ShiftService.delete_shift(shift)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+
 class EmployeeShiftViewSet(ViewSet):
     """Endpoints to assign or remove shifts for employees.
 
@@ -405,6 +405,7 @@ class EmployeeShiftViewSet(ViewSet):
     relationships. Permission checks ensure only authorized users can
     modify assignments.
     """
+
     permission_classes = [CanManageEmployeeShift]
 
     def list(self, request):
@@ -426,8 +427,7 @@ class EmployeeShiftViewSet(ViewSet):
         )
 
         return Response(
-            EmployeeShiftSerializer(assignment).data,
-            status=status.HTTP_201_CREATED
+            EmployeeShiftSerializer(assignment).data, status=status.HTTP_201_CREATED
         )
 
     def destroy(self, request, pk=None):
@@ -435,7 +435,7 @@ class EmployeeShiftViewSet(ViewSet):
         assignment = EmployeeShift.objects.get(pk=pk)
         EmployeeShiftService.remove_shift(assignment)
         return Response(status=status.HTTP_204_NO_CONTENT)
-    
+
     def _can_manage_employee(self, user, employee):
         """Return True when `user` is allowed to manage the given `employee`.
 
@@ -447,10 +447,6 @@ class EmployeeShiftViewSet(ViewSet):
 
         # Manager of department
         if getattr(user, "role", None) == "MANAGER":
-            return (
-                employee.department
-                and employee.department.manager_id == user.id
-            )
+            return employee.department and employee.department.manager_id == user.id
 
         return False
-    

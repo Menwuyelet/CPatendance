@@ -4,6 +4,10 @@ This file contains the FaceEngine that handles the extraction of embedding
 from the provided raw image.
 """
 
+import os
+
+os.environ["ORT_LOGGING_LEVEL"] = "4"
+os.environ["GLOG_minloglevel"] = "3"
 import cv2
 import numpy as np
 from insightface.app import FaceAnalysis
@@ -19,20 +23,10 @@ class FaceEngine:
     provides helpers to convert image bytes to numeric embeddings.
     """
 
-    _app = None
-
-    @classmethod
-    def get_app(cls):
-        """Return a prepared `FaceAnalysis` instance (initialized once)."""
-        if cls._app is None:
-            logger.info("FACE_ENGINE_INIT_STARTED")
-
-            cls._app = FaceAnalysis(name="buffalo_l")
-            cls._app.prepare(ctx_id=0, det_size=(640, 640))
-
-            logger.info("FACE_ENGINE_INIT_SUCCESS")
-
-        return cls._app
+    logger.info("FACE_ENGINE_INIT_STARTED")
+    _app = FaceAnalysis(name="buffalo_l")
+    _app.prepare(ctx_id=0, det_size=(320, 320))
+    logger.info("FACE_ENGINE_INIT_SUCCESS")
 
     @classmethod
     def image_to_embedding(cls, image_bytes):
@@ -51,12 +45,10 @@ class FaceEngine:
             len(image_bytes),
         )
 
-        app = cls.get_app()
-
         img_array = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
 
-        faces = app.get(img)
+        faces = cls._app.get(img)
 
         if not faces:
             logger.info("FACE_EMBEDDING_EXTRACTION_NO_FACE")

@@ -445,7 +445,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
   }
 
   return (
-    <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: '1600px', mx: 'auto' }}>
+    <Box sx={{ p: 3 }}>
       <Box sx={{ mb: 5 }}>
         <Typography variant="h3" fontWeight="bold" gutterBottom>
           {title}

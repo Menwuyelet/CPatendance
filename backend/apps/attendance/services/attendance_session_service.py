@@ -8,6 +8,10 @@ from attendance.models import AttendanceSessionEntry
 from biometrics.services.matching_service import BiometricMatchingService
 from attendance.services.attendance_service import AttendanceAbsenceService
 from biometrics.services.face_engine import FaceEngine
+from config.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 from config.logging import get_logger
 
@@ -32,22 +36,22 @@ class AttendanceSessionService:
         """Process a single face embedding and record a session entry.
 
         Returns a status string indicating how the caller should proceed:
-        - "STOP_UNKNOWN" when session inactive or error
-        - "CONTINUE" when no matching employee
+        - "NO_ACTIVE_SESSION" when session inactive or error
+        - "TRY_AGAIN" when no matching employee
         - "STOP_DUPLICATE" when the employee already has an entry
         - "STOP_SUCCESS" when an entry was created
+        - "NO_FACE_DETECTED" when no face is detected on the image sent
         """
         if not self.session.is_active:
             logger.warning(
                 "SESSION_PROCESS_DENIED | reason=session_inactive | session_id=%s",
                 self.session.id,
             )
-            return "STOP_UNKNOWN"
 
-        logger.info(
-            "SESSION_EMBEDDING_PROCESS_STARTED | session_id=%s",
-            self.session.id,
-        )
+            return "NO_ACTIVE_SESSION"
+
+        employee_id = BiometricMatchingService.match_face(embedding, self.session.shift)
+
 
         employee_id = BiometricMatchingService.match_face(embedding, self.session.shift)
 
@@ -56,7 +60,9 @@ class AttendanceSessionService:
                 "SESSION_EMBEDDING_PROCESS_STARTED | session_id=%s",
                 self.session.id,
             )
-            return "CONTINUE"
+
+            return "TRY_AGAIN"
+
 
         entry, created = AttendanceSessionEntry.objects.get_or_create(
             session=self.session,
@@ -72,8 +78,10 @@ class AttendanceSessionService:
             )
             return "STOP_DUPLICATE"
 
-        logger.info(
-            "SESSION_ENTRY_CREATED | session_id=%s | employee_id=%s",
+
+        logger.warning(
+            "SESSION_DUPLICATE_ENTRY | session_id=%s | employee_id=%s",
+
             self.session.id,
             employee_id,
         )
@@ -88,6 +96,7 @@ class AttendanceSessionService:
             "SESSION_IMAGE_RECEIVED | session_id=%s",
             self.session.id,
         )
+
         embedding = FaceEngine.image_to_embedding(image_bytes)
 
         if embedding is None:
@@ -95,7 +104,9 @@ class AttendanceSessionService:
                 "SESSION_NO_FACE_DETECTED | session_id=%s",
                 self.session.id,
             )
-            return "CONTINUE"
+
+            return "NO_FACE_DETECTED"
+
 
         return self.process_embedding(embedding)
 
@@ -115,6 +126,7 @@ class AttendanceSessionService:
             "SESSION_CLOSE_STARTED | session_id=%s",
             self.session.id,
         )
+
         absent_count = AttendanceAbsenceService.mark_absent_for_session(self.session)
 
         self.session.is_active = False
@@ -126,6 +138,7 @@ class AttendanceSessionService:
             self.session.id,
             absent_count,
         )
+
         return list(
             self.session.entries.select_related("employee").order_by("recognized_at")
         )
