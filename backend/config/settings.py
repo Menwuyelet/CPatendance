@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -195,7 +196,7 @@ SPECTACULAR_SETTINGS = {
 }
 
 
-BIOMETRIC_SECRET_KEY = os.environ.get('BIOMETRIC_SECRET_KEY')
+BIOMETRIC_SECRET_KEY = os.environ.get("BIOMETRIC_SECRET_KEY")
 
 from cryptography.fernet import Fernet
 
@@ -229,4 +230,3 @@ LOGGING = {
         "level": "INFO",
     },
 }
-

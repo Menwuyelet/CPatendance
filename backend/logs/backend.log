@@ -1,0 +1,266 @@
+[INFO] 2026-01-30 20:48:48,838 django.utils.autoreload 83101 129745673267008: Watching for file changes with StatReloader
+[INFO] 2026-01-30 20:52:32,201 django.utils.autoreload 83101 129745673267008: /home/nafiad/CPattendance/backend/config/settings.py changed, reloading.
+2026-01-30 20:52:36,372 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:52:42,265 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/config/settings.py changed, reloading.
+2026-01-30 20:52:42,923 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:53:34,053 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:53:34,945 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:53:49,345 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:53:50,214 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:54:00,879 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:54:01,368 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:54:10,405 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:54:11,193 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:54:50,643 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:54:51,255 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:55:07,386 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:55:08,142 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:55:22,220 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:55:22,855 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:55:53,431 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:55:54,155 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:56:01,203 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:56:01,958 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:56:11,174 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:56:11,727 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:56:15,160 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:56:15,648 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:56:22,027 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:56:22,515 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:56:58,021 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:56:58,586 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:57:01,750 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:57:02,253 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:57:06,636 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:57:07,248 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:57:11,736 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:57:12,298 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:57:14,623 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:57:15,134 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:57:17,542 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:57:18,157 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:57:24,797 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:57:25,679 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:57:27,139 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:57:27,647 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:57:34,045 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:57:34,578 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:57:37,029 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:57:37,474 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:58:02,393 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:58:03,112 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:58:20,641 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:58:21,058 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:58:24,318 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/employe_embedding_load_service.py changed, reloading.
+2026-01-30 20:58:24,997 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 20:58:33,479 INFO employees.services.employee_service EMPLOYEE_LIST_REQUEST | user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 20:58:33,490 INFO employees.services.employee_service EMPLOYEE_LIST_GRANTED | role=hr | user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 20:58:33,643 INFO employees.services.employee_service EMPLOYEE_LIST_REQUEST | user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 20:58:33,646 INFO employees.services.employee_service EMPLOYEE_LIST_GRANTED | role=hr | user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 20:58:36,812 INFO employees.services.employee_service EMPLOYEE_LIST_REQUEST | user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 20:58:36,819 INFO employees.services.employee_service EMPLOYEE_LIST_GRANTED | role=hr | user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 20:58:36,966 INFO employees.services.employee_service EMPLOYEE_LIST_REQUEST | user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 20:58:36,980 INFO employees.services.employee_service EMPLOYEE_LIST_GRANTED | role=hr | user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 20:58:44,408 INFO employees.services.employee_service EMPLOYEE_LIST_REQUEST | user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 20:58:44,411 INFO employees.services.employee_service EMPLOYEE_LIST_GRANTED | role=hr | user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 20:58:50,061 INFO employees.services.employee_service EMPLOYEE_LIST_REQUEST | user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 20:58:50,080 INFO employees.services.employee_service EMPLOYEE_LIST_GRANTED | role=hr | user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 20:58:50,135 INFO employees.services.employee_service EMPLOYEE_LIST_REQUEST | user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 20:58:50,137 INFO employees.services.employee_service EMPLOYEE_LIST_GRANTED | role=hr | user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 20:59:30,578 INFO attendance-backend.biometrics.services.employe_embedding_load_service event=shift_embedding_load_started context={'shift_id': 8}
+2026-01-30 20:59:30,671 INFO attendance-backend.biometrics.services.employe_embedding_load_service event=shift_embedding_load_completed status=success context={'shift_id': 8, 'loaded_embeddings': 1, 'duration': 0.093}
+2026-01-30 21:06:12,810 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/employees/services/employee_service.py changed, reloading.
+2026-01-30 21:06:22,856 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:06:39,283 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/employees/services/employee_service.py changed, reloading.
+2026-01-30 21:06:40,111 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:07:40,942 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/employees/services/employee_service.py changed, reloading.
+2026-01-30 21:07:41,435 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:08:40,507 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/employees/services/employee_service.py changed, reloading.
+2026-01-30 21:08:41,251 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:08:44,517 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/employees/services/employee_service.py changed, reloading.
+2026-01-30 21:08:44,955 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:08:48,146 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/employees/services/employee_service.py changed, reloading.
+2026-01-30 21:08:48,924 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:09:01,207 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/employees/services/employee_service.py changed, reloading.
+2026-01-30 21:09:01,954 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:09:12,164 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/employees/services/employee_service.py changed, reloading.
+2026-01-30 21:09:12,791 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:09:18,744 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/employees/services/employee_service.py changed, reloading.
+2026-01-30 21:09:19,482 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:09:35,754 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/employees/services/employee_service.py changed, reloading.
+2026-01-30 21:09:36,459 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:09:51,099 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/employees/services/employee_service.py changed, reloading.
+2026-01-30 21:09:51,839 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:10:36,584 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/employees/services/employee_service.py changed, reloading.
+2026-01-30 21:10:39,165 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:10:59,708 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/employees/services/employee_service.py changed, reloading.
+2026-01-30 21:11:00,487 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:11:24,833 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/employees/services/employee_service.py changed, reloading.
+2026-01-30 21:11:25,537 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:11:28,717 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/employees/services/employee_service.py changed, reloading.
+2026-01-30 21:11:29,425 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:11:32,475 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/employees/services/employee_service.py changed, reloading.
+2026-01-30 21:11:33,016 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:11:44,919 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/employees/services/employee_service.py changed, reloading.
+2026-01-30 21:11:45,750 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:11:55,306 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/employees/services/employee_service.py changed, reloading.
+2026-01-30 21:11:56,042 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:16:36,238 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/encryption_service.py changed, reloading.
+2026-01-30 21:16:39,590 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:16:46,270 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/encryption_service.py changed, reloading.
+2026-01-30 21:16:46,778 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:16:51,187 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/encryption_service.py changed, reloading.
+2026-01-30 21:16:51,571 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:16:53,956 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/encryption_service.py changed, reloading.
+2026-01-30 21:16:54,433 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:17:01,853 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/encryption_service.py changed, reloading.
+2026-01-30 21:17:02,263 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:17:30,888 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/encryption_service.py changed, reloading.
+2026-01-30 21:17:31,449 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:17:50,000 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/encryption_service.py changed, reloading.
+2026-01-30 21:17:50,505 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:17:54,069 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/encryption_service.py changed, reloading.
+2026-01-30 21:17:55,073 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:18:04,385 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/encryption_service.py changed, reloading.
+2026-01-30 21:18:05,082 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:18:15,156 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/encryption_service.py changed, reloading.
+2026-01-30 21:18:15,854 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:18:17,231 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/encryption_service.py changed, reloading.
+2026-01-30 21:18:17,756 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:18:23,740 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/encryption_service.py changed, reloading.
+2026-01-30 21:18:24,427 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:18:40,462 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/encryption_service.py changed, reloading.
+2026-01-30 21:18:41,468 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:18:46,668 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/encryption_service.py changed, reloading.
+2026-01-30 21:18:47,395 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:18:59,770 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/encryption_service.py changed, reloading.
+2026-01-30 21:19:00,340 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:19:04,449 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/encryption_service.py changed, reloading.
+2026-01-30 21:19:05,031 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:19:08,024 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/encryption_service.py changed, reloading.
+2026-01-30 21:19:08,609 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:20:06,526 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/employees/services/employee_service.py changed, reloading.
+2026-01-30 21:20:07,337 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:20:11,697 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/employees/services/employee_service.py changed, reloading.
+2026-01-30 21:20:12,262 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:20:31,359 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/employees/services/employee_service.py changed, reloading.
+2026-01-30 21:20:31,865 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:22:42,636 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/enrollment_service.py changed, reloading.
+2026-01-30 21:22:45,919 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:23:11,787 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/enrollment_service.py changed, reloading.
+2026-01-30 21:23:12,539 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:23:16,502 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/enrollment_service.py changed, reloading.
+2026-01-30 21:23:17,382 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:23:20,531 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/enrollment_service.py changed, reloading.
+2026-01-30 21:23:21,160 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:23:25,288 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/enrollment_service.py changed, reloading.
+2026-01-30 21:23:25,815 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:24:03,141 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/enrollment_service.py changed, reloading.
+2026-01-30 21:24:04,048 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:24:32,331 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/enrollment_service.py changed, reloading.
+2026-01-30 21:24:33,065 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:24:50,212 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/enrollment_service.py changed, reloading.
+2026-01-30 21:24:50,950 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:24:54,005 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/enrollment_service.py changed, reloading.
+2026-01-30 21:24:54,769 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:25:04,987 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/enrollment_service.py changed, reloading.
+2026-01-30 21:25:05,718 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:25:11,860 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/enrollment_service.py changed, reloading.
+2026-01-30 21:25:12,646 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:25:19,787 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/enrollment_service.py changed, reloading.
+2026-01-30 21:25:20,535 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:26:11,663 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/face_engine.py changed, reloading.
+2026-01-30 21:26:12,908 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:26:39,759 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/face_engine.py changed, reloading.
+2026-01-30 21:26:40,637 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:26:50,804 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/face_engine.py changed, reloading.
+2026-01-30 21:26:51,579 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:27:36,183 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/face_engine.py changed, reloading.
+2026-01-30 21:27:37,077 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:27:40,635 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/face_engine.py changed, reloading.
+2026-01-30 21:27:41,388 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:27:55,429 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/face_engine.py changed, reloading.
+2026-01-30 21:27:56,019 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:28:14,564 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/face_engine.py changed, reloading.
+2026-01-30 21:28:15,722 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:28:21,138 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/face_engine.py changed, reloading.
+2026-01-30 21:28:21,904 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:28:24,977 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/face_engine.py changed, reloading.
+2026-01-30 21:28:25,688 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:29:17,029 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/matching_service.py changed, reloading.
+2026-01-30 21:29:18,881 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:29:59,056 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/matching_service.py changed, reloading.
+2026-01-30 21:30:00,061 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:30:18,187 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/matching_service.py changed, reloading.
+2026-01-30 21:30:19,420 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:30:36,431 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/matching_service.py changed, reloading.
+2026-01-30 21:30:37,154 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:30:46,369 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/matching_service.py changed, reloading.
+2026-01-30 21:30:47,039 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:31:17,697 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/matching_service.py changed, reloading.
+2026-01-30 21:31:18,763 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:31:33,597 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/matching_service.py changed, reloading.
+2026-01-30 21:31:34,352 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:31:47,547 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/matching_service.py changed, reloading.
+2026-01-30 21:31:48,303 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:31:51,502 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/matching_service.py changed, reloading.
+2026-01-30 21:31:52,222 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:32:02,612 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/matching_service.py changed, reloading.
+2026-01-30 21:32:03,074 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:32:06,255 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/matching_service.py changed, reloading.
+2026-01-30 21:32:06,870 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:32:20,276 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/matching_service.py changed, reloading.
+2026-01-30 21:32:20,946 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:32:42,505 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/matching_service.py changed, reloading.
+2026-01-30 21:32:43,282 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:33:08,237 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/matching_service.py changed, reloading.
+2026-01-30 21:33:08,928 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:33:22,064 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/matching_service.py changed, reloading.
+2026-01-30 21:33:22,895 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:33:32,955 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/matching_service.py changed, reloading.
+2026-01-30 21:33:33,468 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:33:54,979 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/matching_service.py changed, reloading.
+2026-01-30 21:33:55,598 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:34:07,978 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/matching_service.py changed, reloading.
+2026-01-30 21:34:08,606 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:34:14,431 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/matching_service.py changed, reloading.
+2026-01-30 21:34:15,200 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:35:05,173 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/face_engine.py changed, reloading.
+2026-01-30 21:35:05,891 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:38:49,516 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/biometrics/services/encryption_service.py changed, reloading.
+2026-01-30 21:38:51,920 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:39:12,155 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:40:08,955 INFO attendance-backend.employees.services.employee_service event=employee_list_started user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 21:40:08,973 INFO attendance-backend.employees.services.employee_service event=employee_list_granted role=hr user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 21:40:09,083 INFO attendance-backend.employees.services.employee_service event=employee_list_started user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 21:40:09,085 INFO attendance-backend.employees.services.employee_service event=employee_list_granted role=hr user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 21:40:27,536 INFO attendance-backend.employees.services.employee_service event=employee_list_started user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 21:40:27,542 INFO attendance-backend.employees.services.employee_service event=employee_list_granted role=hr user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 21:40:33,062 INFO attendance-backend.employees.services.employee_service event=employee_list_started user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 21:40:33,065 INFO attendance-backend.employees.services.employee_service event=employee_list_granted role=hr user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 21:40:38,394 INFO attendance-backend.employees.services.employee_service event=employee_list_started user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 21:40:38,399 INFO attendance-backend.employees.services.employee_service event=employee_list_granted role=hr user_id=f550fda5-1050-4adc-998d-098e64eca036
+2026-01-30 21:41:46,088 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/attendance/services/attendance_service.py changed, reloading.
+2026-01-30 21:41:51,937 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:42:02,216 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/attendance/services/attendance_service.py changed, reloading.
+2026-01-30 21:42:03,570 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:42:25,674 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/attendance/services/attendance_service.py changed, reloading.
+2026-01-30 21:42:26,323 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:45:58,133 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/attendance/services/attendance_service.py changed, reloading.
+2026-01-30 21:45:59,590 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:46:12,387 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/attendance/services/attendance_service.py changed, reloading.
+2026-01-30 21:46:12,949 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:46:24,475 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/attendance/services/attendance_service.py changed, reloading.
+2026-01-30 21:46:24,826 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:46:28,952 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/attendance/services/attendance_service.py changed, reloading.
+2026-01-30 21:46:29,536 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:46:45,012 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/attendance/services/attendance_service.py changed, reloading.
+2026-01-30 21:46:45,571 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:46:55,648 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/attendance/services/attendance_service.py changed, reloading.
+2026-01-30 21:46:56,370 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:50:24,839 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/attendance/services/attendance_service.py changed, reloading.
+2026-01-30 21:50:25,955 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:51:37,945 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/attendance/services/attendance_service.py changed, reloading.
+2026-01-30 21:51:38,797 INFO django.utils.autoreload Watching for file changes with StatReloader
+2026-01-30 21:51:41,990 INFO django.utils.autoreload /home/nafiad/CPattendance/backend/apps/attendance/services/attendance_service.py changed, reloading.
+2026-01-30 21:51:42,539 INFO django.utils.autoreload Watching for file changes with StatReloader

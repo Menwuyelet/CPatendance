@@ -7,17 +7,26 @@ from django.utils import timezone
 from attendance.models import AttendanceSessionEntry
 from biometrics.services.matching_service import BiometricMatchingService
 from attendance.services.attendance_service import AttendanceAbsenceService
-
 from biometrics.services.face_engine import FaceEngine
+
+from config.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 class AttendanceSessionService:
     """
-    Attendance business logic 
+    Attendance business logic
     """
 
     def __init__(self, session):
         """Initialize the service with an `AttendanceSession` instance."""
         self.session = session
+
+        logger.info(
+            "ATTENDANCE_SESSION_SERVICE_INIT | session_id=%s",
+            session.id,
+        )
 
     def process_embedding(self, embedding):
         """Process a single face embedding and record a session entry.
@@ -29,13 +38,24 @@ class AttendanceSessionService:
         - "STOP_SUCCESS" when an entry was created
         """
         if not self.session.is_active:
+            logger.warning(
+                "SESSION_PROCESS_DENIED | reason=session_inactive | session_id=%s",
+                self.session.id,
+            )
             return "STOP_UNKNOWN"
 
-        employee_id = BiometricMatchingService.match_face(
-            embedding, self.session.shift
+        logger.info(
+            "SESSION_EMBEDDING_PROCESS_STARTED | session_id=%s",
+            self.session.id,
         )
 
+        employee_id = BiometricMatchingService.match_face(embedding, self.session.shift)
+
         if not employee_id:
+            logger.info(
+                "SESSION_EMBEDDING_PROCESS_STARTED | session_id=%s",
+                self.session.id,
+            )
             return "CONTINUE"
 
         entry, created = AttendanceSessionEntry.objects.get_or_create(
@@ -45,20 +65,36 @@ class AttendanceSessionService:
         )
 
         if not created:
-            print(f"[WARN] Duplicate entry for {entry.employee}")
+            logger.warning(
+                "SESSION_DUPLICATE_ENTRY | session_id=%s | employee_id=%s",
+                self.session.id,
+                employee_id,
+            )
             return "STOP_DUPLICATE"
 
+        logger.info(
+            "SESSION_ENTRY_CREATED | session_id=%s | employee_id=%s",
+            self.session.id,
+            employee_id,
+        )
         return "STOP_SUCCESS"
-
 
     def check_in_next_worker(self, image_bytes):
         """Convert an uploaded image to an embedding and process it.
 
         Returns the same status strings as `process_embedding`.
         """
+        logger.info(
+            "SESSION_IMAGE_RECEIVED | session_id=%s",
+            self.session.id,
+        )
         embedding = FaceEngine.image_to_embedding(image_bytes)
 
         if embedding is None:
+            logger.info(
+                "SESSION_NO_FACE_DETECTED | session_id=%s",
+                self.session.id,
+            )
             return "CONTINUE"
 
         return self.process_embedding(embedding)
@@ -69,15 +105,27 @@ class AttendanceSessionService:
         Does NOT create AttendanceRecord.
         """
         if not self.session.is_active:
+            logger.warning(
+                "SESSION_CLOSE_SKIPPED | reason=already_closed | session_id=%s",
+                self.session.id,
+            )
             return []
-        
-        AttendanceAbsenceService.mark_absent_for_session(self.session)
+
+        logger.info(
+            "SESSION_CLOSE_STARTED | session_id=%s",
+            self.session.id,
+        )
+        absent_count = AttendanceAbsenceService.mark_absent_for_session(self.session)
+
         self.session.is_active = False
         self.session.ended_at = timezone.now()
         self.session.save(update_fields=["is_active", "ended_at"])
 
+        logger.info(
+            "SESSION_CLOSE_COMPLETED | session_id=%s | absent_count=%s",
+            self.session.id,
+            absent_count,
+        )
         return list(
-            self.session.entries
-            .select_related("employee")
-            .order_by("recognized_at")
+            self.session.entries.select_related("employee").order_by("recognized_at")
         )
