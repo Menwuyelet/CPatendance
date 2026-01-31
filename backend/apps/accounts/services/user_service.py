@@ -24,7 +24,7 @@ def create_user(email, password, roles=None, employee_data=None):
         logger.debug(
             "CREATE_USER_ASSIGN_ROLES | user_id=%s roles=%s",
             user.id,
-            list(roles.values_list("id", flat=True)),
+            list(roles),
         )
         user.roles.set(roles)
 
@@ -102,7 +102,6 @@ def get_users_for_user(request_user):
         )
         return User.objects.all()
     elif BasePolicy.is_manager(request_user):
-        # Department users
         if hasattr(request_user, "employee") and request_user.employee.department:
             logger.info(
                 "GET_USERS_FOR_USER_SCOPE | requester_id=%s scope=DEPARTMENT department_id=%s",

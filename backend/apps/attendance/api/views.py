@@ -25,6 +25,7 @@ from attendance.api.serializers import (
     AttendanceSessionSerializer,
     ShiftSerializer,
     EmployeeShiftSerializer,
+    AttendanceCheckInSerializer,
 )
 
 
@@ -92,6 +93,7 @@ class AttendanceSessionViewSet(ViewSet):
     - retrieve
     - update (active state only)
     """
+    serializer_class = AttendanceSessionSerializer
 
     def list(self, request):
         """List attendance sessions visible to the requesting user."""
@@ -250,7 +252,7 @@ class AttendanceTakingViewSet(ViewSet):
 
         return Response(
             {"detail": "Attendance recorded successfully"},
-            status=status.HTTP_200_OK,
+            status=status.HTTP_201_CREATED,
         )
 
 
@@ -261,6 +263,7 @@ class AttendanceRecordViewSet(ViewSet):
     - retrieve
     - update (manual correction)
     """
+    serializer_class = AttendanceSerializer
 
     def list(self, request):
         """List attendance sessions visible to the requesting user."""
@@ -355,6 +358,7 @@ class ShiftViewSet(ViewSet):
     Provides CRUD endpoints used by HR/admins to maintain shift
     definitions used across attendance sessions.
     """
+    serializer_class = ShiftSerializer
 
     permission_classes = [IsAuthenticated, IsHRorManager | IsAdmin]
 
@@ -405,6 +409,8 @@ class EmployeeShiftViewSet(ViewSet):
     relationships. Permission checks ensure only authorized users can
     modify assignments.
     """
+
+    serializer_class = EmployeeShiftSerializer
 
     permission_classes = [CanManageEmployeeShift]
 
