@@ -59,13 +59,13 @@ const Header = memo(({ user, onLogout }) => {
   return (
     <AppBar position="static" color="default" elevation={1}>
       <Toolbar>
-        <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 'bold' }}>
+        <Typography variant="h8" sx={{ flexGrow: 1, fontWeight: 'bold' }}>
           Attendance Management System
         </Typography>
 
         <Typography variant="body2" sx={{ mr: 3, minWidth: 140, textAlign: 'right' }}>
           {dateLabel}
-          <span style={{ fontSize: '1.1rem', paddingLeft: 10,  fontWeight: 'bold' }}>{timeLabel}</span>
+          <span style={{ fontSize: '1rem', paddingLeft: 10,  fontWeight: 'bold' }}>{timeLabel}</span>
         </Typography>
 
         <Typography variant="body2" sx={{ mr: 3 }}>
@@ -151,7 +151,7 @@ const Header = memo(({ user, onLogout }) => {
 
         {/* User Avatar */}
         <IconButton sx={{ mx: 1 }}>
-          <Avatar sx={{ bgcolor: 'primary.main', width: 40, height: 40 }}>
+          <Avatar sx={{ bgcolor: 'primary.main', width: 30, height: 30 }}>
             <Typography variant="subtitle1" fontWeight="bold">
               {userInitial}
             </Typography>

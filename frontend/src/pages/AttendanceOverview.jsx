@@ -17,8 +17,16 @@ import {
   Select,
   MenuItem,
   CircularProgress,
-  Alert,
+  Alert ,
+  Divider, InputAdornment, alpha  
 } from '@mui/material';
+
+import {
+  Search, CheckCircle, AccessTime, ErrorOutline, 
+  Assessment, Timelapse, DateRange
+} from '@mui/icons-material';
+
+
 import moment from 'moment-timezone';
 import { api } from '../services/api.service.js';
 
@@ -218,69 +226,158 @@ const AttendanceOverview = ({ role, onNotify }) => {
         </Typography>
       </Stack>
 
-      {/* Filters & Stats */}
-      <Card sx={{ mb: 4 }}>
-        <CardContent>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} justifyContent="space-between" alignItems="flex-end">
-            {/* Date range */}
-            <Stack direction="row" spacing={2} alignItems="center">
-              <TextField
-                label="From"
-                type="date"
-                size="small"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-              />
-              <TextField
-                label="To"
-                type="date"
-                size="small"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Stack>
+{/* // --- Updated Filter & Stats Component --- */}
 
-            {/* Search & Status */}
-            <Stack direction="row" spacing={2} alignItems="center">
-              {!isEmployee && (
-                <TextField
-                  label="Search employee"
-                  size="small"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  sx={{ minWidth: 220 }}
-                  placeholder="Name, code or email..."
-                />
-              )}
-              <FormControl size="small" sx={{ minWidth: 140 }}>
-                <InputLabel>Status</InputLabel>
-                <Select
-                  value={statusFilter}
-                  label="Status"
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                >
-                  <MenuItem value="ALL">All</MenuItem>
-                  <MenuItem value="PRESENT">Present</MenuItem>
-                  <MenuItem value="LATE">Late</MenuItem>
-                  <MenuItem value="ABSENT">Absent</MenuItem>
-                  <MenuItem value="ON_LEAVE">On Leave</MenuItem>
-                </Select>
-              </FormControl>
-            </Stack>
-          </Stack>
+<Card 
+  sx={{ 
+    mb: 4, 
+    width: '100%',
+    borderRadius: '24px',
+    background: (theme) => theme.palette.mode === 'dark' 
+      ? alpha(theme.palette.background.paper, 0.4) 
+      : theme.palette.background.paper,
+    backdropFilter: 'blur(12px)',
+    border: `1px solid ${(theme) => alpha(theme.palette.divider, 0.1)}`,
+    boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+    overflow: 'hidden'
+  }}
+>
+  <CardContent sx={{ p: { xs: 2, md: 4 } }}>
+    {/* Grid Layout for responsive fit - No more horizontal overflow */}
+    <Box 
+      sx={{ 
+        display: 'grid', 
+        gridTemplateColumns: { 
+          xs: '1fr',          // Mobile: 1 column
+          md: '1fr 1fr',      // Tablet: 2 columns
+          lg: 'auto 1fr auto' // Desktop: Dynamic fit
+        },
+        gap: 3, 
+        alignItems: 'end'
+      }}
+    >
+      {/* Date Range Section */}
+      <Stack direction="row" spacing={2}>
+        <TextField
+          label="From"
+          type="date"
+          size="small"
+          value={from}
+          onChange={(e) => setFrom(e.target.value)}
+          InputLabelProps={{ shrink: true }}
+          sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+        />
+        <TextField
+          label="To"
+          type="date"
+          size="small"
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+          InputLabelProps={{ shrink: true }}
+          sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+        />
+      </Stack>
 
-          {/* Stats Chips */}
-          <Stack direction="row" spacing={1.5} sx={{ mt: 3, flexWrap: 'wrap' }}>
-            <Chip label={`Total: ${totalRecords}`} color="primary" />
-            <Chip label={`Present: ${presentCount}`} color="success" />
-            <Chip label={`Late: ${lateCount}`} color="warning" />
-            <Chip label={`Absent: ${absentCount}`} color="error" />
-            <Chip label={`Total Hours: ${totalHours}`} color="info" />
-          </Stack>
-        </CardContent>
-      </Card>
+      {/* Search Section */}
+      {!isEmployee && (
+        <TextField
+          label="Search Staff"
+          placeholder="Name or ID..."
+          size="small"
+          fullWidth
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Search fontSize="small" />
+              </InputAdornment>
+            ),
+          }}
+          sx={{ 
+            '& .MuiOutlinedInput-root': { borderRadius: '12px' }
+          }}
+        />
+      )}
+
+      {/* Status Filter Section */}
+      <FormControl size="small" sx={{ minWidth: { xs: '100%', lg: 180 } }}>
+        <InputLabel>Status</InputLabel>
+        <Select
+          value={statusFilter}
+          label="Status"
+          onChange={(e) => setStatusFilter(e.target.value)}
+          sx={{ borderRadius: '12px' }}
+        >
+          <MenuItem value="ALL">All Records</MenuItem>
+          <MenuItem value="PRESENT">Present</MenuItem>
+          <MenuItem value="LATE">Late</MenuItem>
+          <MenuItem value="ABSENT">Absent</MenuItem>
+          <MenuItem value="ON_LEAVE">On Leave</MenuItem>
+        </Select>
+      </FormControl>
+    </Box>
+
+    <Divider sx={{ my: 4, opacity: 0.5 }} />
+
+    {/* Statistical Chips - Uses 'soft' variant for better light/dark visibility */}
+    <Box>
+      <Typography 
+        variant="caption" 
+        sx={{ 
+          display: 'block', 
+          mb: 2, 
+          fontWeight: 800, 
+          textTransform: 'uppercase', 
+          letterSpacing: 1.2,
+          color: 'text.secondary'
+        }}
+      >
+        Live Period Metrics
+      </Typography>
+      
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          flexWrap: 'wrap', 
+          gap: 1.5 
+        }}
+      >
+        <Chip 
+          icon={<Assessment />} 
+          label={`Total: ${totalRecords}`} 
+          color="primary" 
+          sx={{ borderRadius: '10px', fontWeight: 700 }}
+        />
+        <Chip 
+          icon={<CheckCircle />} 
+          label={`Present: ${presentCount}`} 
+          color="success" 
+          sx={{ borderRadius: '10px', fontWeight: 700, bgcolor: (t) => alpha(t.palette.success.main, 0.15) }}
+        />
+        <Chip 
+          icon={<AccessTime />} 
+          label={`Late: ${lateCount}`} 
+          color="warning" 
+          sx={{ borderRadius: '10px', fontWeight: 700, bgcolor: (t) => alpha(t.palette.warning.main, 0.15) }}
+        />
+        <Chip 
+          icon={<ErrorOutline />} 
+          label={`Absent: ${absentCount}`} 
+          color="error" 
+          sx={{ borderRadius: '10px', fontWeight: 700, bgcolor: (t) => alpha(t.palette.error.main, 0.15) }}
+        />
+        <Chip 
+          icon={<Timelapse />} 
+          label={`Total Hours: ${totalHours}`} 
+          color="info" 
+          variant="outlined"
+          sx={{ borderRadius: '10px', fontWeight: 700 }}
+        />
+      </Box>
+    </Box>
+  </CardContent>
+</Card>
 
       {/* Table */}
       <Card>

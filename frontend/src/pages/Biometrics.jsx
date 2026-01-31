@@ -74,7 +74,7 @@ import {
   Settings,
   CloudUpload,
   TaskAlt,
-  ErrorIcon,
+  ErrorOutline as  ErrorIcon,
   PhotoCamera,
   CheckCircle,
   Phone as PhoneIcon,

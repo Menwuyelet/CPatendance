@@ -1,500 +1,213 @@
-// src/pages/AdminPanel.jsx
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
-  Box,
-  Grid,
-  Card,
-  CardContent,
-  Typography,
-  Button,
-  LinearProgress,
-  CircularProgress,
-  Alert,
-  Paper,
-  Tooltip,
-  Chip,
-  Stack,
-  IconButton,
-  Avatar,
-  List,
-  ListItem,
-  ListItemAvatar,
-  ListItemText,
-  Divider,
-  Badge,
+  Box, Card, CardHeader, CardContent, Typography, Button, CircularProgress,
+  Alert, Stack, IconButton, Avatar, Divider, useTheme, alpha, Container,
+  List, ListItem, ListItemAvatar, ListItemText, Paper
 } from '@mui/material';
 import {
-  People,
-  EventAvailable,
-  AccessTime,
-  WarningAmber,
-  TrendingUp,
-  Refresh,
-  PersonAdd,
-  Schedule,
-  Download,
-  Business,
-  TrendingDown,
-  CalendarToday,
-  Group,
-  Work,
-  Notifications,
+  People, EventAvailable, Refresh, PersonAdd, Business, TrendingUp,
+  AccountBalanceWallet, SettingsSuggest, ChevronRight, Security
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api.service.js';
 
-/* ----------------------------- helpers ----------------------------- */
-const extractArray = (res) =>
-  Array.isArray(res) ? res : res?.results || res?.data || [];
+/* ----------------------------- Professional Card Design ----------------------------- */
+const StyledCard = ({ children, theme }) => (
+  <Card sx={{
+    height: '100%',
+    borderRadius: '20px',
+    background: theme.palette.mode === 'dark' 
+      ? alpha(theme.palette.background.paper, 0.6) 
+      : theme.palette.background.paper,
+    backdropFilter: 'blur(15px)',
+    border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 8px 32px rgba(0,0,0,0.3)'
+      : '0 8px 32px rgba(0,0,0,0.05)',
+    transition: 'transform 0.2s ease-in-out',
+    '&:hover': {
+      transform: 'translateY(-4px)',
+      boxShadow: `0 12px 40px ${alpha(theme.palette.primary.main, 0.15)}`,
+    }
+  }}>
+    {children}
+  </Card>
+);
 
-const cardBaseStyle = {
-  height: '100%',
-  borderRadius: 2,
-  boxShadow: 2,
-  cursor: 'pointer',
-  transition: '0.2s',
-  '&:hover': { transform: 'translateY(-2px)', boxShadow: 4 },
-};
-
-/* --------------------------- component ----------------------------- */
 const AdminPanel = ({ onNotify }) => {
+  const theme = useTheme();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const lastFetchRef = useRef(0);
-
   const [stats, setStats] = useState({
     totalEmployees: 0,
     presentToday: 0,
     attendanceRate: 0,
-    pendingApprovals: 0,
-    totalDepartments: 0,
-    monthlyPayroll: null,
-    lateToday: 0,
-    absentToday: 0,
+    payroll: 0,
+    depts: 0
   });
 
-  const [recentActivity, setRecentActivity] = useState([]);
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [empRes, attRes, depRes] = await Promise.all([
+        api.get('/employees/employees/'),
+        api.get('/attendance/attendance/'),
+        api.getAllDepartments(),
+      ]);
 
-  const fetchDashboardData = useCallback(
-    async (force = false) => {
-      const now = Date.now();
-      if (!force && now - lastFetchRef.current < 3000) return;
+      const employees = empRes?.data || empRes || [];
+      const attendance = attRes?.data || attRes || [];
+      const departments = depRes?.data || depRes || [];
 
-      lastFetchRef.current = now;
-      setLoading(true);
-      setError('');
+      // Logic for actual data
+      const today = new Date().toISOString().slice(0, 10);
+      const activeNow = attendance.filter(a => a.date === today && (a.status === 'PRESENT' || a.status === 'LATE'));
+      const payrollSum = employees.reduce((acc, curr) => acc + (parseFloat(curr.salary) || 0), 0);
 
-      try {
-        const [employeesRes, attendanceRes, departmentsRes] =
-          await Promise.all([
-            api.get('/employees/employees/'),
-            api.get('/attendance/attendance/'),
-            api.getAllDepartments(),
-          ]);
+      setStats({
+        totalEmployees: employees.length,
+        presentToday: activeNow.length,
+        attendanceRate: employees.length ? Math.round((activeNow.length / employees.length) * 100) : 0,
+        payroll: payrollSum,
+        depts: departments.length
+      });
+    } catch (err) {
+      setError("Synchronisation failed. Reconnecting...");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-        const employees = extractArray(employeesRes);
-        const attendance = extractArray(attendanceRes);
-        const departments = extractArray(departmentsRes);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-        const today = new Date().toISOString().slice(0, 10);
-        const todayRecords = attendance.filter((a) => a.date === today);
-
-        const present = todayRecords.filter(
-          (a) => a.status === 'PRESENT'
-        );
-        const late = todayRecords.filter(
-          (a) => a.status === 'LATE'
-        );
-        const absent = todayRecords.filter(
-          (a) => a.status === 'ABSENT'
-        );
-        const leave = todayRecords.filter(
-          (a) => a.status === 'ON_LEAVE'
-        );
-
-        // Generate recent activity
-        const activity = [
-          { text: `${present.length} employees checked in`, time: 'Just now', icon: <EventAvailable color="success" /> },
-          { text: `${late.length} employees late`, time: 'Today', icon: <AccessTime color="warning" /> },
-          { text: `${leave.length} leave requests`, time: 'Pending', icon: <WarningAmber color="error" /> },
-        ];
-
-        setStats({
-          totalEmployees: employees.length,
-          totalDepartments: departments.length,
-          presentToday: present.length,
-          lateToday: late.length,
-          absentToday: absent.length,
-          pendingApprovals: leave.length,
-          attendanceRate: todayRecords.length
-            ? Math.round((present.length / todayRecords.length) * 100)
-            : 0,
-          monthlyPayroll: null,
-        });
-
-        setRecentActivity(activity);
-        force && onNotify?.('Dashboard refreshed', 'success');
-      } catch (err) {
-        const msg =
-          err?.message ||
-          'Failed to load dashboard data. Please try again.';
-        setError(msg);
-        force && onNotify?.(msg, 'error');
-      } finally {
-        setLoading(false);
-      }
-    },
-    [onNotify]
-  );
-
-  /* ------------------------- lifecycle -------------------------- */
-  useEffect(() => {
-    fetchDashboardData();
-
-    const handleFocus = () => fetchDashboardData();
-    const handleVisibility = () =>
-      !document.hidden && fetchDashboardData();
-
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener(
-        'visibilitychange',
-        handleVisibility
-      );
-    };
-  }, [fetchDashboardData]);
-
-  /* ------------------------- config -------------------------- */
-  const quickActions = [
-    { label: 'Departments', icon: <Business />, color: 'primary', path: '/departments', description: 'Manage company units' },
-    { label: 'Add Employee', icon: <PersonAdd />, color: 'secondary', path: '/users', description: 'Register new staff' },
-    { label: 'Attendance', icon: <Schedule />, color: 'info', path: '/attendance', description: 'View attendance records' },
-    { label: 'Reports', icon: <Download />, color: 'success', path: '/reports', description: 'Generate reports' },
-    { label: 'Shifts', icon: <CalendarToday />, color: 'warning', path: '/attendance/shifts', description: 'Manage work schedules' },
-    { label: 'Biometrics', icon: <Group />, color: 'error', path: '/biometrics', description: 'Face recognition setup' },
-  ];
-
-  if (loading && !stats.totalEmployees) {
-    return (
-      <Box
-        sx={{
-          minHeight: '60vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <CircularProgress size={48} />
-      </Box>
-    );
-  }
-
-  /* ------------------------- UI -------------------------- */
   return (
-    <Box sx={{ p: 2 }}>
-      {/* Header */}
-      <Stack
-        direction={{ xs: 'column', md: 'row' }}
-        justifyContent="space-between"
-        alignItems={{ xs: 'flex-start', md: 'center' }}
-        spacing={2}
-        mb={3}
-      >
-        <Box>
-          <Typography variant="h5" fontWeight="bold" sx={{ mb: 1 }}>
-            Admin Dashboard
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {new Date().toLocaleDateString(undefined, {
-              weekday: 'long',
-              month: 'long',
-              day: 'numeric',
-              year: 'numeric',
-            })}
-          </Typography>
-        </Box>
-
-        <Stack direction="row" spacing={1}>
-          <Tooltip title="Refresh data">
-            <IconButton
-              onClick={() => fetchDashboardData(true)}
-              disabled={loading}
-              sx={{ 
-                bgcolor: 'background.paper',
-                '&:hover': { bgcolor: 'grey.100' }
-              }}
+    <Box sx={{ 
+      minHeight: '100vh', 
+      width: '100%',
+      maxWidth: '100vw', 
+      overflowX: 'hidden', // Essential fix for the right-side gap
+      bgcolor: 'background.default',
+      transition: 'background 0.3s ease',
+      // Dynamic background based on light/dark mode
+      backgroundImage: theme.palette.mode === 'dark' 
+        ? `radial-gradient(at 0% 0%, ${alpha(theme.palette.primary.main, 0.1)} 0px, transparent 50%)`
+        : `radial-gradient(at 0% 0%, ${alpha(theme.palette.primary.main, 0.05)} 0px, transparent 50%)`,
+    }}>
+      <Container maxWidth="xl" sx={{ py: { xs: 3, md: 5 } }}>
+        
+        {/* Header Section */}
+        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems="center" spacing={3} mb={6}>
+          <Box sx={{ textAlign: { xs: 'center', sm: 'left' } }}>
+            <Typography variant="h4" fontWeight="900" sx={{ letterSpacing: '-1px' }}>
+              Management Console
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Real-time synchronization active • {new Date().toLocaleDateString()}
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={2}>
+            <Button 
+              variant="contained" 
+              startIcon={<PersonAdd />} 
+              onClick={() => navigate('/users')}
+              sx={{ borderRadius: '12px', px: 3, textTransform: 'none', fontWeight: 700 }}
             >
-              <Refresh fontSize="small" />
+              Add Staff
+            </Button>
+            <IconButton onClick={fetchData} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: '12px' }}>
+              <Refresh />
             </IconButton>
-          </Tooltip>
-          <Button
-            variant="contained"
-            size="small"
-            onClick={() => navigate('/users')}
-            startIcon={<PersonAdd />}
-          >
-            Add Employee
-          </Button>
+          </Stack>
         </Stack>
-      </Stack>
 
-      {error && (
-        <Alert severity="warning" sx={{ mb: 3 }} onClose={() => setError('')}>
-          {error}
-        </Alert>
-      )}
+        {error && <Alert severity="warning" sx={{ mb: 4, borderRadius: '12px' }}>{error}</Alert>}
 
-      {/* Main Stats Grid */}
-      <Grid container spacing={2} mb={3}>
-        {/* Employees Card */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={cardBaseStyle}>
-            <CardContent sx={{ p: 2 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Box>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    Total Employees
-                  </Typography>
-                  <Typography variant="h5" fontWeight="bold">
-                    {stats.totalEmployees}
-                  </Typography>
-                  <Typography variant="caption" color="success.main">
-                    Active workforce
-                  </Typography>
-                </Box>
-                <Avatar sx={{ bgcolor: 'primary.light', width: 48, height: 48 }}>
-                  <People />
-                </Avatar>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Present Today Card */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={cardBaseStyle}>
-            <CardContent sx={{ p: 2 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Box>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    Present Today
-                  </Typography>
-                  <Typography variant="h5" fontWeight="bold" color="success.main">
-                    {stats.presentToday}
-                  </Typography>
-                  <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                    <Chip label={`${stats.lateToday} Late`} size="small" color="warning" />
-                    <Chip label={`${stats.absentToday} Absent`} size="small" color="error" />
-                  </Stack>
-                </Box>
-                <Avatar sx={{ bgcolor: 'success.light', width: 48, height: 48 }}>
-                  <EventAvailable />
-                </Avatar>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Attendance Rate Card */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={cardBaseStyle}>
-            <CardContent sx={{ p: 2 }}>
-              <Stack direction="column" spacing={2}>
+        {/* KPI Grid: Self-adjusting width */}
+        <Box sx={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', 
+          gap: 3, 
+          mb: 6 
+        }}>
+          {[
+            { label: 'Employees', val: stats.totalEmployees, icon: <People />, color: 'primary', sub: 'Total Records' },
+            { label: 'Attendance', val: `${stats.attendanceRate}%`, icon: <EventAvailable />, color: 'success', sub: `${stats.presentToday} Present` },
+            { label: 'Payroll', val: `$${(stats.payroll/1000).toFixed(1)}k`, icon: <AccountBalanceWallet />, color: 'info', sub: 'Monthly Total' },
+            { label: 'Units', val: stats.depts, icon: <Business />, color: 'warning', sub: 'Departments' },
+          ].map((stat, i) => (
+            <StyledCard key={i} theme={theme}>
+              <CardContent sx={{ p: 3 }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center">
                   <Box>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      Attendance Rate
-                    </Typography>
-                    <Typography variant="h5" fontWeight="bold">
-                      {stats.attendanceRate}%
-                    </Typography>
+                    <Typography variant="caption" fontWeight="bold" color="text.secondary">{stat.label}</Typography>
+                    <Typography variant="h4" fontWeight="900" sx={{ my: 1 }}>{stat.val}</Typography>
+                    <Typography variant="caption" sx={{ color: `${stat.color}.main`, fontWeight: 700 }}>{stat.sub}</Typography>
                   </Box>
-                  <Avatar sx={{ bgcolor: 'info.light', width: 48, height: 48 }}>
-                    <TrendingUp />
+                  <Avatar sx={{ bgcolor: alpha(theme.palette[stat.color].main, 0.1), color: `${stat.color}.main`, width: 56, height: 56, borderRadius: '15px' }}>
+                    {stat.icon}
                   </Avatar>
                 </Stack>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={stats.attendanceRate} 
-                  color="success"
-                  sx={{ height: 8, borderRadius: 4 }}
-                />
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
+              </CardContent>
+            </StyledCard>
+          ))}
+        </Box>
 
-        {/* Departments Card */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={cardBaseStyle}>
-            <CardContent sx={{ p: 2 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Box>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    Departments
-                  </Typography>
-                  <Typography variant="h5" fontWeight="bold">
-                    {stats.totalDepartments}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Company units
-                  </Typography>
-                </Box>
-                <Avatar sx={{ bgcolor: 'info.light', width: 48, height: 48 }}>
-                  <Business />
-                </Avatar>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* Secondary Stats Grid */}
-      <Grid container spacing={2} mb={3}>
-        {/* Pending Approvals */}
-        <Grid item xs={12} sm={6} md={4}>
-          <Card sx={cardBaseStyle}>
-            <CardContent sx={{ p: 2 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Box>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    Pending Approvals
-                  </Typography>
-                  <Typography variant="h5" fontWeight="bold" color="error.main">
-                    {stats.pendingApprovals}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Leave requests
-                  </Typography>
-                </Box>
-                <Avatar sx={{ bgcolor: 'error.light', width: 48, height: 48 }}>
-                  <WarningAmber />
-                </Avatar>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Payroll */}
-        <Grid item xs={12} sm={6} md={4}>
-          <Card sx={cardBaseStyle}>
-            <CardContent sx={{ p: 2 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Box>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    Monthly Payroll
-                  </Typography>
-                  <Typography variant="h5" fontWeight="bold">
-                    {stats.monthlyPayroll ? `$${stats.monthlyPayroll.toLocaleString()}` : 'N/A'}
-                  </Typography>
-                  <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                    <Chip label="+8.5%" size="small" color="success" icon={<TrendingUp fontSize="small" />} />
-                    <Typography variant="caption" color="text.secondary">
-                      vs last month
-                    </Typography>
-                  </Stack>
-                </Box>
-                <Avatar sx={{ bgcolor: 'warning.light', width: 48, height: 48 }}>
-                  <AccessTime />
-                </Avatar>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Recent Activity */}
-        <Grid item xs={12} md={4}>
-          <Card sx={{ ...cardBaseStyle, height: 'auto' }}>
-            <CardContent sx={{ p: 2 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" fontWeight="bold">
-                  Recent Activity
-                </Typography>
-                <IconButton size="small">
-                  <Notifications fontSize="small" />
-                </IconButton>
-              </Stack>
-              <List dense>
-                {recentActivity.map((item, index) => (
-                  <React.Fragment key={index}>
-                    <ListItem sx={{ px: 0 }}>
-                      <ListItemAvatar>
-                        <Avatar sx={{ width: 32, height: 32 }}>
-                          {item.icon}
-                        </Avatar>
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={item.text}
-                        secondary={item.time}
-                        primaryTypographyProps={{ variant: 'body2' }}
-                        secondaryTypographyProps={{ variant: 'caption' }}
-                      />
-                    </ListItem>
-                    {index < recentActivity.length - 1 && <Divider variant="inset" component="li" />}
-                  </React.Fragment>
-                ))}
-              </List>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* Quick Actions */}
-      <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2, mt: 2 }}>
-        Quick Actions
-      </Typography>
-
-      <Grid container spacing={2} mb={3}>
-        {quickActions.map((action) => (
-          <Grid item xs={12} sm={6} md={4} lg={2} key={action.label}>
-            <Card
-              sx={cardBaseStyle}
-              onClick={() => navigate(action.path)}
-            >
-              <CardContent sx={{ p: 2, textAlign: 'center' }}>
-                <Avatar
-                  sx={{ 
-                    width: 48, 
-                    height: 48, 
-                    bgcolor: `${action.color}.light`,
-                    mx: 'auto',
-                    mb: 1
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' }, gap: 4 }}>
+          {/* Main Action Hub */}
+          <Box>
+            <Typography variant="h6" fontWeight="800" mb={3}>Quick Directories</Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+              {[
+                { label: 'Attendance', path: '/attendance', icon: <TrendingUp />, color: '#10b981' },
+                { label: 'Departments', path: '/companies', icon: <Business />, color: '#6366f1' },
+                { label: 'Work Shifts', path: '/attendance/shifts', icon: <SettingsSuggest />, color: '#f59e0b' },
+                { label: 'Biometrics', path: '/biometrics', icon: <Security />, color: '#ec4899' },
+              ].map((item, i) => (
+                <Paper
+                  key={i}
+                  onClick={() => navigate(item.path)}
+                  sx={{
+                    p: 3, borderRadius: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    bgcolor: alpha(item.color, 0.05), border: '1px solid transparent', transition: '0.2s',
+                    '&:hover': { borderColor: item.color, bgcolor: alpha(item.color, 0.1) }
                   }}
                 >
-                  {React.cloneElement(action.icon, {
-                    sx: { fontSize: 24, color: `${action.color}.main` },
-                  })}
-                </Avatar>
-                <Typography variant="body2" fontWeight="medium">
-                  {action.label}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {action.description}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <Avatar sx={{ bgcolor: item.color, color: '#fff', borderRadius: '10px' }}>{item.icon}</Avatar>
+                    <Typography variant="subtitle2" fontWeight="800">{item.label}</Typography>
+                  </Stack>
+                  <ChevronRight sx={{ color: 'text.disabled', fontSize: 18 }} />
+                </Paper>
+              ))}
+            </Box>
+          </Box>
 
-      {/* Footer Status */}
-      <Paper sx={{ p: 2, textAlign: 'center' }}>
-        <Stack direction="row" justifyContent="center" spacing={3} alignItems="center">
-          <Typography color="success.main" fontWeight="medium" variant="body2">
-            ✓ All systems operational
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Last updated: {new Date().toLocaleString()}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Next refresh: Auto
-          </Typography>
-        </Stack>
-      </Paper>
+          {/* Activity Logs */}
+          <StyledCard theme={theme}>
+            <CardHeader title={<Typography variant="h6" fontWeight="800">Recent Status</Typography>} />
+            <Divider sx={{ opacity: 0.1 }} />
+            <List sx={{ p: 0 }}>
+              {[
+                { t: 'Attendance Sync', s: `${stats.presentToday} checked in`, time: 'Live', c: 'success' },
+                { t: 'Payroll Summary', s: 'Verified for current month', time: 'Static', c: 'info' },
+              ].map((act, i) => (
+                <ListItem key={i} sx={{ px: 3, py: 2 }}>
+                  <ListItemAvatar>
+                    <Avatar sx={{ bgcolor: alpha(theme.palette[act.c].main, 0.1), color: `${act.c}.main` }}>
+                      <Security fontSize="small" />
+                    </Avatar>
+                  </ListItemAvatar>
+                  <ListItemText 
+                    primary={<Typography variant="body2" fontWeight="700">{act.t}</Typography>}
+                    secondary={<Typography variant="caption">{act.s} • {act.time}</Typography>}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          </StyledCard>
+        </Box>
+      </Container>
     </Box>
   );
 };
