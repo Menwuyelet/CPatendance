@@ -250,7 +250,7 @@ class AttendanceTakingViewSet(ViewSet):
 
         return Response(
             {"detail": "Attendance recorded successfully"},
-            status=status.HTTP_200_OK,
+            status=status.HTTP_201_CREATED,
         )
 
 
