@@ -1,33 +1,30 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom'; 
 import Sidebar from '../components/Sidebar';
+import { Box } from '@mui/material';
 
 const MainLayout = ({ user, role, userName, notifications, onLogout }) => {
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
-      {/* The Sidebar component we built previously */}
-      <Sidebar 
-        user={user} 
-        role={role} 
-        userName={userName} 
-        notifications={notifications} 
-        onLogout={onLogout} 
-      />
-
-      {/* This is where the page content lives */}
-      <main style={{ 
-        flexGrow: 1, 
-        padding: '24px',
-        marginTop: '64px', // Matches Header height
-        transition: 'margin-left 0.3s ease',
-        width: '100%',
-        backgroundColor: 'var(--bg-main)', // Use your main background color
-        minHeight: 'calc(100vh - 64px)',
-        overflowX: 'hidden'
-      }}>
-        <Outlet /> 
-      </main>
-    </div>
+    <Box sx={{ display: 'flex', width: '100%', minHeight: '100vh' }}>
+      <Sidebar user={user} role={role} userName={userName} onLogout={onLogout} />
+      
+      <Box 
+        component="main" 
+        sx={{ 
+          flexGrow: 1, 
+          width: '100%', 
+          minWidth: 0, // Prevents children from pushing the width out
+          mt: '64px',  // Header offset
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
+        {/* This is the container for EVERY page */}
+        <Box sx={{ p: 3 }}>
+          <Outlet /> 
+        </Box>
+      </Box>
+    </Box>
   );
 };
 

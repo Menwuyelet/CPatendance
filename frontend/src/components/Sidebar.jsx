@@ -88,7 +88,7 @@ const Sidebar = memo(({ user, role, userName, notifications, onLogout, toast }) 
   const sidebarWidth = isMobile ? '280px' : isCollapsed ? '80px' : '260px';
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box>
       
       {/* FIXED TOP HEADER */}
       <Box
