@@ -165,3 +165,35 @@ body {
 @media (max-width: 960px) {
   .MuiTypography-h3 { font-size: 2rem !important; }
 }
+
+/* Target the specific MUI Grid classes to stop the refresh reset */
+.MuiGrid-root.MuiGrid-container.MuiGrid-spacing-xs-2 {
+    width: 100% !important;
+    margin: 0 !important; /* This kills the -16px margin */
+    box-sizing: border-box !important;
+}
+
+/* This ensures the items don't jump around on refresh */
+.MuiGrid-root.MuiGrid-container > .MuiGrid-item {
+    padding-left: 16px !important; 
+    padding-top: 16px !important;
+    box-sizing: border-box !important;
+}
+
+/* Force the root layout to be edge-to-edge */
+#root, main {
+    width: 100% !important;
+    overflow-x: hidden !important;
+}
+/* Target the specific generated structure to kill the negative margin */
+div.MuiGrid-container.MuiGrid-spacing-xs-3 {
+  width: 100% !important;
+  margin: 0 !important; /* Overrides the -24px margin (spacing 3 = 24px) */
+  box-sizing: border-box !important;
+}
+
+/* Ensure the items don't overflow their containers */
+div.MuiGrid-container.MuiGrid-spacing-xs-3 > .MuiGrid-item {
+  padding: 12px !important; /* Standardized padding for spacing 3 */
+  box-sizing: border-box !important;
+}

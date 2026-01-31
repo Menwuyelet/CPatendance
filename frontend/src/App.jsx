@@ -1,13 +1,12 @@
-// src/App.jsx
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useCallback, useMemo, lazy, Suspense } from 'react';
 import { api } from './services/api.service.js';
 import { NotificationProvider } from './context/NotificationContext';
 
 // Core components loaded immediately
-import Sidebar from './components/Sidebar.jsx';
-import Header from './components/Header.jsx';
-import Toast from './components/Toast.jsx';
+// import Sidebar from './components/Sidebar.jsx';
+// import Header from './components/Header.jsx';
+import MainLayout from './layout/MainLayout.jsx';
 import Login from './pages/Login.jsx';
 
 // Lazy load page components for better initial load performance
@@ -27,7 +26,7 @@ const Config = lazy(() => import('./pages/Config.jsx'));
 
 // Loading fallback component
 const PageLoader = () => (
-  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+  <div >
     <div style={{ textAlign: 'center' }}>
       <div style={{ width: 40, height: 40, border: '3px solid #e2e8f0', borderTopColor: '#6366f1', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -104,13 +103,6 @@ function App() {
   // Must be before early returns to maintain hooks order
   const userObject = useMemo(() => ({ role: user.role, name: user.name }), [user.role, user.name]);
 
-  // Layout styles - memoized
-  const layoutStyles = useMemo(() => ({
-    container: { display: 'flex', height: '100vh', backgroundColor: 'var(--bg-primary)' },
-    content: { flex: 1, display: 'flex', flexDirection: 'column' },
-    main: { flex: 1, padding: '24px', overflow: 'auto' }
-  }), []);
-
   if (loading) {
     return (
       <div style={{
@@ -131,73 +123,90 @@ function App() {
     return <Login onLogin={handleLogin} onNotify={notify} />;
   }
 
-  return (
-    <NotificationProvider>
-      <div style={layoutStyles.container}>
-        <Sidebar role={user.role} userName={user.name} onLogout={handleLogout} />
-        <div style={layoutStyles.content}>
-          <Header user={userObject} onLogout={handleLogout} notifications={notifications} />
-          <Toast message={toast.message} type={toast.type} />
-          <main style={layoutStyles.main}>
-            <Suspense fallback={<PageLoader />}>
-              <Routes>
-                {/* ADMIN */}
-                {user.role === 'Admin' && (
-                  <>
-                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                    <Route path="/dashboard" element={<AdminPanel onNotify={notify} />} />
-                    <Route path="/biometrics" element={<Biometrics onNotify={notify} role={user.role} />} />
-                    <Route path="/reports" element={<Reports onNotify={notify} />} />
-                    <Route path="/config" element={<Config onNotify={notify} />} />
-                    <Route path="/users" element={<UserManagement scope="admin" onNotify={notify} />} />
-                    <Route path="/companies" element={<Departments onNotify={notify} />} />
-                    <Route path="/attendance" element={<AttendanceOverview role="Admin" onNotify={notify} />} />
-                    <Route path="/attendance/shifts" element={<Shifts role="Admin" onNotify={notify} />} />
-                    <Route path="/attendance/sessions" element={<AttendanceSessions role="Admin" onNotify={notify} />} />
-                    <Route path="/settings" element={<Settings onNotify={notify} />} />
-                  </>
-                )}
-                {/* HR */}
-                {user.role === 'HR' && (
-                  <>
-                    <Route path="/dashboard" element={<HRDashboard onNotify={notify} />} />
-                    <Route path="/employees" element={<UserManagement scope="hr" onNotify={notify} />} />
-                    <Route path="/companies" element={<Departments onNotify={notify} />} />
-                    <Route path="/attendance" element={<AttendanceOverview role="HR" onNotify={notify} />} />
-                    <Route path="/attendance/shifts" element={<Shifts role="HR" onNotify={notify} />} />
-                    <Route path="/attendance/sessions" element={<AttendanceSessions role="HR" onNotify={notify} />} />
-                    <Route path="/biometrics" element={<Biometrics onNotify={notify} role={user.role} />} />
-                    <Route path="/settings" element={<Settings onNotify={notify} />} />
-                  </>
-                )}
-                {/* MANAGER */}
-                {user.role === 'Manager' && (
-                  <>
-                    <Route path="/manager/*" element={<ManagerDashboard onNotify={notify} />} />
-                    <Route path="/attendance" element={<AttendanceOverview role="Manager" onNotify={notify} />} />
-                    <Route path="/attendance/shifts" element={<Shifts role="Manager" onNotify={notify} />} />
-                    <Route path="/attendance/sessions" element={<AttendanceSessions role="Manager" onNotify={notify} />} />
-                    <Route path="/biometrics" element={<Biometrics onNotify={notify} role={user.role} />} />
-                    <Route path="/settings" element={<Settings onNotify={notify} />} />
-                  </>
-                )}
-                {/* EMPLOYEE */}
-                {user.role === 'Employee' && (
-                  <>
-                    <Route path="/dashboard" element={<EmployeeDashboard onNotify={notify} />} />
-                    <Route path="/attendance" element={<AttendanceOverview role="Employee" onNotify={notify} />} />
-                    <Route path="/settings" element={<Settings onNotify={notify} />} />
-                    <Route path="/biometrics" element={<Biometrics onNotify={notify} role={user.role} />} />
-                  </>
-                )}
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
-              </Routes>
-            </Suspense>
-          </main>
-        </div>
-      </div>
-    </NotificationProvider>
-  );
+return (
+  <NotificationProvider>
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+
+        {/* PUBLIC */}
+        <Route
+          path="/"
+          element={<Login onLogin={handleLogin} onNotify={notify} />}
+        />
+        {/* PROTECTED */}
+        <Route
+          element={
+            <MainLayout
+              user={userObject}
+              role={user.role}
+              userName={user.name}
+              notifications={notifications}
+              onLogout={handleLogout}
+              toast={toast}
+            />
+          }
+        >
+          {/* ADMIN */}
+          {user.role === 'Admin' && (
+            <>
+              <Route path="/dashboard" element={<AdminPanel onNotify={notify} />} />
+              <Route path="/biometrics" element={<Biometrics onNotify={notify} role="Admin" />} />
+              <Route path="/reports" element={<Reports onNotify={notify} />} />
+              <Route path="/config" element={<Config onNotify={notify} />} />
+              <Route path="/users" element={<UserManagement scope="admin" onNotify={notify} />} />
+              <Route path="/companies" element={<Departments onNotify={notify} />} />
+              <Route path="/attendance" element={<AttendanceOverview role="Admin" onNotify={notify} />} />
+              <Route path="/attendance/shifts" element={<Shifts role="Admin" onNotify={notify} />} />
+              <Route path="/attendance/sessions" element={<AttendanceSessions role="Admin" onNotify={notify} />} />
+              <Route path="/settings" element={<Settings onNotify={notify} />} />
+            </>
+          )}
+
+          {/* HR */}
+          {user.role === 'HR' && (
+            <>
+              <Route path="/dashboard" element={<HRDashboard onNotify={notify} />} />
+              <Route path="/employees" element={<UserManagement scope="hr" onNotify={notify} />} />
+              <Route path="/companies" element={<Departments onNotify={notify} />} />
+              <Route path="/attendance" element={<AttendanceOverview role="HR" onNotify={notify} />} />
+              <Route path="/attendance/shifts" element={<Shifts role="HR" onNotify={notify} />} />
+              <Route path="/attendance/sessions" element={<AttendanceSessions role="HR" onNotify={notify} />} />
+              <Route path="/biometrics" element={<Biometrics onNotify={notify} role="HR" />} />
+              <Route path="/settings" element={<Settings onNotify={notify} />} />
+            </>
+          )}
+
+          {/* MANAGER */}
+          {user.role === 'Manager' && (
+            <>
+              <Route path="/manager/*" element={<ManagerDashboard onNotify={notify} />} />
+              <Route path="/attendance" element={<AttendanceOverview role="Manager" onNotify={notify} />} />
+              <Route path="/attendance/shifts" element={<Shifts role="Manager" onNotify={notify} />} />
+              <Route path="/attendance/sessions" element={<AttendanceSessions role="Manager" onNotify={notify} />} />
+              <Route path="/biometrics" element={<Biometrics onNotify={notify} role="Manager" />} />
+              <Route path="/settings" element={<Settings onNotify={notify} />} />
+            </>
+          )}
+
+          {/* EMPLOYEE */}
+          {user.role === 'Employee' && (
+            <>
+              <Route path="/dashboard" element={<EmployeeDashboard onNotify={notify} />} />
+              <Route path="/attendance" element={<AttendanceOverview role="Employee" onNotify={notify} />} />
+              <Route path="/settings" element={<Settings onNotify={notify} />} />
+              <Route path="/biometrics" element={<Biometrics onNotify={notify} role="Employee" />} />
+            </>
+          )}
+        </Route>
+
+        {/* FALLBACK */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </Suspense>
+  </NotificationProvider>
+);
+
+
 }
 
 export default App;
