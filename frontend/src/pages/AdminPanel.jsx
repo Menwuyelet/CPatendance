@@ -14,6 +14,14 @@ import {
   Tooltip,
   Chip,
   Stack,
+  IconButton,
+  Avatar,
+  List,
+  ListItem,
+  ListItemAvatar,
+  ListItemText,
+  Divider,
+  Badge,
 } from '@mui/material';
 import {
   People,
@@ -26,6 +34,11 @@ import {
   Schedule,
   Download,
   Business,
+  TrendingDown,
+  CalendarToday,
+  Group,
+  Work,
+  Notifications,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api.service.js';
@@ -36,11 +49,11 @@ const extractArray = (res) =>
 
 const cardBaseStyle = {
   height: '100%',
-  borderRadius: 3,
-  boxShadow: 4,
+  borderRadius: 2,
+  boxShadow: 2,
   cursor: 'pointer',
-  transition: '0.3s',
-  '&:hover': { transform: 'translateY(-6px)', boxShadow: 8 },
+  transition: '0.2s',
+  '&:hover': { transform: 'translateY(-2px)', boxShadow: 4 },
 };
 
 /* --------------------------- component ----------------------------- */
@@ -57,7 +70,11 @@ const AdminPanel = ({ onNotify }) => {
     pendingApprovals: 0,
     totalDepartments: 0,
     monthlyPayroll: null,
+    lateToday: 0,
+    absentToday: 0,
   });
+
+  const [recentActivity, setRecentActivity] = useState([]);
 
   const fetchDashboardData = useCallback(
     async (force = false) => {
@@ -84,16 +101,31 @@ const AdminPanel = ({ onNotify }) => {
         const todayRecords = attendance.filter((a) => a.date === today);
 
         const present = todayRecords.filter(
-          (a) => a.status === 'PRESENT' || a.status === 'LATE'
+          (a) => a.status === 'PRESENT'
+        );
+        const late = todayRecords.filter(
+          (a) => a.status === 'LATE'
+        );
+        const absent = todayRecords.filter(
+          (a) => a.status === 'ABSENT'
         );
         const leave = todayRecords.filter(
           (a) => a.status === 'ON_LEAVE'
         );
 
+        // Generate recent activity
+        const activity = [
+          { text: `${present.length} employees checked in`, time: 'Just now', icon: <EventAvailable color="success" /> },
+          { text: `${late.length} employees late`, time: 'Today', icon: <AccessTime color="warning" /> },
+          { text: `${leave.length} leave requests`, time: 'Pending', icon: <WarningAmber color="error" /> },
+        ];
+
         setStats({
           totalEmployees: employees.length,
           totalDepartments: departments.length,
           presentToday: present.length,
+          lateToday: late.length,
+          absentToday: absent.length,
           pendingApprovals: leave.length,
           attendanceRate: todayRecords.length
             ? Math.round((present.length / todayRecords.length) * 100)
@@ -101,6 +133,7 @@ const AdminPanel = ({ onNotify }) => {
           monthlyPayroll: null,
         });
 
+        setRecentActivity(activity);
         force && onNotify?.('Dashboard refreshed', 'success');
       } catch (err) {
         const msg =
@@ -137,45 +170,42 @@ const AdminPanel = ({ onNotify }) => {
 
   /* ------------------------- config -------------------------- */
   const quickActions = [
-    { label: 'Departments', icon: <Business />, color: 'primary', path: '/departments' },
-    { label: 'Add Employee', icon: <PersonAdd />, color: 'secondary', path: '/users' },
-    { label: 'Attendance', icon: <Schedule />, color: 'info', path: '/attendance' },
-    { label: 'Reports', icon: <Download />, color: 'success', path: '/reports' },
+    { label: 'Departments', icon: <Business />, color: 'primary', path: '/departments', description: 'Manage company units' },
+    { label: 'Add Employee', icon: <PersonAdd />, color: 'secondary', path: '/users', description: 'Register new staff' },
+    { label: 'Attendance', icon: <Schedule />, color: 'info', path: '/attendance', description: 'View attendance records' },
+    { label: 'Reports', icon: <Download />, color: 'success', path: '/reports', description: 'Generate reports' },
+    { label: 'Shifts', icon: <CalendarToday />, color: 'warning', path: '/attendance/shifts', description: 'Manage work schedules' },
+    { label: 'Biometrics', icon: <Group />, color: 'error', path: '/biometrics', description: 'Face recognition setup' },
   ];
 
   if (loading && !stats.totalEmployees) {
     return (
       <Box
         sx={{
-          minHeight: '70vh',
+          minHeight: '60vh',
           display: 'flex',
-          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 2,
         }}
       >
-        <CircularProgress size={64} />
-        <Typography color="text.secondary">
-          Loading dashboard...
-        </Typography>
+        <CircularProgress size={48} />
       </Box>
     );
   }
 
   /* ------------------------- UI -------------------------- */
   return (
-    <Box sx={{ p: { xs: 2, md: 4 } }}>
+    <Box sx={{ p: 2 }}>
       {/* Header */}
       <Stack
         direction={{ xs: 'column', md: 'row' }}
         justifyContent="space-between"
         alignItems={{ xs: 'flex-start', md: 'center' }}
         spacing={2}
-        mb={4}
+        mb={3}
       >
         <Box>
-          <Typography variant="h4" fontWeight="bold">
+          <Typography variant="h5" fontWeight="bold" sx={{ mb: 1 }}>
             Admin Dashboard
           </Typography>
           <Typography variant="body2" color="text.secondary">
@@ -188,16 +218,28 @@ const AdminPanel = ({ onNotify }) => {
           </Typography>
         </Box>
 
-        <Tooltip title="Refresh">
+        <Stack direction="row" spacing={1}>
+          <Tooltip title="Refresh data">
+            <IconButton
+              onClick={() => fetchDashboardData(true)}
+              disabled={loading}
+              sx={{ 
+                bgcolor: 'background.paper',
+                '&:hover': { bgcolor: 'grey.100' }
+              }}
+            >
+              <Refresh fontSize="small" />
+            </IconButton>
+          </Tooltip>
           <Button
             variant="contained"
-            startIcon={<Refresh />}
-            onClick={() => fetchDashboardData(true)}
-            disabled={loading}
+            size="small"
+            onClick={() => navigate('/users')}
+            startIcon={<PersonAdd />}
           >
-            Refresh
+            Add Employee
           </Button>
-        </Tooltip>
+        </Stack>
       </Stack>
 
       {error && (
@@ -206,177 +248,255 @@ const AdminPanel = ({ onNotify }) => {
         </Alert>
       )}
 
-      {/* Stats */}
-      <Grid container spacing={3} mb={5}>
-        <Grid item xs={12} sm={6} md={4} lg={2.4}>
-          <StatCard
-            title="Employees"
-            value={stats.totalEmployees}
-            icon={<People />}
-            chip="Active"
-            color="primary"
-            onClick={() => navigate('/users')}
-          />
+      {/* Main Stats Grid */}
+      <Grid container spacing={2} mb={3}>
+        {/* Employees Card */}
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={cardBaseStyle}>
+            <CardContent sx={{ p: 2 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    Total Employees
+                  </Typography>
+                  <Typography variant="h5" fontWeight="bold">
+                    {stats.totalEmployees}
+                  </Typography>
+                  <Typography variant="caption" color="success.main">
+                    Active workforce
+                  </Typography>
+                </Box>
+                <Avatar sx={{ bgcolor: 'primary.light', width: 48, height: 48 }}>
+                  <People />
+                </Avatar>
+              </Stack>
+            </CardContent>
+          </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={4} lg={2.4}>
-          <StatCard
-            title="Present Today"
-            value={stats.presentToday}
-            icon={<EventAvailable />}
-            progress={stats.attendanceRate}
-            color="success"
-            onClick={() => navigate('/attendance')}
-          />
+        {/* Present Today Card */}
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={cardBaseStyle}>
+            <CardContent sx={{ p: 2 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    Present Today
+                  </Typography>
+                  <Typography variant="h5" fontWeight="bold" color="success.main">
+                    {stats.presentToday}
+                  </Typography>
+                  <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                    <Chip label={`${stats.lateToday} Late`} size="small" color="warning" />
+                    <Chip label={`${stats.absentToday} Absent`} size="small" color="error" />
+                  </Stack>
+                </Box>
+                <Avatar sx={{ bgcolor: 'success.light', width: 48, height: 48 }}>
+                  <EventAvailable />
+                </Avatar>
+              </Stack>
+            </CardContent>
+          </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={4} lg={2.4}>
-          <StatCard
-            title="Departments"
-            value={stats.totalDepartments}
-            icon={<Business />}
-            chip="Units"
-            color="info"
-            onClick={() => navigate('/departments')}
-          />
+        {/* Attendance Rate Card */}
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={cardBaseStyle}>
+            <CardContent sx={{ p: 2 }}>
+              <Stack direction="column" spacing={2}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      Attendance Rate
+                    </Typography>
+                    <Typography variant="h5" fontWeight="bold">
+                      {stats.attendanceRate}%
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: 'info.light', width: 48, height: 48 }}>
+                    <TrendingUp />
+                  </Avatar>
+                </Stack>
+                <LinearProgress 
+                  variant="determinate" 
+                  value={stats.attendanceRate} 
+                  color="success"
+                  sx={{ height: 8, borderRadius: 4 }}
+                />
+              </Stack>
+            </CardContent>
+          </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={4} lg={2.4}>
-          <StatCard
-            title="Payroll"
-            value={
-              stats.monthlyPayroll
-                ? `$${stats.monthlyPayroll.toLocaleString()}`
-                : 'N/A'
-            }
-            icon={<AccessTime />}
-            footer="+8.5% vs last month"
-            color="warning"
-          />
+        {/* Departments Card */}
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={cardBaseStyle}>
+            <CardContent sx={{ p: 2 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    Departments
+                  </Typography>
+                  <Typography variant="h5" fontWeight="bold">
+                    {stats.totalDepartments}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Company units
+                  </Typography>
+                </Box>
+                <Avatar sx={{ bgcolor: 'info.light', width: 48, height: 48 }}>
+                  <Business />
+                </Avatar>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Secondary Stats Grid */}
+      <Grid container spacing={2} mb={3}>
+        {/* Pending Approvals */}
+        <Grid item xs={12} sm={6} md={4}>
+          <Card sx={cardBaseStyle}>
+            <CardContent sx={{ p: 2 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    Pending Approvals
+                  </Typography>
+                  <Typography variant="h5" fontWeight="bold" color="error.main">
+                    {stats.pendingApprovals}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Leave requests
+                  </Typography>
+                </Box>
+                <Avatar sx={{ bgcolor: 'error.light', width: 48, height: 48 }}>
+                  <WarningAmber />
+                </Avatar>
+              </Stack>
+            </CardContent>
+          </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={4} lg={2.4}>
-          <StatCard
-            title="Pending"
-            value={stats.pendingApprovals}
-            icon={<WarningAmber />}
-            footer="Leave requests"
-            color="error"
-          />
+        {/* Payroll */}
+        <Grid item xs={12} sm={6} md={4}>
+          <Card sx={cardBaseStyle}>
+            <CardContent sx={{ p: 2 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    Monthly Payroll
+                  </Typography>
+                  <Typography variant="h5" fontWeight="bold">
+                    {stats.monthlyPayroll ? `$${stats.monthlyPayroll.toLocaleString()}` : 'N/A'}
+                  </Typography>
+                  <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                    <Chip label="+8.5%" size="small" color="success" icon={<TrendingUp fontSize="small" />} />
+                    <Typography variant="caption" color="text.secondary">
+                      vs last month
+                    </Typography>
+                  </Stack>
+                </Box>
+                <Avatar sx={{ bgcolor: 'warning.light', width: 48, height: 48 }}>
+                  <AccessTime />
+                </Avatar>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Recent Activity */}
+        <Grid item xs={12} md={4}>
+          <Card sx={{ ...cardBaseStyle, height: 'auto' }}>
+            <CardContent sx={{ p: 2 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" fontWeight="bold">
+                  Recent Activity
+                </Typography>
+                <IconButton size="small">
+                  <Notifications fontSize="small" />
+                </IconButton>
+              </Stack>
+              <List dense>
+                {recentActivity.map((item, index) => (
+                  <React.Fragment key={index}>
+                    <ListItem sx={{ px: 0 }}>
+                      <ListItemAvatar>
+                        <Avatar sx={{ width: 32, height: 32 }}>
+                          {item.icon}
+                        </Avatar>
+                      </ListItemAvatar>
+                      <ListItemText
+                        primary={item.text}
+                        secondary={item.time}
+                        primaryTypographyProps={{ variant: 'body2' }}
+                        secondaryTypographyProps={{ variant: 'caption' }}
+                      />
+                    </ListItem>
+                    {index < recentActivity.length - 1 && <Divider variant="inset" component="li" />}
+                  </React.Fragment>
+                ))}
+              </List>
+            </CardContent>
+          </Card>
         </Grid>
       </Grid>
 
       {/* Quick Actions */}
-      <Typography variant="h6" fontWeight="bold" mb={2}>
+      <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2, mt: 2 }}>
         Quick Actions
       </Typography>
 
-      <Grid container spacing={3}>
-        {quickActions.map((a) => (
-          <Grid item xs={12} sm={6} md={3} key={a.label}>
+      <Grid container spacing={2} mb={3}>
+        {quickActions.map((action) => (
+          <Grid item xs={12} sm={6} md={4} lg={2} key={action.label}>
             <Card
               sx={cardBaseStyle}
-              onClick={() => navigate(a.path)}
+              onClick={() => navigate(action.path)}
             >
-              <CardContent sx={{ textAlign: 'center', py: 4 }}>
-                <Box
-                  sx={{
-                    width: 60,
-                    height: 60,
+              <CardContent sx={{ p: 2, textAlign: 'center' }}>
+                <Avatar
+                  sx={{ 
+                    width: 48, 
+                    height: 48, 
+                    bgcolor: `${action.color}.light`,
                     mx: 'auto',
-                    mb: 2,
-                    borderRadius: '50%',
-                    bgcolor: `${a.color}.light`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    mb: 1
                   }}
                 >
-                  {React.cloneElement(a.icon, {
-                    sx: { fontSize: 30, color: `${a.color}.main` },
+                  {React.cloneElement(action.icon, {
+                    sx: { fontSize: 24, color: `${action.color}.main` },
                   })}
-                </Box>
-                <Typography fontWeight="medium">{a.label}</Typography>
+                </Avatar>
+                <Typography variant="body2" fontWeight="medium">
+                  {action.label}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {action.description}
+                </Typography>
               </CardContent>
             </Card>
           </Grid>
         ))}
       </Grid>
 
-      {/* Footer */}
-      <Paper sx={{ mt: 5, p: 3, textAlign: 'center' }}>
-        <Typography color="success.main" fontWeight="medium">
-          ✓ All systems operational
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Last updated: {new Date().toLocaleString()}
-        </Typography>
+      {/* Footer Status */}
+      <Paper sx={{ p: 2, textAlign: 'center' }}>
+        <Stack direction="row" justifyContent="center" spacing={3} alignItems="center">
+          <Typography color="success.main" fontWeight="medium" variant="body2">
+            ✓ All systems operational
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            Last updated: {new Date().toLocaleString()}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            Next refresh: Auto
+          </Typography>
+        </Stack>
       </Paper>
     </Box>
   );
 };
-
-/* --------------------------- reusable card --------------------------- */
-const StatCard = ({
-  title,
-  value,
-  icon,
-  color,
-  chip,
-  progress,
-  footer,
-  onClick,
-}) => (
-  <Card sx={cardBaseStyle} onClick={onClick}>
-    <CardContent>
-      <Stack direction="row" justifyContent="space-between">
-        <Box>
-          <Typography variant="body2" color="text.secondary">
-            {title}
-          </Typography>
-          <Typography variant="h4" fontWeight="bold">
-            {value}
-          </Typography>
-
-          {chip && (
-            <Chip
-              label={chip}
-              size="small"
-              color={color}
-              sx={{ mt: 1 }}
-            />
-          )}
-
-          {progress !== undefined && (
-            <Box mt={2}>
-              <LinearProgress
-                value={progress}
-                variant="determinate"
-              />
-              <Typography variant="caption">
-                {progress}% attendance
-              </Typography>
-            </Box>
-          )}
-
-          {footer && (
-            <Typography
-              variant="caption"
-              color="success.main"
-              mt={1}
-              display="block"
-            >
-              {footer}
-            </Typography>
-          )}
-        </Box>
-
-        {React.cloneElement(icon, {
-          sx: { fontSize: 56, color: `${color}.main`, opacity: 0.2 },
-        })}
-      </Stack>
-    </CardContent>
-  </Card>
-);
 
 export default AdminPanel;

@@ -817,9 +817,9 @@ useEffect(() => {
                       <TableBody>
                         {filteredProfiles.map((p) => (
                           <TableRow key={p.id} hover sx={{ cursor: 'pointer' }}>
-                            <TableCell onClick={() => openDetails(p)}>
-                              {p.employee_name || p.employee || 'Unknown'}
-                            </TableCell>
+                          <TableCell onClick={() => openDetails(p)}>
+                            {p.employee_name || p.employee?.full_name || p.employee?.name || p.employee?.email || 'Unknown Employee'}
+                          </TableCell>
                             <TableCell onClick={() => openDetails(p)}>{p.biometric_type}</TableCell>
                             <TableCell onClick={() => openDetails(p)}>
                               {p.created_at ? new Date(p.created_at).toLocaleDateString() : '-'}
@@ -1044,7 +1044,6 @@ useEffect(() => {
                         ) : hasEmployeeProfile ? (
                           <>
                             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                              Employee ID: {employeeId} |
                               Auto-detection: {faceDetectionEnabled ? 'ON' : 'OFF'} |
                               Auto-send: {autoSendEnabled ? 'ON' : 'OFF'} |
                               Blink detection: {blinkDetectionEnabled ? 'ON (real)' : 'OFF'}
@@ -1454,7 +1453,7 @@ useEffect(() => {
                   <Fingerprint sx={{ fontSize: 60 }} />
                 </Avatar>
                 <Typography variant="h5" fontWeight="bold">
-                  {selectedProfile.employee_name || selectedProfile.employee || 'Unknown'}
+                  {selectedProfile.employee_name || selectedProfile.employee?.full_name || selectedProfile.employee?.name || selectedProfile.employee?.email || 'Unknown Employee'}
                 </Typography>
                 <Chip
                   label={selectedProfile.is_active ? 'ACTIVE' : 'INACTIVE'}

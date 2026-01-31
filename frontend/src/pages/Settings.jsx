@@ -26,6 +26,12 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  LinearProgress,
+  Chip,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
 import {
   Save,
@@ -43,6 +49,9 @@ import {
   CameraAlt,
   CheckCircle,
   Error as ErrorIcon,
+  Check,
+  Close,
+  Warning,
 } from '@mui/icons-material';
 import { api } from '../services/api.service.js';
 import { useTheme } from '@mui/material/styles';
@@ -87,6 +96,14 @@ const Settings = ({ onNotify }) => {
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [profileImage, setProfileImage] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
+  const [passwordStrength, setPasswordStrength] = useState(0);
+  const [passwordRequirements, setPasswordRequirements] = useState({
+    length: false,
+    uppercase: false,
+    lowercase: false,
+    number: false,
+    special: false,
+  });
 
   // Load user data and preferences
   const loadUserData = useCallback(async () => {
@@ -181,9 +198,48 @@ const Settings = ({ onNotify }) => {
     }
   };
 
+  // Calculate password strength
+  const calculatePasswordStrength = (password) => {
+    if (!password) return 0;
+    
+    let strength = 0;
+    const requirements = {
+      length: password.length >= 8,
+      uppercase: /[A-Z]/.test(password),
+      lowercase: /[a-z]/.test(password),
+      number: /[0-9]/.test(password),
+      special: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+    };
+    
+    // Calculate strength based on requirements met
+    Object.values(requirements).forEach(met => {
+      if (met) strength += 20;
+    });
+    
+    setPasswordRequirements(requirements);
+    return strength;
+  };
+
   // Handle password form changes
   const handlePasswordChange = (field) => (e) => {
-    setPasswordForm(prev => ({ ...prev, [field]: e.target.value }));
+    const value = e.target.value;
+    setPasswordForm(prev => ({ ...prev, [field]: value }));
+    
+    // Calculate strength for new password
+    if (field === 'new_password') {
+      const strength = calculatePasswordStrength(value);
+      setPasswordStrength(strength);
+    }
+    
+    // Real-time validation for confirm password
+    if (field === 'confirm_password' && passwordForm.new_password) {
+      if (value && value !== passwordForm.new_password) {
+        setValidationErrors(prev => ({ ...prev, confirm_password: 'Passwords do not match' }));
+      } else {
+        setValidationErrors(prev => ({ ...prev, confirm_password: '' }));
+      }
+    }
+    
     if (validationErrors[field]) {
       setValidationErrors(prev => ({ ...prev, [field]: '' }));
     }
@@ -229,12 +285,24 @@ const Settings = ({ onNotify }) => {
       errors.new_password = 'New password is required';
     } else if (passwordForm.new_password.length < 8) {
       errors.new_password = 'Password must be at least 8 characters';
+    } else if (!/[A-Z]/.test(passwordForm.new_password)) {
+      errors.new_password = 'Password must contain at least one uppercase letter';
+    } else if (!/[a-z]/.test(passwordForm.new_password)) {
+      errors.new_password = 'Password must contain at least one lowercase letter';
+    } else if (!/[0-9]/.test(passwordForm.new_password)) {
+      errors.new_password = 'Password must contain at least one number';
+    } else if (!/[!@#$%^&*(),.?":{}|<>]/.test(passwordForm.new_password)) {
+      errors.new_password = 'Password must contain at least one special character';
     }
     
     if (!passwordForm.confirm_password) {
       errors.confirm_password = 'Please confirm your password';
     } else if (passwordForm.new_password !== passwordForm.confirm_password) {
       errors.confirm_password = 'Passwords do not match';
+    }
+    
+    if (passwordForm.current_password === passwordForm.new_password) {
+      errors.new_password = 'New password must be different from current password';
     }
     
     setValidationErrors(errors);
@@ -311,9 +379,18 @@ const Settings = ({ onNotify }) => {
   // Change password
   const changePassword = async () => {
     try {
-      await api.post('/auth/change-password/', {
+      // Get current user data to get the user ID
+      const userData = await api.getCurrentUser();
+      const userId = userData?.id;
+      
+      if (!userId) {
+        throw new Error('Unable to get user ID');
+      }
+      
+      // Update password using the user endpoint
+      await api.patch(`/accounts/users/${userId}/`, {
+        password: passwordForm.new_password,
         current_password: passwordForm.current_password,
-        new_password: passwordForm.new_password,
       });
       
       // Clear form
@@ -321,6 +398,14 @@ const Settings = ({ onNotify }) => {
         current_password: '',
         new_password: '',
         confirm_password: '',
+      });
+      setPasswordStrength(0);
+      setPasswordRequirements({
+        length: false,
+        uppercase: false,
+        lowercase: false,
+        number: false,
+        special: false,
       });
       
       setPasswordDialogOpen(false);
@@ -704,68 +789,285 @@ const Settings = ({ onNotify }) => {
       </Box>
 
       {/* Password Change Dialog */}
-      <Dialog open={passwordDialogOpen} onClose={() => setPasswordDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Change Password</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField
-              fullWidth
-              label="Current Password"
-              type={showPassword.current ? 'text' : 'password'}
-              value={passwordForm.current_password}
-              onChange={handlePasswordChange('current_password')}
-              error={!!validationErrors.current_password}
-              helperText={validationErrors.current_password}
-              InputProps={{
-                endAdornment: (
-                  <IconButton onClick={togglePasswordVisibility('current')} edge="end">
-                    {showPassword.current ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                ),
-              }}
-            />
+      <Dialog 
+        open={passwordDialogOpen} 
+        onClose={() => setPasswordDialogOpen(false)} 
+        maxWidth="md" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            bgcolor: theme.palette.mode === 'dark' ? 'grey.900' : 'background.paper',
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          pb: 1,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          borderBottom: 1,
+          borderColor: 'divider',
+        }}>
+          <Lock color="primary" />
+          <Typography variant="h6" component="span">Change Password</Typography>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          <Grid container spacing={3}>
+            {/* Left side - Password fields */}
+            <Grid item xs={12} md={7}>
+              <Stack spacing={2.5}>
+                <TextField
+                  fullWidth
+                  label="Current Password"
+                  type={showPassword.current ? 'text' : 'password'}
+                  value={passwordForm.current_password}
+                  onChange={handlePasswordChange('current_password')}
+                  error={!!validationErrors.current_password}
+                  helperText={validationErrors.current_password}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      bgcolor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.50',
+                    }
+                  }}
+                  InputProps={{
+                    endAdornment: (
+                      <IconButton onClick={togglePasswordVisibility('current')} edge="end">
+                        {showPassword.current ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    ),
+                  }}
+                />
+                
+                <TextField
+                  fullWidth
+                  label="New Password"
+                  type={showPassword.new ? 'text' : 'password'}
+                  value={passwordForm.new_password}
+                  onChange={handlePasswordChange('new_password')}
+                  error={!!validationErrors.new_password}
+                  helperText={validationErrors.new_password}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      bgcolor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.50',
+                    }
+                  }}
+                  InputProps={{
+                    endAdornment: (
+                      <IconButton onClick={togglePasswordVisibility('new')} edge="end">
+                        {showPassword.new ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    ),
+                  }}
+                />
+                
+                {/* Password Strength Indicator */}
+                {passwordForm.new_password && (
+                  <Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        Password Strength
+                      </Typography>
+                      <Chip 
+                        label={
+                          passwordStrength < 40 ? 'Weak' :
+                          passwordStrength < 60 ? 'Fair' :
+                          passwordStrength < 80 ? 'Good' : 'Strong'
+                        }
+                        size="small"
+                        color={
+                          passwordStrength < 40 ? 'error' :
+                          passwordStrength < 60 ? 'warning' :
+                          passwordStrength < 80 ? 'info' : 'success'
+                        }
+                        sx={{ fontWeight: 'bold' }}
+                      />
+                    </Box>
+                    <LinearProgress 
+                      variant="determinate" 
+                      value={passwordStrength} 
+                      sx={{
+                        height: 8,
+                        borderRadius: 4,
+                        bgcolor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.200',
+                        '& .MuiLinearProgress-bar': {
+                          borderRadius: 4,
+                          bgcolor: 
+                            passwordStrength < 40 ? 'error.main' :
+                            passwordStrength < 60 ? 'warning.main' :
+                            passwordStrength < 80 ? 'info.main' : 'success.main',
+                        }
+                      }}
+                    />
+                  </Box>
+                )}
+                
+                <TextField
+                  fullWidth
+                  label="Confirm New Password"
+                  type={showPassword.confirm ? 'text' : 'password'}
+                  value={passwordForm.confirm_password}
+                  onChange={handlePasswordChange('confirm_password')}
+                  error={!!validationErrors.confirm_password}
+                  helperText={validationErrors.confirm_password}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      bgcolor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.50',
+                      borderColor: passwordForm.confirm_password && passwordForm.new_password === passwordForm.confirm_password ? 'success.main' : undefined,
+                    }
+                  }}
+                  InputProps={{
+                    endAdornment: (
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        {passwordForm.confirm_password && passwordForm.new_password === passwordForm.confirm_password && (
+                          <CheckCircle color="success" fontSize="small" />
+                        )}
+                        {passwordForm.confirm_password && passwordForm.new_password !== passwordForm.confirm_password && (
+                          <ErrorIcon color="error" fontSize="small" />
+                        )}
+                        <IconButton onClick={togglePasswordVisibility('confirm')} edge="end">
+                          {showPassword.confirm ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </Stack>
+                    ),
+                  }}
+                />
+              </Stack>
+            </Grid>
             
-            <TextField
-              fullWidth
-              label="New Password"
-              type={showPassword.new ? 'text' : 'password'}
-              value={passwordForm.new_password}
-              onChange={handlePasswordChange('new_password')}
-              error={!!validationErrors.new_password}
-              helperText={validationErrors.new_password || 'Minimum 8 characters'}
-              InputProps={{
-                endAdornment: (
-                  <IconButton onClick={togglePasswordVisibility('new')} edge="end">
-                    {showPassword.new ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                ),
-              }}
-            />
-            
-            <TextField
-              fullWidth
-              label="Confirm New Password"
-              type={showPassword.confirm ? 'text' : 'password'}
-              value={passwordForm.confirm_password}
-              onChange={handlePasswordChange('confirm_password')}
-              error={!!validationErrors.confirm_password}
-              helperText={validationErrors.confirm_password}
-              InputProps={{
-                endAdornment: (
-                  <IconButton onClick={togglePasswordVisibility('confirm')} edge="end">
-                    {showPassword.confirm ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                ),
-              }}
-            />
-          </Stack>
+            {/* Right side - Password requirements */}
+            <Grid item xs={12} md={5}>
+              <Paper 
+                elevation={0} 
+                sx={{ 
+                  p: 2, 
+                  bgcolor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100',
+                  borderRadius: 2,
+                  border: 1,
+                  borderColor: theme.palette.mode === 'dark' ? 'grey.700' : 'grey.300',
+                }}
+              >
+                <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Security fontSize="small" />
+                  Password Requirements
+                </Typography>
+                <List dense sx={{ py: 0 }}>
+                  <ListItem sx={{ px: 0, py: 0.5 }}>
+                    <ListItemIcon sx={{ minWidth: 32 }}>
+                      {passwordRequirements.length ? 
+                        <Check fontSize="small" sx={{ color: 'success.main' }} /> : 
+                        <Close fontSize="small" sx={{ color: 'text.disabled' }} />
+                      }
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary="At least 8 characters" 
+                      primaryTypographyProps={{ 
+                        variant: 'body2',
+                        color: passwordRequirements.length ? 'success.main' : 'text.secondary'
+                      }}
+                    />
+                  </ListItem>
+                  <ListItem sx={{ px: 0, py: 0.5 }}>
+                    <ListItemIcon sx={{ minWidth: 32 }}>
+                      {passwordRequirements.uppercase ? 
+                        <Check fontSize="small" sx={{ color: 'success.main' }} /> : 
+                        <Close fontSize="small" sx={{ color: 'text.disabled' }} />
+                      }
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary="One uppercase letter (A-Z)" 
+                      primaryTypographyProps={{ 
+                        variant: 'body2',
+                        color: passwordRequirements.uppercase ? 'success.main' : 'text.secondary'
+                      }}
+                    />
+                  </ListItem>
+                  <ListItem sx={{ px: 0, py: 0.5 }}>
+                    <ListItemIcon sx={{ minWidth: 32 }}>
+                      {passwordRequirements.lowercase ? 
+                        <Check fontSize="small" sx={{ color: 'success.main' }} /> : 
+                        <Close fontSize="small" sx={{ color: 'text.disabled' }} />
+                      }
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary="One lowercase letter (a-z)" 
+                      primaryTypographyProps={{ 
+                        variant: 'body2',
+                        color: passwordRequirements.lowercase ? 'success.main' : 'text.secondary'
+                      }}
+                    />
+                  </ListItem>
+                  <ListItem sx={{ px: 0, py: 0.5 }}>
+                    <ListItemIcon sx={{ minWidth: 32 }}>
+                      {passwordRequirements.number ? 
+                        <Check fontSize="small" sx={{ color: 'success.main' }} /> : 
+                        <Close fontSize="small" sx={{ color: 'text.disabled' }} />
+                      }
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary="One number (0-9)" 
+                      primaryTypographyProps={{ 
+                        variant: 'body2',
+                        color: passwordRequirements.number ? 'success.main' : 'text.secondary'
+                      }}
+                    />
+                  </ListItem>
+                  <ListItem sx={{ px: 0, py: 0.5 }}>
+                    <ListItemIcon sx={{ minWidth: 32 }}>
+                      {passwordRequirements.special ? 
+                        <Check fontSize="small" sx={{ color: 'success.main' }} /> : 
+                        <Close fontSize="small" sx={{ color: 'text.disabled' }} />
+                      }
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary="One special character (!@#$...)" 
+                      primaryTypographyProps={{ 
+                        variant: 'body2',
+                        color: passwordRequirements.special ? 'success.main' : 'text.secondary'
+                      }}
+                    />
+                  </ListItem>
+                </List>
+                
+                {passwordForm.new_password && passwordForm.confirm_password && (
+                  <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+                    {passwordForm.new_password === passwordForm.confirm_password ? (
+                      <Alert severity="success" icon={<CheckCircle />} sx={{ py: 0 }}>
+                        Passwords match!
+                      </Alert>
+                    ) : (
+                      <Alert severity="error" icon={<ErrorIcon />} sx={{ py: 0 }}>
+                        Passwords don't match
+                      </Alert>
+                    )}
+                  </Box>
+                )}
+              </Paper>
+            </Grid>
+          </Grid>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPasswordDialogOpen(false)}>Cancel</Button>
+        <DialogActions sx={{ px: 3, py: 2, borderTop: 1, borderColor: 'divider' }}>
+          <Button 
+            onClick={() => {
+              setPasswordDialogOpen(false);
+              setPasswordForm({
+                current_password: '',
+                new_password: '',
+                confirm_password: '',
+              });
+              setPasswordStrength(0);
+              setValidationErrors({});
+            }}
+            sx={{ px: 3 }}
+          >
+            Cancel
+          </Button>
           <Button 
             variant="contained" 
             onClick={handlePasswordSubmit}
-            disabled={saving}
+            disabled={saving || passwordStrength < 100 || passwordForm.new_password !== passwordForm.confirm_password}
+            startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Lock />}
+            sx={{ px: 4 }}
           >
             {saving ? 'Changing...' : 'Change Password'}
           </Button>
