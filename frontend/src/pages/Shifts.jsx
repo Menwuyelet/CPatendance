@@ -791,13 +791,13 @@ const Shifts = ({ role, onNotify }) => {
                   />
                   
                   <Grid container spacing={1} sx={{ width: { xs: '100%', md: 'auto' } }}>
-                    <Grid item xs={12} sm={6}>
+                    <Grid size={{ xs: 12, sm: 6 }}>
                       <TimePicker
                         label="From Time"
                         value={shiftFilters.timeRange.start}
                         onChange={(newValue) => handleTimeFilterChange('start', newValue)}
                         ampm={ampmMode}
-                        renderInput={(params) => (
+                        textField={(params) => (
                           <TextField
                             {...params}
                             size="small"
@@ -814,13 +814,13 @@ const Shifts = ({ role, onNotify }) => {
                         )}
                       />
                     </Grid>
-                    <Grid item xs={12} sm={6}>
+                    <Grid size={{ xs: 12, sm: 6 }}>
                       <TimePicker
                         label="To Time"
                         value={shiftFilters.timeRange.end}
                         onChange={(newValue) => handleTimeFilterChange('end', newValue)}
                         ampm={ampmMode}
-                        renderInput={(params) => (
+                        textField={(params) => (
                           <TextField
                             {...params}
                             size="small"
@@ -1022,13 +1022,13 @@ const Shifts = ({ role, onNotify }) => {
             />
             
             <Grid container spacing={2} sx={{ mt: 1 }}>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TimePicker
                   label="Start Time"
                   value={shiftForm.start_time}
                   onChange={(newValue) => handleShiftFieldChange('start_time', newValue)}
                   ampm={ampmMode}
-                  renderInput={(params) => (
+                  textField={(params) => (
                     <TextField
                       {...params}
                       fullWidth
@@ -1046,13 +1046,13 @@ const Shifts = ({ role, onNotify }) => {
                   minutesStep={5}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TimePicker
                   label="End Time"
                   value={shiftForm.end_time}
                   onChange={(newValue) => handleShiftFieldChange('end_time', newValue)}
                   ampm={ampmMode}
-                  renderInput={(params) => (
+                  textField={(params) => (
                     <TextField
                       {...params}
                       fullWidth

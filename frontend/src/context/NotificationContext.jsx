@@ -77,25 +77,32 @@ export const NotificationProvider = ({ children }) => {
       {children}
 
       <Snackbar
+        key={snackMessage}
         open={snackOpen}
         autoHideDuration={6000}
         onClose={handleSnackClose}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        sx={{ '& .MuiSnackbar-root': { position: 'fixed' } }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        sx={{ '& .MuiSnackbar-root': { position: 'fixed', zIndex: 9999, bottom: '24px', left: '50%', transform: 'translateX(-50%)' } }}
       >
         <Alert 
           onClose={handleSnackClose} 
           severity={snackSeverity} 
-          variant="filled"
+          variant="outlined"
           sx={{ 
             width: '100%',
             minWidth: '300px',
             maxWidth: '500px',
-            boxShadow: 4,
+            boxShadow: 6,
             fontWeight: 'bold',
-            fontSize: '14px',
+            fontSize: '15px',
+            bgcolor: '#fff',
+            color: snackSeverity === 'success' ? '#2e7d32' : snackSeverity === 'error' ? '#d32f2f' : snackSeverity === 'warning' ? '#ed6c02' : '#0288d1',
             '& .MuiAlert-message': {
               fontWeight: 'bold',
+              color: snackSeverity === 'success' ? '#2e7d32' : snackSeverity === 'error' ? '#d32f2f' : snackSeverity === 'warning' ? '#ed6c02' : '#0288d1',
+            },
+            '& .MuiAlert-icon': {
+              color: snackSeverity === 'success' ? '#2e7d32' : snackSeverity === 'error' ? '#d32f2f' : snackSeverity === 'warning' ? '#ed6c02' : '#0288d1',
             },
           }}
         >

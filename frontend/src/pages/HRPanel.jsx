@@ -394,7 +394,7 @@ const HRDashboard = ({ onNotify }) => {
 
       {/* Key Statistics */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} lg={3}>
+        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
           <DashboardStatCard
             label="Total Employees"
             value={stats.totalEmployees}
@@ -404,7 +404,7 @@ const HRDashboard = ({ onNotify }) => {
             onClick={() => navigate('/employees')}
           />
         </Grid>
-        <Grid item xs={12} sm={6} lg={3}>
+        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
           <DashboardStatCard
             label="Present Today"
             value={stats.activeToday}
@@ -414,7 +414,7 @@ const HRDashboard = ({ onNotify }) => {
             onClick={() => navigate('/attendance')}
           />
         </Grid>
-        <Grid item xs={12} sm={6} lg={3}>
+        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
           <DashboardStatCard
             label="Absenteeism"
             value={`${stats.absenteeismRate}%`}
@@ -423,7 +423,7 @@ const HRDashboard = ({ onNotify }) => {
             color={stats.absenteeismRate > 20 ? 'error' : 'warning'}
           />
         </Grid>
-        <Grid item xs={12} sm={6} lg={3}>
+        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
           <DashboardStatCard
             label="Late Arrivals"
             value={stats.lateArrivals}
@@ -444,7 +444,7 @@ const HRDashboard = ({ onNotify }) => {
 
           {/* Filters */}
           <Grid container spacing={2} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <TextField
                 fullWidth
                 size="small"
@@ -460,7 +460,7 @@ const HRDashboard = ({ onNotify }) => {
                 }}
               />
             </Grid>
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>Department</InputLabel>
                 <Select
@@ -477,7 +477,7 @@ const HRDashboard = ({ onNotify }) => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>Status</InputLabel>
                 <Select
@@ -492,7 +492,7 @@ const HRDashboard = ({ onNotify }) => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <TextField
                 fullWidth
                 size="small"
@@ -587,7 +587,7 @@ const HRDashboard = ({ onNotify }) => {
       {/* Recent Activity & Sessions */}
       <Grid container spacing={3}>
         {/* Recent Activity */}
-        <Grid item xs={12} lg={6}>
+        <Grid size={{ xs: 12, lg: 6 }}>
           <Card sx={{ height: '100%', borderRadius: 2, boxShadow: 3 }}>
             <CardContent>
               <Typography variant="h6" fontWeight="bold" gutterBottom>
@@ -632,7 +632,7 @@ const HRDashboard = ({ onNotify }) => {
         </Grid>
 
         {/* Attendance Sessions */}
-        <Grid item xs={12} lg={6}>
+        <Grid size={{ xs: 12, lg: 6 }}>
           <Card sx={{ height: '100%', borderRadius: 2, boxShadow: 3 }}>
             <CardContent>
               <Typography variant="h6" fontWeight="bold" gutterBottom>
@@ -642,7 +642,7 @@ const HRDashboard = ({ onNotify }) => {
               
               {/* Session Filters */}
               <Grid container spacing={1} sx={{ mb: 2 }}>
-                <Grid item xs={12} sm={4}>
+                <Grid size={{ xs: 12, sm: 4 }}>
                   <TextField
                     fullWidth
                     size="small"
@@ -654,7 +654,7 @@ const HRDashboard = ({ onNotify }) => {
                     }}
                   />
                 </Grid>
-                <Grid item xs={12} sm={4}>
+                <Grid size={{ xs: 12, sm: 4 }}>
                   <FormControl fullWidth size="small">
                     <InputLabel>Status</InputLabel>
                     <Select
@@ -670,7 +670,7 @@ const HRDashboard = ({ onNotify }) => {
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid item xs={12} sm={4}>
+                <Grid size={{ xs: 12, sm: 4 }}>
                   <TextField
                     fullWidth
                     size="small"

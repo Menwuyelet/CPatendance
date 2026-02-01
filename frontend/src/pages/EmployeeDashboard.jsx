@@ -28,11 +28,19 @@ const EmployeeDashboard = ({ onNotify }) => {
   const [userData, setUserData] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   const navigate = useNavigate();
 
   useEffect(() => {
     loadDashboardData();
+    
+    // Update time every second
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    
+    return () => clearInterval(timer);
   }, []);
 
   /* ----------------------------- helpers ----------------------------- */
@@ -87,9 +95,16 @@ const EmployeeDashboard = ({ onNotify }) => {
   }
 
   const todayFormatted = format(new Date(), 'EEEE, MMMM d, yyyy');
-  const currentTime = new Date().toLocaleTimeString();
+  const timeString = currentTime.toLocaleTimeString();
   const attendance = attendanceToday || {};
   const user = userData || {};
+  
+  // Get greeting based on time
+  const hour = currentTime.getHours();
+  const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+  
+  // Get user display name
+  const userName = user.full_name || user.email?.split('@')[0] || 'User';
 
   const getStatusBadgeClass = (status) => {
     if (!status) return '';
@@ -103,10 +118,13 @@ const EmployeeDashboard = ({ onNotify }) => {
   /* ------------------------------ UI ------------------------------ */
   return (
     <Box className="employee-dashboard-container">
-      {/* Header */}
+      {/* Header with Greeting */}
       <Box className="dashboard-header">
         <Typography variant="h5" className="dashboard-title">
-          My Dashboard
+          {greeting}, {userName}! 👋
+        </Typography>
+        <Typography className="dashboard-date">
+          {todayFormatted} | {timeString}
         </Typography>
       </Box>
 
@@ -184,7 +202,6 @@ const EmployeeDashboard = ({ onNotify }) => {
                 <Box className="attendance-times">
                   {attendance.check_in_time && (
                     <Box className="attendance-time">
-                      <Typography className="time-label">Check In</Typography>
                       <Typography className="time-value">
                         {new Date(attendance.check_in_time).toLocaleTimeString()}
                       </Typography>
@@ -192,7 +209,6 @@ const EmployeeDashboard = ({ onNotify }) => {
                   )}
                   {attendance.check_out_time && (
                     <Box className="attendance-time">
-                      <Typography className="time-label">Check Out</Typography>
                       <Typography className="time-value">
                         {new Date(attendance.check_out_time).toLocaleTimeString()}
                       </Typography>
@@ -237,55 +253,54 @@ const EmployeeDashboard = ({ onNotify }) => {
                 <Schedule />
               </Box>
               <Typography className="card-title">
-                Today's Info
+                Today Overview
               </Typography>
             </Box>
 
-            {/* Current Time */}
+            {/* Real-time Clock */}
             <Typography className="time-display">
-              <strong>Current Time:</strong> {currentTime}
+              <strong>🕐 {timeString}</strong>
             </Typography>
 
             {/* Status Badge */}
             {attendance?.status && (
-              <Chip
-                label={attendance.status}
-                size="small"
-                className={getStatusBadgeClass(attendance.status)}
-                sx={{ mt: 2 }}
-              />
+              <Box sx={{ textAlign: 'center', mt: 2 }}>
+                <Chip
+                  label={attendance.status}
+                  size="small"
+                  className={getStatusBadgeClass(attendance.status)}
+                  sx={{ fontSize: '0.9rem', padding: '8px 16px' }}
+                />
+              </Box>
             )}
 
-            {/* Status Cards */}
-            <Box className="card-stats" sx={{ mt: 2 }}>
+            {/* Quick Stats */}
+            <Box className="card-stats" sx={{ mt: 3 }}>
               <Box className="card-stat">
-                <Typography className="stat-label">Status</Typography>
-                <Typography className={`stat-value ${attendance?.status === 'PRESENT' ? 'text-success' : attendance?.status === 'LATE' ? 'text-warning' : attendance?.status === 'ABSENT' ? 'text-error' : ''}`}>
-                  {attendance?.status || 'N/A'}
+                <Typography className="stat-label">Clock In</Typography>
+                <Typography className="stat-value clock-time">
+                  {attendance?.check_in_time ? new Date(attendance.check_in_time).toLocaleTimeString() : '--:--'}
                 </Typography>
               </Box>
               <Box className="card-stat">
-                <Typography className="stat-label">Check In</Typography>
-                <Typography className="stat-value">
-                  {attendance?.check_in_time ? new Date(attendance.check_in_time).toLocaleTimeString() : '-'}
+                <Typography className="stat-label">Clock Out</Typography>
+                <Typography className="stat-value clock-time">
+                  {attendance?.check_out_time ? new Date(attendance.check_out_time).toLocaleTimeString() : '--:--'}
                 </Typography>
               </Box>
               <Box className="card-stat">
-                <Typography className="stat-label">Check Out</Typography>
-                <Typography className="stat-value">
-                  {attendance?.check_out_time ? new Date(attendance.check_out_time).toLocaleTimeString() : '-'}
+                <Typography className="stat-label">Hours Worked</Typography>
+                <Typography className="stat-value hours-worked">
+                  {attendance?.check_in_time && attendance?.check_out_time
+                    ? (() => {
+                        const diff = new Date(attendance.check_out_time) - new Date(attendance.check_in_time);
+                        const hours = Math.floor(diff / 3600000);
+                        const mins = Math.floor((diff % 3600000) / 60000);
+                        return `${hours}h ${mins}m`;
+                      })()
+                    : attendance?.check_in_time ? 'In Progress' : '--:--'}
                 </Typography>
               </Box>
-            </Box>
-
-            {/* Tips */}
-            <Box className="tips-section">
-              <Typography className="tip-item">
-                Remember to clock in/out
-              </Typography>
-              <Typography className="tip-item">
-                Contact HR for changes
-              </Typography>
             </Box>
           </CardContent>
         </Card>
@@ -365,3 +380,4 @@ const EmployeeDashboard = ({ onNotify }) => {
 };
 
 export default EmployeeDashboard;
+

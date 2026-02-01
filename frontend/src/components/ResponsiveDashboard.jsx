@@ -522,7 +522,7 @@ const ResponsiveDashboard = () => {
   const renderStatsGrid = () => (
     <Grid container spacing={isMobile ? 2 : 3} sx={{ mb: 4 }}>
       {stats.map((stat, index) => (
-        <Grid item xs={12} sm={6} md={3} key={index}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }} key={index}>
           <Zoom in={true} timeout={500 + (index * 100)}>
             <Card 
               sx={{ 
@@ -563,7 +563,7 @@ const ResponsiveDashboard = () => {
 
   const renderCharts = () => (
     <Grid container spacing={3} sx={{ mb: 4 }}>
-      <Grid item xs={12} md={8}>
+      <Grid size={{ xs: 12, md: 8 }}>
         <Card sx={{ height: isMobile ? 300 : 400 }}>
           <CardHeader title="Performance Metrics" />
           <CardContent>
@@ -580,8 +580,8 @@ const ResponsiveDashboard = () => {
           </CardContent>
         </Card>
       </Grid>
-      
-      <Grid item xs={12} md={4}>
+
+      <Grid size={{ xs: 12, md: 4 }}>
         <Card sx={{ height: isMobile ? 300 : 400 }}>
           <CardHeader title="Department Distribution" />
           <CardContent>
@@ -762,7 +762,7 @@ const ResponsiveDashboard = () => {
 
   const renderAccordions = () => (
     <Grid container spacing={3}>
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <Accordion 
           expanded={expandedAccordion === 'panel1'} 
           onChange={() => handleAccordionToggle('panel1')}
@@ -778,8 +778,8 @@ const ResponsiveDashboard = () => {
           </AccordionDetails>
         </Accordion>
       </Grid>
-      
-      <Grid item xs={12} md={6}>
+
+      <Grid size={{ xs: 12, md: 6 }}>
         <Accordion 
           expanded={expandedAccordion === 'panel2'} 
           onChange={() => handleAccordionToggle('panel2')}
@@ -831,11 +831,11 @@ const ResponsiveDashboard = () => {
             </Box>
             <Divider />
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2">Department</Typography>
                 <Typography>{selectedEmployee.department}</Typography>
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2">Status</Typography>
                 <Chip 
                   label={selectedEmployee.status} 
@@ -922,7 +922,7 @@ const ResponsiveDashboard = () => {
 
           {/* Additional Features */}
           <Grid container spacing={3} sx={{ mt: 2 }}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Card>
                 <CardHeader title="Quick Actions" />
                 <CardContent>
@@ -940,8 +940,8 @@ const ResponsiveDashboard = () => {
                 </CardContent>
               </Card>
             </Grid>
-            
-            <Grid item xs={12} md={6}>
+
+            <Grid size={{ xs: 12, md: 6 }}>
               <Card>
                 <CardHeader title="Settings" />
                 <CardContent>

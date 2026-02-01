@@ -15,7 +15,7 @@ import {
   Button,
   Divider,
 } from '@mui/material';
-import { Notifications, Logout, CheckCircle } from '@mui/icons-material';
+import { Notifications, Logout, CheckCircle, DarkMode, LightMode } from '@mui/icons-material';
 import { useNotifications } from '../context/NotificationContext';
 
 const Header = memo(({ user, onLogout }) => {
@@ -31,6 +31,20 @@ const Header = memo(({ user, onLogout }) => {
   const [now, setNow] = useState(new Date());
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('darkMode');
+    return saved ? JSON.parse(saved) : false;
+  });
+
+  // Apply dark mode class to body
+  useEffect(() => {
+    if (darkMode) {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
+    localStorage.setItem('darkMode', JSON.stringify(darkMode));
+  }, [darkMode]);
 
   const handleBellClick = useCallback((event) => {
     setAnchorEl(event.currentTarget);
@@ -38,6 +52,10 @@ const Header = memo(({ user, onLogout }) => {
 
   const handleClose = useCallback(() => {
     setAnchorEl(null);
+  }, []);
+
+  const toggleDarkMode = useCallback(() => {
+    setDarkMode(prev => !prev);
   }, []);
 
   // Update clock every minute
@@ -80,6 +98,20 @@ const Header = memo(({ user, onLogout }) => {
         <Badge badgeContent={unreadCount} color="error">
           <Notifications />
         </Badge>
+      </IconButton>
+
+      {/* Dark Mode Toggle */}
+      <IconButton 
+        onClick={toggleDarkMode} 
+        sx={{ 
+          mr: 1,
+          bgcolor: darkMode ? 'grey.700' : 'grey.200',
+          color: darkMode ? '#ffd700' : '#333',
+          '&:hover': { bgcolor: darkMode ? 'grey.600' : 'grey.300' },
+        }}
+        title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+      >
+        {darkMode ? <LightMode /> : <DarkMode />}
       </IconButton>
 
       {/* Notification Popover */}
@@ -159,11 +191,6 @@ const Header = memo(({ user, onLogout }) => {
             {userInitial}
           </Typography>
         </Avatar>
-      </IconButton>
-
-      {/* Logout */}
-      <IconButton onClick={onLogout} color="inherit">
-        <Logout />
       </IconButton>
     </Box>
   );

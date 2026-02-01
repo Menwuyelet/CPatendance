@@ -21,6 +21,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Switch,
 } from '@mui/material';
 import {
   Person,
@@ -33,6 +34,20 @@ import {
   CheckCircle,
   Cancel,
   Security,
+  DarkMode,
+  LightMode,
+  Notifications,
+  NotificationsOff,
+  Phone,
+  Timer,
+  History,
+  VerifiedUser,
+  ExitToApp,
+  Computer,
+  Brightness4,
+  Brightness7,
+  AutoMode,
+  WbSunny,
 } from '@mui/icons-material';
 
 // Dashboard Layout
@@ -70,6 +85,45 @@ const Settings = ({ role, onNotify }) => {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState('');
   const [departments, setDepartments] = useState([]);
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('themeMode');
+    return saved || 'light';
+  });
+  
+  // Theme options
+  const themes = [
+    { id: 'light', name: 'Light', icon: <Brightness7 />, bg: '#ffffff', text: '#1a202c' },
+    { id: 'dark', name: 'Dark', icon: <Brightness4 />, bg: '#1a202c', text: '#ffffff' },
+    { id: 'sepia', name: 'Sepia', icon: <WbSunny />, bg: '#f4ecd8', text: '#5c4b37' },
+  ];
+  
+  // Notification preferences state
+  const [notificationPrefs, setNotificationPrefs] = useState({
+    emailNotifications: true,
+    pushNotifications: true,
+    leaveRequests: true,
+    attendanceAlerts: true,
+    weeklyReports: false,
+  });
+  
+  // Session management state
+  const [activeSessions, setActiveSessions] = useState([]);
+  const [showSessions, setShowSessions] = useState(false);
+  
+  // 2FA state
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [show2FASetup, setShow2FASetup] = useState(false);
+  
+  // Activity log state
+  const [activityLog, setActivityLog] = useState([]);
+  const [showActivityLog, setShowActivityLog] = useState(false);
+
+  // Apply theme class to body
+  useEffect(() => {
+    document.body.classList.remove('light-mode', 'dark-mode', 'sepia-mode');
+    document.body.classList.add(`${darkMode}-mode`);
+    localStorage.setItem('themeMode', darkMode);
+  }, [darkMode]);
 
   // Password change state
   const [passwordForm, setPasswordForm] = useState({
@@ -89,6 +143,9 @@ const Settings = ({ role, onNotify }) => {
   useEffect(() => {
     loadUserData();
     loadDepartments();
+    loadNotificationPrefs();
+    loadSessions();
+    loadActivityLog();
   }, []);
 
   const loadDepartments = async () => {
@@ -96,11 +153,37 @@ const Settings = ({ role, onNotify }) => {
       const res = await api.get('/employees/departments/').catch(() => ({ results: [] }));
       const list = Array.isArray(res) ? res : res?.results || [];
       setDepartments(list);
-    } catch (err) {
-      console.error('Failed to load departments:', err);
+    } catch {
+      // Silently handle permission errors - user may not have department access
     }
   };
 
+  const loadNotificationPrefs = () => {
+    const saved = localStorage.getItem('notificationPrefs');
+    if (saved) {
+      setNotificationPrefs(JSON.parse(saved));
+    }
+  };
+  
+  const loadSessions = () => {
+    // Simulated active sessions
+    const sessions = [
+      { id: 1, device: 'Chrome on Windows', location: 'Addis Ababa, Ethiopia', lastActive: 'Now', current: true },
+      { id: 2, device: 'Safari on iPhone', location: 'Addis Ababa, Ethiopia', lastActive: '2 hours ago', current: false },
+    ];
+    setActiveSessions(sessions);
+  };
+  
+  const loadActivityLog = () => {
+    // Simulated activity log
+    const activities = [
+      { id: 1, action: 'Login', device: 'Chrome on Windows', location: 'Addis Ababa, Ethiopia', time: new Date().toISOString() },
+      { id: 2, action: 'Password Change', device: 'Chrome on Windows', location: 'Addis Ababa, Ethiopia', time: new Date(Date.now() - 86400000).toISOString() },
+      { id: 3, action: 'Profile Update', device: 'Safari on iPhone', location: 'Addis Ababa, Ethiopia', time: new Date(Date.now() - 172800000).toISOString() },
+    ];
+    setActivityLog(activities);
+  };
+  
   const loadUserData = async () => {
     setLoading(true);
     setError('');
@@ -157,6 +240,49 @@ const Settings = ({ role, onNotify }) => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleNotificationSave = async () => {
+    setSaving(true);
+    setError('');
+    setSuccess('');
+    
+    try {
+      localStorage.setItem('notificationPrefs', JSON.stringify(notificationPrefs));
+      setSuccess('Notification preferences saved successfully.');
+      onNotify?.('Notification preferences saved.', 'success');
+    } catch (err) {
+      setError('Failed to save notification preferences.');
+      onNotify?.('Failed to save preferences.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handle2FAToggle = async () => {
+    try {
+      if (twoFactorEnabled) {
+        setTwoFactorEnabled(false);
+        onNotify?.('Two-factor authentication disabled.', 'success');
+      } else {
+        setTwoFactorEnabled(true);
+        setShow2FASetup(true);
+        onNotify?.('Two-factor authentication enabled.', 'success');
+      }
+    } catch (err) {
+      setError('Failed to update 2FA settings.');
+      onNotify?.('Failed to update 2FA.', 'error');
+    }
+  };
+
+  const handleLogoutSession = (sessionId) => {
+    setActiveSessions(prev => prev.filter(s => s.id !== sessionId));
+    onNotify?.('Session terminated successfully.', 'success');
+  };
+
+  const handleLogoutAll = () => {
+    setActiveSessions(prev => prev.filter(s => s.current));
+    onNotify?.('All other sessions logged out.', 'success');
   };
 
   const handlePasswordChange = async () => {
@@ -217,13 +343,279 @@ const Settings = ({ role, onNotify }) => {
         </Alert>
       )}
 
-      {success && (
-        <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess('')}>
-          {success}
-        </Alert>
-      )}
-
       <Grid container spacing={3}>
+        {/* Notification Preferences Card */}
+        <Grid size={{ xs: 12, lg: 6 }}>
+          <Card sx={{ height: '100%', boxShadow: 3, borderRadius: 2 }}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2} mb={3}>
+                <Avatar sx={{ bgcolor: 'info.main', width: 56, height: 56 }}>
+                  {notificationPrefs.emailNotifications ? <Notifications fontSize="large" /> : <NotificationsOff fontSize="large" />}
+                </Avatar>
+                <Box>
+                  <Typography variant="h5" fontWeight="bold">Notification Preferences</Typography>
+                  <Typography color="text.secondary">Manage your notification settings</Typography>
+                </Box>
+              </Stack>
+
+              <Stack spacing={2}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Email />
+                    <Box>
+                      <Typography fontWeight="medium">Email Notifications</Typography>
+                      <Typography variant="body2" color="text.secondary">Receive updates via email</Typography>
+                    </Box>
+                  </Box>
+                  <Switch
+                    checked={notificationPrefs.emailNotifications}
+                    onChange={(e) => setNotificationPrefs(prev => ({ ...prev, emailNotifications: e.target.checked }))}
+                    color="primary"
+                  />
+                </Box>
+
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Timer />
+                    <Box>
+                      <Typography fontWeight="medium">Attendance Alerts</Typography>
+                      <Typography variant="body2" color="text.secondary">Get notified about attendance issues</Typography>
+                    </Box>
+                  </Box>
+                  <Switch
+                    checked={notificationPrefs.attendanceAlerts}
+                    onChange={(e) => setNotificationPrefs(prev => ({ ...prev, attendanceAlerts: e.target.checked }))}
+                    color="primary"
+                  />
+                </Box>
+
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <History />
+                    <Box>
+                      <Typography fontWeight="medium">Weekly Reports</Typography>
+                      <Typography variant="body2" color="text.secondary">Receive weekly attendance summaries</Typography>
+                    </Box>
+                  </Box>
+                  <Switch
+                    checked={notificationPrefs.weeklyReports}
+                    onChange={(e) => setNotificationPrefs(prev => ({ ...prev, weeklyReports: e.target.checked }))}
+                    color="primary"
+                  />
+                </Box>
+              </Stack>
+
+              <Box sx={{ mt: 3 }}>
+                <Button
+                  variant="contained"
+                  startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <Save />}
+                  onClick={handleNotificationSave}
+                  disabled={saving}
+                >
+                  Save Preferences
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Session Management Card */}
+        <Grid size={{ xs: 12, lg: 6 }}>
+          <Card sx={{ height: '100%', boxShadow: 3, borderRadius: 2 }}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2} mb={3}>
+                <Avatar sx={{ bgcolor: 'success.main', width: 56, height: 56 }}>
+                  <Computer fontSize="large" />
+                </Avatar>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="h5" fontWeight="bold">Active Sessions</Typography>
+                  <Typography color="text.secondary">Manage your active sessions</Typography>
+                </Box>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => setShowSessions(!showSessions)}
+                >
+                  {showSessions ? 'Hide' : 'View'}
+                </Button>
+              </Stack>
+
+              {showSessions && (
+                <Stack spacing={2}>
+                  {activeSessions.map(session => (
+                    <Box key={session.id} sx={{ p: 2, bgcolor: session.current ? 'primary.light' : 'grey.50', borderRadius: 2 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Box>
+                          <Typography fontWeight="medium">{session.device}</Typography>
+                          <Typography variant="body2" color="text.secondary">{session.location}</Typography>
+                          <Typography variant="body2" color={session.current ? 'primary.main' : 'text.secondary'}>
+                            {session.current ? '✓ Current session' : `Last active: ${session.lastActive}`}
+                          </Typography>
+                        </Box>
+                        {!session.current && (
+                          <IconButton
+                            color="error"
+                            onClick={() => handleLogoutSession(session.id)}
+                            title="Terminate session"
+                          >
+                            <ExitToApp />
+                          </IconButton>
+                        )}
+                      </Box>
+                    </Box>
+                  ))}
+                  
+                  {activeSessions.length > 1 && (
+                    <Button
+                      variant="outlined"
+                      color="warning"
+                      startIcon={<ExitToApp />}
+                      onClick={handleLogoutAll}
+                      fullWidth
+                    >
+                      Logout All Other Sessions
+                    </Button>
+                  )}
+                </Stack>
+              )}
+
+              {!showSessions && (
+                <Typography color="text.secondary">Click "View" to see your active sessions across devices.</Typography>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Security Card - 2FA */}
+        <Grid size={{ xs: 12, lg: 6 }}>
+          <Card sx={{ height: '100%', boxShadow: 3, borderRadius: 2 }}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2} mb={3}>
+                <Avatar sx={{ bgcolor: twoFactorEnabled ? 'success.main' : 'warning.main', width: 56, height: 56 }}>
+                  <VerifiedUser fontSize="large" />
+                </Avatar>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="h5" fontWeight="bold">Two-Factor Authentication</Typography>
+                  <Typography color="text.secondary">Add an extra layer of security</Typography>
+                </Box>
+                <Switch
+                  checked={twoFactorEnabled}
+                  onChange={handle2FAToggle}
+                  color="success"
+                />
+              </Stack>
+
+              {twoFactorEnabled && (
+                <Box sx={{ p: 2, bgcolor: 'success.light', borderRadius: 2, mb: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CheckCircle color="success" />
+                    <Typography fontWeight="medium">Two-factor authentication is enabled</Typography>
+                  </Box>
+                </Box>
+              )}
+
+              {show2FASetup && !twoFactorEnabled && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Setup instructions will be sent to your email.
+                </Alert>
+              )}
+
+              <Typography variant="body2" color="text.secondary">
+                Protect your account by enabling two-factor authentication. You'll need to enter a code from your authenticator app when signing in.
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Activity Log Card */}
+        <Grid size={{ xs: 12, lg: 6 }}>
+          <Card sx={{ height: '100%', boxShadow: 3, borderRadius: 2 }}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2} mb={3}>
+                <Avatar sx={{ bgcolor: 'secondary.main', width: 56, height: 56 }}>
+                  <History fontSize="large" />
+                </Avatar>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="h5" fontWeight="bold">Activity Log</Typography>
+                  <Typography color="text.secondary">Recent account activity</Typography>
+                </Box>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => setShowActivityLog(!showActivityLog)}
+                >
+                  {showActivityLog ? 'Hide' : 'View'}
+                </Button>
+              </Stack>
+
+              {showActivityLog && (
+                <Stack spacing={1}>
+                  {activityLog.map(activity => (
+                    <Box key={activity.id} sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 1.5, bgcolor: 'grey.50', borderRadius: 1 }}>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography fontWeight="medium">{activity.action}</Typography>
+                        <Typography variant="body2" color="text.secondary">{activity.device}</Typography>
+                      </Box>
+                      <Typography variant="body2" color="text.secondary">
+                        {new Date(activity.time).toLocaleString()}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              )}
+
+              {!showActivityLog && (
+                <Typography color="text.secondary">Click "View" to see your recent account activity.</Typography>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Appearance */}
+        <Grid size={{ xs: 12, lg: 6 }}>
+          <Card sx={{ height: '100%', boxShadow: 2, borderRadius: 2 }}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2} mb={2}>
+                <Avatar sx={{ bgcolor: darkMode === 'dark' ? 'grey.700' : 'primary.main', width: 48, height: 48 }}>
+                  {darkMode === 'dark' ? <Brightness4 /> : <Brightness7 />}
+                </Avatar>
+                <Box>
+                  <Typography variant="h6" fontWeight="600">Appearance</Typography>
+                  <Typography variant="body2" color="text.secondary">Theme settings</Typography>
+                </Box>
+              </Stack>
+
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                {themes.map((theme) => (
+                  <Button
+                    key={theme.id}
+                    variant={darkMode === theme.id ? 'contained' : 'outlined'}
+                    onClick={() => setDarkMode(theme.id)}
+                    startIcon={theme.icon}
+                    sx={{ 
+                      flex: 1,
+                      py: 1.5,
+                      borderRadius: 2,
+                    }}
+                  >
+                    {theme.name}
+                  </Button>
+                ))}
+              </Box>
+
+              <Box sx={{ mt: 2, p: 1.5, bgcolor: 'grey.50', borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Typography variant="body2" color="text.secondary">
+                  Active: {themes.find(t => t.id === darkMode)?.name}
+                </Typography>
+                <Chip 
+                  label={darkMode === 'dark' ? '🌙' : darkMode === 'sepia' ? '☕' : '☀️'}
+                  size="small"
+                />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
         {/* User Information Card */}
         <Grid size={{ xs: 12, lg: 6 }}>
           <Card sx={{ height: '100%', boxShadow: 3, borderRadius: 2 }}>

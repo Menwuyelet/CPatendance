@@ -180,9 +180,11 @@ const AttendanceOverview = ({ role, onNotify }) => {
               🕒 {currentTime}
             </Typography>
             <Tooltip title="Refresh Data">
-              <IconButton onClick={loadAttendance} disabled={loading} sx={{ border: '1px solid', borderColor: 'divider' }}>
-                <Refresh />
-              </IconButton>
+              <span>
+                <IconButton onClick={loadAttendance} disabled={loading} sx={{ border: '1px solid', borderColor: 'divider' }}>
+                  <Refresh />
+                </IconButton>
+              </span>
             </Tooltip>
         </Stack>
       </Stack>
