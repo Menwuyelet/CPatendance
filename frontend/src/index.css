@@ -1,4 +1,12 @@
 /* src/index.css - Global Styles & Dark Mode Support */
+/* 
+ * RESPONSIVE LAYOUT SYSTEM
+ * - All pages follow consistent sidebar + main content structure
+ * - Fixed gap (px) between sidebar and content - does NOT change on zoom
+ * - Mobile: sidebar hidden, menu button
+ * - Tablet: sidebar collapsible
+ * - Desktop: sidebar always visible
+ */
 
 *,
 *::before,
@@ -18,6 +26,8 @@ html, body, #root {
 
 html {
   scroll-behavior: smooth;
+  /* Base font size for rem calculations */
+  font-size: 16px;
 }
 
 body {
@@ -33,6 +43,15 @@ body {
 /* CSS VARIABLES          */
 /* ====================== */
 :root {
+  /* Layout constants (fixed px values - do NOT use percentages) */
+  --sidebar-width: 260px;
+  --sidebar-collapsed-width: 80px;
+  --sidebar-mobile-width: 280px;
+  --header-height: 56px;
+  --content-gap: 1px;
+  --content-padding: 24px;
+  
+  /* Colors */
   --bg-primary: #f4f6f9;
   --bg-sidebar: #ffffff;
   --bg-card: #ffffff;
@@ -161,8 +180,34 @@ body {
   border-right: 1px solid var(--border);
 }
 
-/* Responsive Improvements */
-@media (max-width: 960px) {
+/* ====================== */
+/* RESPONSIVE BREAKPOINTS */
+/* ====================== */
+/* 
+ * Mobile: < 768px - Sidebar hidden, hamburger menu
+ * Tablet: 768px - 1024px - Sidebar collapsible
+ * Desktop: > 1024px - Sidebar always visible
+ */
+
+/* Mobile styles */
+@media (max-width: 767px) {
+  .MuiTypography-h3 { font-size: 1.75rem !important; }
+  .MuiTypography-h4 { font-size: 1.5rem !important; }
+  
+  /* Ensure content doesn't overflow on mobile */
+  .MuiContainer-root {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+}
+
+/* Tablet styles */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .MuiTypography-h3 { font-size: 1.875rem !important; }
+}
+
+/* Desktop styles */
+@media (min-width: 1025px) {
   .MuiTypography-h3 { font-size: 2rem !important; }
 }
 

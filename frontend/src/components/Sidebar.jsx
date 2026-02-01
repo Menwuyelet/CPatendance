@@ -19,6 +19,15 @@ import {
 } from '@mui/icons-material';
 import { IconButton, useMediaQuery, Box } from '@mui/material';
 
+// Fixed layout constants (px/rem) - DO NOT use percentages
+const LAYOUT = {
+  SIDEBAR_WIDTH: 260,           // px - expanded sidebar
+  SIDEBAR_COLLAPSED_WIDTH: 80,  // px - collapsed sidebar (tablet)
+  SIDEBAR_MOBILE_WIDTH: 280,    // px - mobile drawer width
+  HEADER_HEIGHT: 56,            // px - header height
+  CONTENT_GAP: 1,               // px - fixed gap/border between sidebar and content
+};
+
 const MENU_CONFIG = {
   Admin: [
     { text: 'Dashboard', icon: 'dashboard', path: '/dashboard' },
@@ -68,14 +77,39 @@ const ICONS = {
   fingerprint: <FingerprintIcon />,
 };
 
-const Sidebar = memo(({ user, role, userName, notifications, onLogout, toast }) => {
+const Sidebar = memo(({ 
+  user, 
+  role, 
+  userName, 
+  notifications, 
+  onLogout, 
+  toast,
+  // Controlled props from MainLayout (optional - for state sync)
+  isCollapsed: controlledCollapsed,
+  onToggleCollapse,
+}) => {
   const location = useLocation();
-  const isMobile = useMediaQuery('(max-width: 768px)');
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  
+  // Responsive breakpoints:
+  // Mobile: < 768px (sidebar hidden, menu button)
+  // Tablet: 768px - 1024px (sidebar collapsible)
+  // Desktop: > 1024px (sidebar always visible)
+  const isMobile = useMediaQuery('(max-width: 767px)');
+  const isTablet = useMediaQuery('(min-width: 768px) and (max-width: 1024px)');
+  const isDesktop = useMediaQuery('(min-width: 1025px)');
+  
+  // Internal collapsed state (fallback if not controlled)
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
+  // Mobile drawer state (always internal)
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Use controlled state if provided, otherwise use internal state
+  const isCollapsed = controlledCollapsed !== undefined ? controlledCollapsed : internalCollapsed;
+  const handleToggleCollapse = onToggleCollapse || (() => setInternalCollapsed(!internalCollapsed));
 
   const currentMenu = useMemo(() => MENU_CONFIG[role] || MENU_CONFIG.Employee, [role]);
 
+  // Close mobile drawer on route change
   useEffect(() => {
     setMobileOpen(false);
   }, [location.pathname]);
@@ -84,8 +118,20 @@ const Sidebar = memo(({ user, role, userName, notifications, onLogout, toast }) 
     return location.pathname === path || location.pathname.startsWith(path + '/');
   }, [location.pathname]);
 
-  // Sidebar Width logic
-  const sidebarWidth = isMobile ? '280px' : isCollapsed ? '80px' : '260px';
+  // Calculate sidebar width based on device and state
+  const getSidebarWidth = () => {
+    if (isMobile) return LAYOUT.SIDEBAR_MOBILE_WIDTH;
+    if (isTablet && isCollapsed) return LAYOUT.SIDEBAR_COLLAPSED_WIDTH;
+    if (isTablet) return LAYOUT.SIDEBAR_WIDTH;
+    return LAYOUT.SIDEBAR_WIDTH; // Desktop always expanded
+  };
+
+  const sidebarWidth = getSidebarWidth();
+  const showCollapseToggle = isTablet; // Only show collapse button on tablet
+  const showMobileMenu = isMobile; // Only show menu button on mobile
+
+  // Determine if sidebar content should show text labels
+  const showLabels = !(isTablet && isCollapsed);
 
   return (
     <Box>
@@ -97,69 +143,89 @@ const Sidebar = memo(({ user, role, userName, notifications, onLogout, toast }) 
           position: 'fixed',
           top: 0,
           right: 0,
-          left: isMobile ? 0 : sidebarWidth, // Header starts after sidebar
-          height: '46px',
+          // Fixed positioning: sidebar width + gap (in px)
+          left: isMobile ? 0 : `${sidebarWidth + LAYOUT.CONTENT_GAP}px`,
+          height: `${LAYOUT.HEADER_HEIGHT}px`,
           bgcolor: 'var(--bg-sidebar)',
-          // borderBottom: '1px solid var(--border-subtle)',
+          borderBottom: '1px solid var(--border-subtle)',
           zIndex: 1000,
           transition: 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           display: 'flex',
           alignItems: 'center',
-          px: 1,
+          px: '16px', // Fixed padding in px
           justifyContent: 'space-between',
-          fontSize: '0.6rem'
         }}
       >
-        {/* Toggle button shows on mobile OR desktop inside header */}
-        <IconButton 
-          onClick={() => isMobile ? setMobileOpen(!mobileOpen) : setIsCollapsed(!isCollapsed)} 
-          sx={{ color: 'var(--text-primary)' }}
-        >
-          {isMobile ? <MenuIcon width={26} height={26} /> : isCollapsed ? <ChevronRightIcon width={24} height={24} /> : <ChevronLeftIcon width={24} height={24} />}
-        </IconButton>
+        {/* Mobile: Menu button | Tablet: Collapse toggle | Desktop: nothing */}
+        {showMobileMenu && (
+          <IconButton 
+            onClick={() => setMobileOpen(!mobileOpen)} 
+            sx={{ color: 'var(--text-primary)' }}
+            aria-label="Open navigation menu"
+          >
+            <MenuIcon />
+          </IconButton>
+        )}
+        {showCollapseToggle && (
+          <IconButton 
+            onClick={handleToggleCollapse} 
+            sx={{ color: 'var(--text-primary)' }}
+            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {isCollapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+          </IconButton>
+        )}
+        {/* Spacer for desktop when no toggle button */}
+        {isDesktop && <Box sx={{ width: '40px' }} />}
 
         <Header user={user} onLogout={onLogout} notifications={notifications} />
       </Box>
 
-      {/* MOBILE OVERLAY */}
+      {/* MOBILE OVERLAY - only on mobile when drawer is open */}
       {isMobile && mobileOpen && (
         <Box
           onClick={() => setMobileOpen(false)}
           sx={{
-            position: 'fixed', inset: 0, bgcolor: 'rgba(0,0,0,0.5)',
-            backdropFilter: 'blur(4px)', zIndex: 1100
+            position: 'fixed', 
+            inset: 0, 
+            bgcolor: 'rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(4px)', 
+            zIndex: 1100
           }}
+          aria-hidden="true"
         />
       )}
 
-      {/* SIDEBAR ASIDE */}
+      {/* SIDEBAR */}
       <aside style={{
         position: 'fixed',
-        left: isMobile && !mobileOpen ? '-280px' : 0, // Slide out on mobile
+        // Mobile: slide in/out | Tablet/Desktop: always at left:0
+        left: isMobile && !mobileOpen ? `-${LAYOUT.SIDEBAR_MOBILE_WIDTH}px` : 0,
         top: 0,
         bottom: 0,
-        width: sidebarWidth,
+        width: `${sidebarWidth}px`,
         backgroundColor: 'var(--bg-sidebar)',
         color: 'var(--text-secondary)',
-        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         display: 'flex',
         flexDirection: 'column',
-        zIndex: 1200, // Above overlay
+        zIndex: 1200,
         overflowX: 'hidden',
-        borderRight: '1px solid var(--border-subtle)',
+        // Fixed border (visible gap between sidebar and content)
+        borderRight: `${LAYOUT.CONTENT_GAP}px solid var(--border-subtle)`,
       }}>
         
         {/* LOGO / BRAND AREA */}
         <div style={{
           padding: '20px',
-          height: '64px',
+          height: `${LAYOUT.HEADER_HEIGHT}px`,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: isCollapsed ? 'center' : 'flex-start',
+          justifyContent: showLabels ? 'flex-start' : 'center',
           borderBottom: '1px solid var(--border-subtle)'
         }}>
            <FingerprintIcon sx={{ color: 'var(--accent-strong)', fontSize: 30 }} />
-           {!isCollapsed && <span style={{ marginLeft: 10, fontWeight: 700, color: 'var(--text-primary)' }}>CP PORTAL</span>}
+           {showLabels && <span style={{ marginLeft: '10px', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>CP PORTAL</span>}
         </div>
 
         {/* NAVIGATION LINKS */}
@@ -171,17 +237,22 @@ const Sidebar = memo(({ user, role, userName, notifications, onLogout, toast }) 
                 key={item.path}
                 to={item.path}
                 style={{
-                  display: 'flex', alignItems: 'center',
-                  padding: '12px', margin: '4px 0', borderRadius: '10px',
+                  display: 'flex', 
+                  alignItems: 'center',
+                  padding: '12px', 
+                  margin: '4px 0', 
+                  borderRadius: '10px',
                   textDecoration: 'none',
                   color: active ? 'var(--accent-strong)' : 'var(--text-secondary)',
                   backgroundColor: active ? 'var(--accent-soft)' : 'transparent',
-                  justifyContent: isCollapsed ? 'center' : 'flex-start',
-                  gap: '12px', transition: 'all 0.2s ease',
+                  justifyContent: showLabels ? 'flex-start' : 'center',
+                  gap: '12px', 
+                  transition: 'all 0.2s ease',
                 }}
+                title={!showLabels ? item.text : undefined} // Tooltip when collapsed
               >
-                <span style={{ fontSize: '20px', display: 'flex' }}>{ICONS[item.icon]}</span>
-                {!isCollapsed && <span style={{ fontWeight: active ? '600' : '500', fontSize: '14px' }}>{item.text}</span>}
+                <span style={{ fontSize: '20px', display: 'flex', flexShrink: 0 }}>{ICONS[item.icon]}</span>
+                {showLabels && <span style={{ fontWeight: active ? '600' : '500', fontSize: '14px', whiteSpace: 'nowrap' }}>{item.text}</span>}
               </Link>
             );
           })}
@@ -191,32 +262,31 @@ const Sidebar = memo(({ user, role, userName, notifications, onLogout, toast }) 
         <div style={{ padding: '16px', borderTop: '1px solid var(--border-subtle)' }}>
           <button
             onClick={onLogout}
+            title={!showLabels ? 'Logout' : undefined}
             style={{
-              width: '100%', display: 'flex', alignItems: 'center',
-              justifyContent: isCollapsed ? 'center' : 'flex-start',
-              gap: '12px', padding: '12px', borderRadius: '10px',
-              border: 'none', background: 'transparent', color: '#ef4444',
+              width: '100%', 
+              display: 'flex', 
+              alignItems: 'center',
+              justifyContent: showLabels ? 'flex-start' : 'center',
+              gap: '12px', 
+              padding: '12px', 
+              borderRadius: '10px',
+              border: 'none', 
+              background: 'transparent', 
+              color: '#ef4444',
               cursor: 'pointer'
             }}
           >
             <ExitToAppIcon />
-            {!isCollapsed && <span style={{ fontWeight: '600' }}>Logout</span>}
+            {showLabels && <span style={{ fontWeight: '600' }}>Logout</span>}
           </button>
         </div>
       </aside>
-
-      {/* MAIN CONTENT SPACING - This pushes the page content so it doesn't hide under the fixed Header/Sidebar */}
-      <Box component="main" sx={{ 
-        flexGrow: 1, 
-        pt: '80px', // Space for Header
-        pl: isMobile ? '20px' : `calc(${sidebarWidth} + 20px)`, // Space for Sidebar
-        pr: '20px',
-        transition: 'padding-left 0.3s ease'
-      }}>
-        {/* Your Routes/Content go here */}
-      </Box>
     </Box>
   );
 });
+
+// Export layout constants for use in other components
+export { LAYOUT };
 
 export default Sidebar;
