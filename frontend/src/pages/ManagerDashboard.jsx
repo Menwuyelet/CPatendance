@@ -1,64 +1,58 @@
 // src/pages/ManagerDashboard.jsx
-import React, { useEffect, useMemo, useState } from 'react';
-import FaceCaptureDialog from '../components/FaceCaptureDialog.jsx';
-import { Routes, Route, Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, Routes, Route } from 'react-router-dom';
+import { format, subDays } from 'date-fns';
+import { api } from '../services/api.service.js';
+import Reports from './Reports.jsx';
+import Biometrics from './Biometrics.jsx';
 import Settings from './Settings.jsx';
 import {
-  Grid,
+  Box,
+  Typography,
+  Button,
   Card,
   CardContent,
-  Typography,
-  Box,
-  Button,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  Chip,
-  TextField,
+  Grid,
   Stack,
   Avatar,
-  IconButton,
-  Tooltip,
-  Paper,
-  LinearProgress,
   CircularProgress,
-  Alert,
-  TableContainer,
-  TablePagination,
-  Divider,
-  Breadcrumbs,
-  AppBar,
-  Toolbar,
+  LinearProgress,
+  Chip,
+  TextField,
   InputAdornment,
   Select,
   MenuItem,
   FormControl,
   InputLabel,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  TablePagination,
+  IconButton,
+  Tooltip,
+  Alert,
+  Divider,
 } from '@mui/material';
-import { api } from '../services/api.service.js';
 import {
   People,
-  EventNote,
   CheckCircle,
   Report,
-  ArrowBack,
-  Search,
   Refresh,
-  Visibility,
+  Search,
   TrendingUp,
   Group,
-  Person,
-  Home,
-  ChevronRight,
+  EventNote,
+  Visibility,
+  Fingerprint,
+  Settings as SettingsIcon,
+  Schedule,
 } from '@mui/icons-material';
-import SettingsIcon from '@mui/icons-material/Settings';
-import { format, subDays } from 'date-fns';
-import Reports from './Reports.jsx';
-import Biometrics from './Biometrics.jsx';
-import { DashboardPage, DashboardStatCard } from '../components/dashboard';
 
+// Status color helper
 const getStatusColor = (status) => {
   if (!status) return 'default';
   const s = status.toLowerCase();
@@ -68,45 +62,33 @@ const getStatusColor = (status) => {
   return 'default';
 };
 
-// Helper to safely extract shift id from either a plain id or nested object
-const getShiftId = (shift) => {
-  if (!shift) return null;
-  if (typeof shift === 'object') return shift.id ?? null;
-  return shift; // assume it's already an id
-};
-
-// Helper to get a display name for a session's shift
-const getSessionShiftName = (session) => {
-  if (!session || !session.shift) return 'Unknown';
-
-  if (typeof session.shift === 'object') {
-    return session.shift.name || `Shift #${session.shift.id ?? ''}` || 'Unknown';
-  }
-
-  // When backend returns only an id we cannot resolve the real name here
-  return `Shift #${session.shift}`;
-};
-
-// ====================== LAYOUT WRAPPER ======================
-// NOTE: Manager routes are rendered inside the app-wide MainLayout.
-// Do NOT render another AppBar/Drawer here (it causes double headers + broken spacing).
-const DashboardLayout = ({ children, title, breadcrumbs = [] }) => {
-  return (
-    <DashboardPage
-      title={title}
-      subtitle={title === 'Manager Dashboard' ? 'Overview of your team attendance' : undefined}
-      breadcrumbs={[{ label: 'Manager' }, { label: 'Dashboard' }, ...breadcrumbs.map((c) => ({ label: c }))]}
-      actions={
-        <Button variant="outlined" startIcon={<Refresh />} onClick={() => window.location.reload()}>
-          Refresh
-        </Button>
-      }
-      disablePadding
-    >
-      {children}
-    </DashboardPage>
-  );
-};
+// Dashboard Layout Component
+const DashboardLayout = ({ children, title, breadcrumbs = [], actions }) => (
+  <Box sx={{ width: '100%' }}>
+    <Box sx={{ mb: 4 }}>
+      <Typography variant="h4" fontWeight="bold" gutterBottom>
+        {title}
+      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+        {breadcrumbs.length > 0 && (
+          <>
+            <Typography color="text.secondary">/</Typography>
+            {breadcrumbs.map((crumb, idx) => (
+              <React.Fragment key={idx}>
+                <Typography color={idx === breadcrumbs.length - 1 ? 'text.primary' : 'text.secondary'}>
+                  {crumb.label}
+                </Typography>
+                {idx < breadcrumbs.length - 1 && <Typography color="text.secondary">/</Typography>}
+              </React.Fragment>
+            ))}
+          </>
+        )}
+      </Box>
+      {actions && <Box sx={{ mt: 2 }}>{actions}</Box>}
+    </Box>
+    {children}
+  </Box>
+);
 
 // ====================== DASHBOARD HOME ======================
 const ManagerDashboardHome = ({ onNotify }) => {
@@ -117,148 +99,55 @@ const ManagerDashboardHome = ({ onNotify }) => {
     attendanceRate: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [department, setDepartment] = useState(null);
-  const navigate = useNavigate();
-  
-  // Clock-in state
-  const [lastActionTime, setLastActionTime] = useState(null);
-  const [activeSession, setActiveSession] = useState(null);
+  const [sessions, setSessions] = useState([]);
+  const [searchSession, setSearchSession] = useState('');
+  const [filterSessionStatus, setFilterSessionStatus] = useState('ALL');
+  const [filterSessionDate, setFilterSessionDate] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchStats();
-    loadClockInState();
   }, []);
-
-  const loadClockInState = async () => {
-    try {
-      const emp = await api.getMyEmployee().catch(() => null);
-      if (emp?.department) {
-        setDepartment(emp.department);
-      }
-      
-      // Check active sessions
-      try {
-        const sessions = await api.listAttendanceSessions({ active: true });
-        const activeSessions = Array.isArray(sessions) ? sessions.filter(s => s.is_active) : [];
-        
-        if (activeSessions.length > 0 && emp?.id) {
-          const userShifts = await api.listEmployeeShifts(emp.id);
-          const userShiftsList = Array.isArray(userShifts) ? userShifts : [];
-          const userShiftIds = userShiftsList
-            .map(us => getShiftId(us.shift))
-            .filter(Boolean);
-          
-          const matchingSession = activeSessions.find(session => {
-            const sessionShiftId = getShiftId(session.shift);
-            return sessionShiftId && userShiftIds.includes(sessionShiftId);
-          });
-          
-          if (matchingSession) {
-            setActiveSession(matchingSession);
-          } else {
-            // No session for this manager's assigned shifts → disable clock-in
-            setActiveSession(null);
-          }
-        } else {
-          setActiveSession(null);
-        }
-      } catch (sessionErr) {
-        console.error('Failed to load sessions:', sessionErr);
-        setActiveSession(null);
-      }
-      
-      // Get last check-in time if any
-      if (emp?.id) {
-        const today = new Date().toISOString().slice(0, 10);
-        try {
-          const attendance = await api.get(`/attendance/attendance/?date=${today}`);
-          const todayRecords = Array.isArray(attendance) ? attendance : [];
-          const userRecord = todayRecords.find(
-            (r) => String(r.employee?.id || r.employee) === String(emp.id)
-          );
-          if (userRecord && userRecord.check_in_time) {
-            setLastActionTime(new Date(userRecord.check_in_time).toLocaleTimeString());
-          }
-        } catch (attendanceErr) {
-          console.error('Failed to load attendance:', attendanceErr);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load clock-in state:', err);
-    }
-  };
-  
-  const [scanOpen, setScanOpen] = useState(false);
-  const [scanSubmitting, setScanSubmitting] = useState(false);
-
-  const handleClockIn = async (imageFile) => {
-    if (!activeSession) {
-      onNotify?.('No active attendance session available or you are not assigned to any active session.', 'error');
-      return;
-    }
-
-    setScanSubmitting(true);
-    try {
-      await api.checkInAttendance(imageFile);
-      const now = new Date().toLocaleTimeString();
-      setLastActionTime(now);
-      onNotify?.('Face scan submitted. If recognized, it will be recorded in the active session.', 'success');
-      setScanOpen(false);
-    } catch (err) {
-      console.error('Clock in failed:', err);
-      onNotify?.(`Failed to clock in. ${err.message || 'Please try again.'}`, 'error');
-    } finally {
-      setScanSubmitting(false);
-    }
-  };
 
   const fetchStats = async () => {
     try {
       setLoading(true);
-      // Get manager's Employee profile (backend does not embed employee in /me)
-      const emp = await api.getMyEmployee().catch(() => null);
-      let employees = [];
       
-      if (emp?.department?.id) {
-        // Get employees from manager's department
-        const allEmployees = await api.get('/employees/employees/').catch(() => []);
-        const employeesList = Array.isArray(allEmployees) ? allEmployees : allEmployees?.results || [];
-        employees = employeesList.filter((e) => String(e.department?.id) === String(emp.department.id));
-        setDepartment(emp.department);
-      } else {
-        // Fallback: show all employees
-        const employeesRes = await api.get('/employees/employees/').catch(() => ({ results: [] }));
-        employees = Array.isArray(employeesRes) ? employeesRes : employeesRes.results || [];
-      }
-      
-      const attendanceRes = await api.get('/attendance/attendance/').catch(() => ([]));
-      const allAttendance = Array.isArray(attendanceRes) ? attendanceRes : attendanceRes?.results || [];
-      
-      // Filter attendance by department employees only
-      const employeeIds = employees.map(emp => emp.id);
-      const attendance = allAttendance.filter(a => {
-        const empId = a.employee?.id || a.employee;
-        return employeeIds.includes(empId);
+      // Fetch data in parallel
+      const [empRes, employeesRes, attendanceRes, sessionsRes] = await Promise.all([
+        api.getMyEmployee().catch(() => null),
+        api.get('/employees/employees/').catch(() => ({ results: [] })),
+        api.get('/attendance/attendance/').catch(() => ({ results: [] })),
+        api.listAttendanceSessions({}).catch(() => []),
+      ]);
+
+      const employeesList = Array.isArray(employeesRes) ? employeesRes : employeesRes?.results || [];
+      const attendanceList = Array.isArray(attendanceRes) ? attendanceRes : attendanceRes?.results || [];
+
+      // Filter by department
+      const emp = empRes;
+      let employees = emp?.department?.id
+        ? employeesList.filter(e => String(e.department?.id) === String(emp.department.id))
+        : employeesList;
+
+      const employeeIds = employees.map(e => e.id);
+      const deptAttendance = attendanceList.filter(a => {
+        const aEmpId = a.employee?.id || a.employee;
+        return employeeIds.includes(aEmpId);
       });
 
-      const teamCount = employees.length;
-
       const todayStr = format(new Date(), 'yyyy-MM-dd');
-      const todayRecords = attendance.filter(a => a.date === todayStr);
-
+      const todayRecords = deptAttendance.filter(a => a.date === todayStr);
+      
       const presentToday = todayRecords.filter(a => 
         ['PRESENT', 'LATE'].includes(a.status?.toUpperCase())
       ).length;
 
-      const pendingApprovals = todayRecords.filter(a => 
-        a.status?.toUpperCase() === 'ON_LEAVE'
-      ).length;
-
       const sevenDaysAgo = format(subDays(new Date(), 7), 'yyyy-MM-dd');
-      const weeklyRecords = attendance.filter(a => 
+      const weeklyRecords = deptAttendance.filter(a => 
         a.date >= sevenDaysAgo && a.date <= todayStr
       );
-
+      
       const weeklyPresent = weeklyRecords.filter(a => 
         ['PRESENT', 'LATE'].includes(a.status?.toUpperCase())
       ).length;
@@ -267,8 +156,16 @@ const ManagerDashboardHome = ({ onNotify }) => {
         ? Math.round((weeklyPresent / weeklyRecords.length) * 100)
         : 0;
 
-      setStats({ teamCount, presentToday, pendingApprovals, attendanceRate });
+      setStats({
+        teamCount: employees.length,
+        presentToday,
+        pendingApprovals: 0,
+        attendanceRate,
+      });
+
+      setSessions(Array.isArray(sessionsRes) ? sessionsRes : []);
     } catch (err) {
+      console.error('Failed to load stats:', err);
       onNotify?.('Failed to load dashboard data', 'error');
     } finally {
       setLoading(false);
@@ -286,209 +183,342 @@ const ManagerDashboardHome = ({ onNotify }) => {
   }
 
   return (
-    <DashboardLayout title="Manager Dashboard">
-      {/* Clock In/Out Card for Manager */}
-      <Box sx={{ mb: 3 }}>
-        <Card sx={{ bgcolor: 'primary.main', color: 'primary.contrastText', boxShadow: 3, borderRadius: 2 }}>
-          <CardContent>
-            <Stack 
-              direction={{ xs: 'column', sm: 'row' }} 
-              spacing={3} 
-              alignItems={{ xs: 'flex-start', sm: 'center' }}
-              sx={{ flexWrap: 'wrap' }}
-            >
-              <Box sx={{ flex: 1, minWidth: 200 }}>
-                <Typography variant="h6" gutterBottom fontWeight="bold">
-                  Daily Clock-In
-                </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                  {activeSession 
-                    ? `Active session: ${getSessionShiftName(activeSession)}`
-                    : 'No active session available or you are not assigned to it'}
-                  {department && ` · Department: ${department.name || 'N/A'}`}
-                </Typography>
-              </Box>
-              <Button
-                variant="contained"
-                size="large"
-                color="success"
-                onClick={() => setScanOpen(true)}
-                disabled={!activeSession || scanSubmitting}
-                sx={{ px: 4, minWidth: 150, borderRadius: 2, fontWeight: 'bold' }}
-              >
-                {scanSubmitting ? 'Submitting…' : 'Scan Face'}
+    <DashboardLayout 
+      title="Manager Dashboard"
+      breadcrumbs={[{ label: 'Manager' }, { label: 'Dashboard' }]}
+      actions={
+        <Button variant="outlined" startIcon={<Refresh />} onClick={fetchStats}>
+          Refresh
+        </Button>
+      }
+    >
+      {/* Stats Cards */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
+          <Card sx={{ height: '100%', boxShadow: 3, borderRadius: 2, transition: 'transform 0.2s', '&:hover': { transform: 'translateY(-4px)' } }}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'primary.light', color: 'primary.main', display: 'flex' }}>
+                  <Group fontSize="large" />
+                </Box>
+                <Box>
+                  <Typography variant="h4" fontWeight="bold">{stats.teamCount}</Typography>
+                  <Typography color="text.secondary">Team Members</Typography>
+                </Box>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
+          <Card sx={{ height: '100%', boxShadow: 3, borderRadius: 2, transition: 'transform 0.2s', '&:hover': { transform: 'translateY(-4px)' } }}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'success.light', color: 'success.main', display: 'flex' }}>
+                  <CheckCircle fontSize="large" />
+                </Box>
+                <Box>
+                  <Typography variant="h4" fontWeight="bold">{stats.presentToday}</Typography>
+                  <Typography color="text.secondary">Present Today</Typography>
+                </Box>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
+          <Card sx={{ height: '100%', boxShadow: 3, borderRadius: 2, transition: 'transform 0.2s', '&:hover': { transform: 'translateY(-4px)' } }}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'warning.light', color: 'warning.main', display: 'flex' }}>
+                  <EventNote fontSize="large" />
+                </Box>
+                <Box>
+                  <Typography variant="h4" fontWeight="bold">{stats.pendingApprovals}</Typography>
+                  <Typography color="text.secondary">Pending</Typography>
+                </Box>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
+          <Card sx={{ height: '100%', boxShadow: 3, borderRadius: 2, transition: 'transform 0.2s', '&:hover': { transform: 'translateY(-4px)' } }}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'info.light', color: 'info.main', display: 'flex' }}>
+                  <TrendingUp fontSize="large" />
+                </Box>
+                <Box>
+                  <Typography variant="h4" fontWeight="bold">{stats.attendanceRate}%</Typography>
+                  <Typography color="text.secondary">Weekly Attendance</Typography>
+                </Box>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Quick Actions */}
+      <Typography variant="h5" fontWeight="bold" sx={{ mb: 3 }}>Quick Actions</Typography>
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+          <Card sx={{ height: '100%', boxShadow: 3, borderRadius: 2, transition: 'all 0.2s', '&:hover': { transform: 'translateY(-4px)', boxShadow: 6 } }}>
+            <CardContent sx={{ textAlign: 'center', py: 4 }}>
+              <People sx={{ fontSize: 56, color: 'primary.main', mb: 2 }} />
+              <Typography variant="h6" fontWeight="bold" gutterBottom>Team Members</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                View and manage your team
+              </Typography>
+              <Button variant="contained" component={Link} to="/manager/team" fullWidth>
+                View Team
               </Button>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+          <Card sx={{ height: '100%', boxShadow: 3, borderRadius: 2, transition: 'all 0.2s', '&:hover': { transform: 'translateY(-4px)', boxShadow: 6 } }}>
+            <CardContent sx={{ textAlign: 'center', py: 4 }}>
+              <Report sx={{ fontSize: 56, color: 'secondary.main', mb: 2 }} />
+              <Typography variant="h6" fontWeight="bold" gutterBottom>Reports</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Generate attendance reports
+              </Typography>
+              <Button variant="contained" color="secondary" component={Link} to="/manager/reports" fullWidth>
+                View Reports
+              </Button>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+          <Card sx={{ height: '100%', boxShadow: 3, borderRadius: 2, transition: 'all 0.2s', '&:hover': { transform: 'translateY(-4px)', boxShadow: 6 } }}>
+            <CardContent sx={{ textAlign: 'center', py: 4 }}>
+              <Fingerprint sx={{ fontSize: 56, color: 'warning.main', mb: 2 }} />
+              <Typography variant="h6" fontWeight="bold" gutterBottom>Biometrics</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Manage facial recognition
+              </Typography>
+              <Button variant="contained" color="warning" component={Link} to="/biometrics" fullWidth>
+                Manage
+              </Button>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
-              <FaceCaptureDialog
-                open={scanOpen}
-                title="Scan Face for Attendance"
-                onClose={() => setScanOpen(false)}
-                onCaptured={(file) => handleClockIn(file)}
+      {/* Attendance Sessions */}
+      <Typography variant="h5" fontWeight="bold" sx={{ mt: 4, mb: 2 }}>Attendance Sessions</Typography>
+      <Card sx={{ boxShadow: 3, borderRadius: 2 }}>
+        <CardContent>
+          {/* Session Filters */}
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Search sessions..."
+                value={searchSession}
+                onChange={(e) => setSearchSession(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Search />
+                    </InputAdornment>
+                  ),
+                }}
               />
-              <Box sx={{ textAlign: { xs: 'left', sm: 'right' }, minWidth: 150, flexShrink: 0 }}>
-                <Typography variant="body2" fontWeight="medium">
-                  {activeSession ? 'Session Active' : 'No Active Session'}
-                </Typography>
-                {lastActionTime && (
-                  <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>
-                    Last check-in: {lastActionTime}
-                  </Typography>
-                )}
-              </Box>
-            </Stack>
-          </CardContent>
-        </Card>
-      </Box>
-
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} lg={3}>
-          <DashboardStatCard
-            label="Team Size"
-            value={stats.teamCount}
-            helperText="Total members"
-            icon={<Group />}
-            color="primary"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} lg={3}>
-          <DashboardStatCard
-            label="Present Today"
-            value={stats.presentToday}
-            helperText="Clocked in"
-            icon={<CheckCircle />}
-            color="success"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} lg={3}>
-          <DashboardStatCard
-            label="Pending Approvals"
-            value={stats.pendingApprovals}
-            helperText="On leave / pending"
-            icon={<EventNote />}
-            color="warning"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} lg={3}>
-          <DashboardStatCard
-            label="Weekly Attendance"
-            value={`${stats.attendanceRate}%`}
-            helperText="Last 7 days"
-            icon={<TrendingUp />}
-            color="info"
-          />
-        </Grid>
-      </Grid>
-
-      <Grid container spacing={4}>
-        <Grid item xs={12} md={6}>
-          <Card sx={{ height: '100%', boxShadow: 4 }}>
-            <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <Stack direction="row" spacing={2} alignItems="center" mb={3}>
-                <People sx={{ fontSize: 48, color: 'primary.main' }} />
-                <Box>
-                  <Typography variant="h5" fontWeight="bold">Team Management</Typography>
-                  <Typography color="text.secondary">Monitor attendance & performance</Typography>
-                </Box>
-              </Stack>
-              <Box mt="auto">
-                <Stack spacing={2}>
-                  <Button
-                    variant="contained"
-                    size="large"
-                    component={Link}
-                    to="/manager/team"
-                    startIcon={<People />}
-                    fullWidth
-                  >
-                    View Team Members
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    size="large"
-                    component={Link}
-                    to="/manager/reports"
-                    startIcon={<Report />}
-                    fullWidth
-                  >
-                    Generate Reports
-                  </Button>
-                </Stack>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={6}>
-          <Card sx={{ height: '100%', boxShadow: 4 }}>
-            <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <Stack direction="row" spacing={2} alignItems="center" mb={3}>
-                <CheckCircle sx={{ fontSize: 48, color: 'success.main' }} />
-                <Box>
-                  <Typography variant="h5" fontWeight="bold">Approval Center</Typography>
-                  <Typography color="text.secondary">Review pending requests</Typography>
-                </Box>
-              </Stack>
-              <Box mt="auto">
-                <Button
-                  variant="contained"
-                  color="success"
-                  size="large"
-                  component={Link}
-                  to="/manager/approvals"
-                  startIcon={<CheckCircle />}
-                  fullWidth
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <TextField
+                fullWidth
+                size="small"
+                type="date"
+                label="Date"
+                value={filterSessionDate}
+                onChange={(e) => setFilterSessionDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={filterSessionStatus}
+                  onChange={(e) => setFilterSessionStatus(e.target.value)}
+                  label="Status"
                 >
-                  Review {stats.pendingApprovals} Pending Request{stats.pendingApprovals !== 1 ? 's' : ''}
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+                  <MenuItem value="ALL">All Sessions</MenuItem>
+                  <MenuItem value="ACTIVE">Active</MenuItem>
+                  <MenuItem value="CLOSED">Closed</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <Button
+                variant="outlined"
+                fullWidth
+                size="small"
+                startIcon={<Refresh />}
+                onClick={fetchStats}
+                disabled={loading}
+              >
+                Refresh
+              </Button>
+            </Grid>
+          </Grid>
+
+          {/* Sessions Table */}
+          <TableContainer component={Paper} variant="outlined">
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'primary.light' }}>
+                  <TableCell><strong>Session ID</strong></TableCell>
+                  <TableCell><strong>Shift</strong></TableCell>
+                  <TableCell><strong>Date</strong></TableCell>
+                  <TableCell><strong>Status</strong></TableCell>
+                  <TableCell align="right"><strong>Actions</strong></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {(() => {
+                  const filteredSessions = sessions.filter((session) => {
+                    const matchesSearch = !searchSession ||
+                      String(session.id).includes(searchSession) ||
+                      session.shift?.name?.toLowerCase().includes(searchSession.toLowerCase());
+                    
+                    const matchesDate = !filterSessionDate || session.date === filterSessionDate;
+                    
+                    if (filterSessionStatus === 'ALL') return matchesSearch && matchesDate;
+                    if (filterSessionStatus === 'ACTIVE') return matchesSearch && matchesDate && session.is_active;
+                    if (filterSessionStatus === 'CLOSED') return matchesSearch && matchesDate && !session.is_active;
+                    return matchesSearch && matchesDate;
+                  });
+
+                  if (loading) {
+                    return (
+                      <TableRow>
+                        <TableCell colSpan={5} align="center">
+                          <CircularProgress size={30} />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  }
+
+                  if (filteredSessions.length === 0) {
+                    return (
+                      <TableRow>
+                        <TableCell colSpan={5} align="center">
+                          <Typography variant="body2" color="text.secondary">
+                            No sessions found
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  }
+
+                  return filteredSessions.slice(0, 5).map((session) => (
+                    <TableRow key={session.id} hover>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight="medium">
+                          #{session.id}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {session.shift?.name || 'Unknown'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {session.date || format(new Date(), 'yyyy-MM-dd')}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={session.is_active ? 'Active' : 'Closed'}
+                          color={session.is_active ? 'success' : 'default'}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        <Button size="small" component={Link} to="/attendance/sessions">
+                          View
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ));
+                })()}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </CardContent>
+      </Card>
     </DashboardLayout>
   );
 };
 
 // ====================== TEAM OVERVIEW ======================
-const TeamOverviewPage = () => {
+const TeamOverviewPage = ({ onNotify }) => {
   const [team, setTeam] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('all');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [departments, setDepartments] = useState([]);
 
   useEffect(() => {
     fetchTeam();
+    fetchDepartments();
   }, []);
+
+  const fetchDepartments = async () => {
+    try {
+      const res = await api.get('/employees/departments/').catch(() => ({ results: [] }));
+      const list = Array.isArray(res) ? res : res?.results || [];
+      setDepartments(list);
+    } catch (err) {
+      console.error('Failed to load departments:', err);
+    }
+  };
 
   const fetchTeam = async () => {
     try {
       setLoading(true);
-      // Get manager's Employee profile (backend does not embed employee in /me)
-      const emp = await api.getMyEmployee().catch(() => null);
-      let employees = [];
+      
+      const [empRes, employeesRes, attendanceRes] = await Promise.all([
+        api.getMyEmployee().catch(() => null),
+        api.get('/employees/employees/').catch(() => ({ results: [] })),
+        api.get('/attendance/attendance/').catch(() => ({ results: [] })),
+      ]);
 
-      if (emp?.department?.id) {
-        // Get employees from manager's department
-        const allEmployees = await api.get('/employees/employees/').catch(() => []);
-        const employeesList = Array.isArray(allEmployees) ? allEmployees : allEmployees?.results || [];
-        employees = employeesList.filter((e) => e.department?.id === emp.department.id);
-      } else {
-        // Fallback to all employees if no department
-        const res = await api.get('/employees/employees/').catch(() => ({ results: [] }));
-        employees = Array.isArray(res) ? res : res.results || [];
-      }
+      const employeesList = Array.isArray(employeesRes) ? employeesRes : employeesRes?.results || [];
+      const attendanceList = Array.isArray(attendanceRes) ? attendanceRes : attendanceRes?.results || [];
 
-      const mapped = employees.map(emp => ({
-        id: emp.id,
-        name: emp.full_name || emp.user?.email?.split('@')[0] || 'Unknown',
-        email: emp.user?.email || '',
-        department: emp.department?.name || 'No Department',
-        role: emp.user?.roles?.[0]?.name || 'Employee',
-        status: emp.is_active ? 'Active' : 'Inactive',
-        attendance_rate: 85, // Placeholder — real rate would come from attendance aggregation
-      }));
+      let employees = empRes?.department?.id
+        ? employeesList.filter(e => String(e.department?.id) === String(empRes.department.id))
+        : employeesList;
+
+      // Calculate real attendance rates
+      const mapped = employees.map(emp => {
+        const empAttendance = attendanceList.filter(a => 
+          String(a.employee?.id || a.employee) === String(emp.id)
+        );
+        const totalDays = empAttendance.length;
+        const presentDays = empAttendance.filter(a => 
+          ['PRESENT', 'LATE'].includes(a.status?.toUpperCase())
+        ).length;
+        const attendanceRate = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 100;
+
+        return {
+          id: emp.id,
+          name: emp.full_name || emp.user?.email?.split('@')[0] || 'Unknown',
+          email: emp.user?.email || '',
+          department: emp.department?.name || 'No Department',
+          role: emp.user?.roles?.[0]?.name || 'Employee',
+          status: emp.is_active ? 'Active' : 'Inactive',
+          attendance_rate: attendanceRate,
+          total_days: totalDays,
+          present_days: presentDays,
+        };
+      });
 
       setTeam(mapped);
     } catch (err) {
@@ -498,8 +528,6 @@ const TeamOverviewPage = () => {
       setLoading(false);
     }
   };
-
-  const departments = ['all', ...new Set(team.map(m => m.department))];
 
   const filtered = team.filter(member => {
     const matchesSearch = 
@@ -513,58 +541,61 @@ const TeamOverviewPage = () => {
   const paginated = filtered.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
 
   return (
-    <DashboardLayout title="Team Overview" breadcrumbs={['Team Overview']}>
-      <Card sx={{ mb: 4 }}>
+    <DashboardLayout 
+      title="Team Overview" 
+      breadcrumbs={[{ label: 'Manager' }, { label: 'Team' }]}
+      actions={
+        <Button variant="outlined" startIcon={<Refresh />} onClick={fetchTeam}>
+          Refresh
+        </Button>
+      }
+    >
+      {/* Filters */}
+      <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Grid container spacing={3} alignItems="end">
-            <Grid item xs={12} md={5}>
+          <Grid container spacing={2} alignItems="center">
+            <Grid size={{ xs: 12, md: 5 }}>
               <TextField
                 fullWidth
                 placeholder="Search by name, email, or department..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                name="manager-team-search"
-                id="manager-team-search"
                 InputProps={{
                   startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
                 }}
+                size="small"
               />
             </Grid>
-            <Grid item xs={12} md={4}>
-              <FormControl fullWidth>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <FormControl fullWidth size="small">
                 <InputLabel>Department</InputLabel>
                 <Select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} label="Department">
+                  <MenuItem value="all">All Departments</MenuItem>
                   {departments.map(dept => (
-                    <MenuItem key={dept} value={dept}>
-                      {dept === 'all' ? 'All Departments' : dept}
-                    </MenuItem>
+                    <MenuItem key={dept.id} value={dept.name}>{dept.name}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <Button variant="contained" startIcon={<Refresh />} onClick={() => fetchTeam()} fullWidth>
-                Refresh
-              </Button>
             </Grid>
           </Grid>
         </CardContent>
       </Card>
 
+      {/* Team Table */}
       <Card>
         <CardContent>
           {loading ? (
-            <Box textAlign="center" py={8}>
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
               <CircularProgress />
             </Box>
           ) : team.length === 0 ? (
-            <Alert severity="info">No team members found. Contact admin if this is incorrect.</Alert>
+            <Alert severity="info">No team members found.</Alert>
           ) : (
             <>
               <TableContainer>
                 <Table>
                   <TableHead>
-                    <TableRow>
+                    <TableRow sx={{ bgcolor: 'grey.50' }}>
                       <TableCell><strong>Employee</strong></TableCell>
                       <TableCell><strong>Department</strong></TableCell>
                       <TableCell><strong>Role</strong></TableCell>
@@ -577,23 +608,54 @@ const TeamOverviewPage = () => {
                       <TableRow key={member.id} hover>
                         <TableCell>
                           <Stack direction="row" spacing={2} alignItems="center">
-                            <Avatar>{member.name[0]}</Avatar>
+                            <Avatar sx={{ bgcolor: 'primary.main' }}>
+                              {member.name[0]}
+                            </Avatar>
                             <Box>
                               <Typography fontWeight="medium">{member.name}</Typography>
-                              <Typography variant="caption" color="text.secondary">{member.email}</Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {member.email}
+                              </Typography>
                             </Box>
                           </Stack>
                         </TableCell>
                         <TableCell>{member.department}</TableCell>
                         <TableCell>{member.role}</TableCell>
                         <TableCell>
-                          <Chip label={member.status} color={getStatusColor(member.status)} size="small" />
+                          <Chip 
+                            label={member.status} 
+                            color={getStatusColor(member.status)} 
+                            size="small" 
+                          />
                         </TableCell>
                         <TableCell align="center">
-                          <Box display="flex" alignItems="center" gap={1}>
-                            <LinearProgress variant="determinate" value={member.attendance_rate} sx={{ flex: 1 }} />
-                            <Typography variant="body2">{member.attendance_rate}%</Typography>
-                          </Box>
+                          <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
+                            <Box sx={{ width: 100 }}>
+                              <LinearProgress 
+                                variant="determinate" 
+                                value={member.attendance_rate}
+                                sx={{ 
+                                  height: 8, 
+                                  borderRadius: 4,
+                                  bgcolor: 'grey.200',
+                                  '& .MuiLinearProgress-bar': {
+                                    bgcolor: member.attendance_rate >= 80 ? 'success.main' : 
+                                             member.attendance_rate >= 50 ? 'warning.main' : 'error.main',
+                                  }
+                                }}
+                              />
+                            </Box>
+                            <Chip 
+                              label={`${member.attendance_rate}%`}
+                              size="small"
+                              sx={{ 
+                                bgcolor: member.attendance_rate >= 80 ? 'success.light' : 
+                                         member.attendance_rate >= 50 ? 'warning.light' : 'error.light',
+                                color: member.attendance_rate >= 80 ? 'success.dark' : 
+                                       member.attendance_rate >= 50 ? 'warning.dark' : 'error.dark',
+                              }}
+                            />
+                          </Stack>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -625,7 +687,7 @@ const ManagerDashboard = ({ onNotify }) => {
   return (
     <Routes>
       <Route path="dashboard" element={<ManagerDashboardHome onNotify={onNotify} />} />
-      <Route path="team" element={<TeamOverviewPage />} />
+      <Route path="team" element={<TeamOverviewPage onNotify={onNotify} />} />
       <Route path="reports" element={<Reports onNotify={onNotify} />} />
       <Route path="biometrics" element={<Biometrics onNotify={onNotify} role="Manager" />} />
       <Route path="settings" element={<Settings onNotify={onNotify} />} />

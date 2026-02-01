@@ -1,7 +1,6 @@
 // src/components/Header.jsx
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import {
-  AppBar,
   Toolbar,
   Typography,
   IconButton,
@@ -57,113 +56,116 @@ const Header = memo(({ user, onLogout }) => {
   , [user?.name, user?.role]);
 
   return (
-    <AppBar position="static" color="default" elevation={1}>
-      <Toolbar>
-        <Typography variant="h8" sx={{ flexGrow: 1, fontWeight: 'bold' }}>
-          Attendance Management System
-        </Typography>
+    <Box sx={{ 
+      display: 'flex', 
+      alignItems: 'center',
+      width: '100%',
+      height: '100%',
+    }}>
+      <Typography variant="h8" sx={{ flexGrow: 1, fontWeight: 'bold' }}>
+        Attendance Management System
+      </Typography>
 
-        <Typography variant="body2" sx={{ mr: 3, minWidth: 140, textAlign: 'right' }}>
-          {dateLabel}
-          <span style={{ fontSize: '1rem', paddingLeft: 10, fontWeight: 'bold' }}>{timeLabel}</span>
-        </Typography>
+      <Typography variant="body2" sx={{ mr: 3, minWidth: 140, textAlign: 'right' }}>
+        {dateLabel}
+        <span style={{ fontSize: '1rem', paddingLeft: 10, fontWeight: 'bold' }}>{timeLabel}</span>
+      </Typography>
 
-        <Typography variant="body2" sx={{ mr: 3 }}>
-          Role: <strong>{user?.role || 'Unknown'}</strong>
-        </Typography>
+      <Typography variant="body2" sx={{ mr: 3 }}>
+        Role: <strong>{user?.role || 'Unknown'}</strong>
+      </Typography>
 
-        {/* Notification Bell */}
-        <IconButton onClick={handleBellClick} sx={{ mr: 1 }}>
-          <Badge badgeContent={unreadCount} color="error">
-            <Notifications />
-          </Badge>
-        </IconButton>
+      {/* Notification Bell */}
+      <IconButton onClick={handleBellClick} sx={{ mr: 1 }}>
+        <Badge badgeContent={unreadCount} color="error">
+          <Notifications />
+        </Badge>
+      </IconButton>
 
-        {/* Notification Popover */}
-        <Popover
-          open={open}
-          anchorEl={anchorEl}
-          onClose={handleClose}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-          PaperProps={{ sx: { width: 380, maxHeight: 500, mt: 1 } }}
-        >
-          <Box sx={{ p: 2 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-              <Typography variant="h6" fontWeight="bold">
-                Notifications
-              </Typography>
-              {unreadCount > 0 && (
-                <Button size="small" onClick={markAllAsRead} color="primary">
-                  Mark all as done
-                </Button>
-              )}
-            </Box>
-            <Divider sx={{ mb: 2 }} />
-
-            {notifications.length === 0 ? (
-              <Typography sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>
-                No notifications yet
-              </Typography>
-            ) : (
-              <List>
-                {notifications.map((notif) => (
-                  <ListItem
-                    key={notif.id}
-                    sx={{
-                      bgcolor: notif.read ? 'transparent' : 'action.hover',
-                      borderRadius: 2,
-                      mb: 1,
-                    }}
-                  >
-                    <ListItemText
-                      primary={notif.message}
-                      secondary={`${notif.date} • ${notif.time}`}
-                      primaryTypographyProps={{
-                        fontWeight: notif.read ? 'normal' : 'bold',
-                        variant: 'body2',
-                      }}
-                      secondaryTypographyProps={{ variant: 'caption' }}
-                    />
-                    {!notif.read && (
-                      <ListItemSecondaryAction>
-                        <IconButton
-                          size="small"
-                          onClick={() => markAsRead(notif.id)}
-                          sx={{
-                            bgcolor: 'error.main',
-                            color: 'white',
-                            width: 36,
-                            height: 36,
-                            '&:hover': { bgcolor: 'error.dark' },
-                          }}
-                        >
-                          <CheckCircle fontSize="small" />
-                        </IconButton>
-                      </ListItemSecondaryAction>
-                    )}
-                  </ListItem>
-                ))}
-              </List>
+      {/* Notification Popover */}
+      <Popover
+        open={open}
+        anchorEl={anchorEl}
+        onClose={handleClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        PaperProps={{ sx: { width: 380, maxHeight: 500, mt: 1 } }}
+      >
+        <Box sx={{ p: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+            <Typography variant="h6" fontWeight="bold">
+              Notifications
+            </Typography>
+            {unreadCount > 0 && (
+              <Button size="small" onClick={markAllAsRead} color="primary">
+                Mark all as done
+              </Button>
             )}
           </Box>
-        </Popover>
+          <Divider sx={{ mb: 2 }} />
 
-        {/* User Avatar */}
-        <IconButton sx={{ mx: 1 }}>
-          <Avatar sx={{ bgcolor: 'primary.main', width: 30, height: 30 }}>
-            <Typography variant="subtitle1" fontWeight="bold">
-              {userInitial}
+          {notifications.length === 0 ? (
+            <Typography sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>
+              No notifications yet
             </Typography>
-          </Avatar>
-        </IconButton>
+          ) : (
+            <List>
+              {notifications.map((notif) => (
+                <ListItem
+                  key={notif.id}
+                  sx={{
+                    bgcolor: notif.read ? 'transparent' : 'action.hover',
+                    borderRadius: 2,
+                    mb: 1,
+                  }}
+                >
+                  <ListItemText
+                    primary={notif.message}
+                    secondary={`${notif.date} • ${notif.time}`}
+                    primaryTypographyProps={{
+                      fontWeight: notif.read ? 'normal' : 'bold',
+                      variant: 'body2',
+                    }}
+                    secondaryTypographyProps={{ variant: 'caption' }}
+                  />
+                  {!notif.read && (
+                    <ListItemSecondaryAction>
+                      <IconButton
+                        size="small"
+                        onClick={() => markAsRead(notif.id)}
+                        sx={{
+                          bgcolor: 'error.main',
+                          color: 'white',
+                          width: 36,
+                          height: 36,
+                          '&:hover': { bgcolor: 'error.dark' },
+                        }}
+                      >
+                        <CheckCircle fontSize="small" />
+                      </IconButton>
+                    </ListItemSecondaryAction>
+                  )}
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </Box>
+      </Popover>
 
-        {/* Logout */}
-        <IconButton onClick={onLogout} color="inherit">
-          <Logout />
-        </IconButton>
-      </Toolbar>
-    </AppBar>
+      {/* User Avatar */}
+      <IconButton sx={{ mx: 1 }}>
+        <Avatar sx={{ bgcolor: 'primary.main', width: 30, height: 30 }}>
+          <Typography variant="subtitle1" fontWeight="bold">
+            {userInitial}
+          </Typography>
+        </Avatar>
+      </IconButton>
+
+      {/* Logout */}
+      <IconButton onClick={onLogout} color="inherit">
+        <Logout />
+      </IconButton>
+    </Box>
   );
 });
 

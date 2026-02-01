@@ -43,6 +43,7 @@ import {
   SwapVert,
 } from '@mui/icons-material';
 import { api } from '../services/api.service.js';
+import { useNotifications } from '../context/NotificationContext.jsx';
 
 // Base roles and their fixed ids (1-4)
 const BASE_ROLES = [
@@ -69,10 +70,10 @@ const emptyForm = {
 const EMPLOYEE_ROLE_NAMES = ['EMPLOYEE', 'HR', 'MANAGER'];
 
 const UserManagement = ({ scope = 'admin', onNotify }) => {
-  const title = scope === 'hr' ? 'Employee Directory' : 'User & Access Management';
+  const title = scope === 'hr' ? 'Employee Directory (Read-Only)' : 'User & Access Management';
   const description =
     scope === 'hr'
-      ? 'View and manage employee profiles, roles, and account status.'
+      ? 'View employee profiles, roles, and account status. Contact admin to make changes.'
       : 'Full control over user accounts, roles, and system access.';
 
   const [users, setUsers] = useState([]);
@@ -89,9 +90,13 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
   const canDelete = scope === 'admin';
+  const canEdit = scope === 'admin';
   const isEmployeeRole = EMPLOYEE_ROLE_NAMES.includes(form.role);
 
-  // Local Snackbar state (visible fallback if onNotify doesn't show anything)
+  // Use NotificationContext for global notifications
+  const { addNotification } = useNotifications();
+
+  // Local Snackbar state (visible fallback)
   const [snack, setSnack] = useState({ open: false, message: '', severity: 'info' });
 
   const handleSnackClose = (event, reason) => {
@@ -101,10 +106,17 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
 
   const showMessage = (message, severity = 'info') => {
     console.log(`[NOTIFY ${severity.toUpperCase()}] ${message}`);
+    
+    // Call all notification methods to ensure visibility
     if (onNotify && typeof onNotify === 'function') {
       onNotify(message, severity);
     }
-    // Always show visible Snackbar
+    
+    if (addNotification && typeof addNotification === 'function') {
+      addNotification(message, severity);
+    }
+    
+    // Always show local Snackbar as fallback
     setSnack({ open: true, message, severity });
   };
 
@@ -320,7 +332,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
 
         setUsers((prev) => [newUser, ...prev]);
 
-        showMessage(`User "${form.name}" (${form.email}) has been created successfully!`, 'success');
+        showMessage(`✓ User Created Successfully! "${form.name}" (${form.email}) has been added to the system.`, 'success');
       }
     } catch (err) {
       console.error('User operation failed:', err);
@@ -332,9 +344,9 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
         const data = err?.response?.data || {};
 
         if (data.email && (data.email.includes('already exists') || data.email.includes('unique'))) {
-          errorMsg = `A user with email "${form.email}" already exists.`;
+          errorMsg = `⚠ User Already Exists! A user with email "${form.email}" is already registered in the system.`;
         } else if (data.employee_code && (data.employee_code.includes('already exists') || data.employee_code.includes('unique'))) {
-          errorMsg = `Employee code "${form.employeeCode}" already exists.`;
+          errorMsg = `⚠ Employee Code Already Exists! The code "${form.employeeCode}" is already in use.`;
         } else if (data.detail) {
           errorMsg = data.detail;
         } else if (typeof data === 'object') {
@@ -778,17 +790,23 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                           />
                         </TableCell>
                         <TableCell align="right">
-                          <Tooltip title="Edit">
-                            <IconButton size="small" onClick={() => handleEdit(user)}>
-                              <Edit fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          {canDelete && (
-                            <Tooltip title="Delete">
-                              <IconButton size="small" color="error" onClick={() => handleDelete(user)}>
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                          {canEdit ? (
+                            <>
+                              <Tooltip title="Edit User">
+                                <IconButton size="small" onClick={() => handleEdit(user)}>
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              {canDelete && (
+                                <Tooltip title="Delete User">
+                                  <IconButton size="small" color="error" onClick={() => handleDelete(user)}>
+                                    <Delete fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                            </>
+                          ) : (
+                            <Chip label="Read-Only" size="small" variant="outlined" color="default" />
                           )}
                         </TableCell>
                       </TableRow>
@@ -806,13 +824,24 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
         open={snack.open}
         autoHideDuration={6000}
         onClose={handleSnackClose}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        sx={{ '& .MuiSnackbar-root': { position: 'fixed' } }}
       >
         <Alert 
           onClose={handleSnackClose} 
           severity={snack.severity} 
           variant="filled"
-          sx={{ width: '100%' }}
+          sx={{ 
+            width: '100%', 
+            minWidth: '300px', 
+            maxWidth: '500px', 
+            boxShadow: 4,
+            fontWeight: 'bold',
+            fontSize: '14px',
+            '& .MuiAlert-message': {
+              fontWeight: 'bold',
+            },
+          }}
         >
           {snack.message}
         </Alert>

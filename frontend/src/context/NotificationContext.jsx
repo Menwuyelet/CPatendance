@@ -76,18 +76,28 @@ export const NotificationProvider = ({ children }) => {
     <NotificationContext.Provider value={value}>
       {children}
 
-      {/* Visible Snackbar - shows every time addNotification is called */}
       <Snackbar
         open={snackOpen}
         autoHideDuration={6000}
         onClose={handleSnackClose}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        sx={{ '& .MuiSnackbar-root': { position: 'fixed' } }}
       >
         <Alert 
           onClose={handleSnackClose} 
           severity={snackSeverity} 
           variant="filled"
-          sx={{ width: '100%' }}
+          sx={{ 
+            width: '100%',
+            minWidth: '300px',
+            maxWidth: '500px',
+            boxShadow: 4,
+            fontWeight: 'bold',
+            fontSize: '14px',
+            '& .MuiAlert-message': {
+              fontWeight: 'bold',
+            },
+          }}
         >
           {snackMessage}
         </Alert>

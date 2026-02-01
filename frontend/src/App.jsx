@@ -173,6 +173,7 @@ return (
               <Route path="/attendance/sessions" element={<AttendanceSessions role="HR" onNotify={notify} />} />
               <Route path="/biometrics" element={<Biometrics onNotify={notify} role="HR" />} />
               <Route path="/settings" element={<Settings onNotify={notify} />} />
+              <Route path="/reports" element={<Reports onNotify={notify} />} />
             </>
           )}
 
