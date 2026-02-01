@@ -186,7 +186,8 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
         onNotify?.('Users and departments loaded successfully', 'success');
       } catch (err) {
         console.error('Failed to load data:', err);
-        onNotify?.('Failed to load users or departments. Check server connection.', 'error');
+        const errorMsg = err?.response?.data?.detail || 'Failed to load users or departments. Check server connection.';
+        onNotify?.(errorMsg, 'error');
         setUsers([]);
         setRoleOptions([]);
       } finally {
@@ -215,18 +216,18 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
     e.preventDefault();
 
     if (!form.name.trim() || !form.email.trim()) {
-      onNotify?.('Name and email are required', 'error');
+      onNotify?.('Please provide both name and email address', 'error');
       return;
     }
 
     if (!isEditing && !form.password.trim()) {
-      onNotify?.('Password is required for new users', 'error');
+      onNotify?.('Password is required when creating a new user', 'error');
       return;
     }
 
     // NEW: Validate employee_code for Employee/HR/Manager roles when creating
     if (!isEditing && isEmployeeRole && !form.employeeCode?.trim()) {
-      onNotify?.('Employee Code is required for Employee, HR, and Manager roles.', 'error');
+      onNotify?.('Employee Code is required for Employee, HR, and Manager roles when creating new users', 'error');
       return;
     }
 
@@ -273,7 +274,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           ),
         );
 
-        onNotify?.('User updated successfully', 'success');
+        onNotify?.(`User "${form.name}" has been updated successfully`, 'success');
       } else {
         // Create new user
         const roleOption =
@@ -300,7 +301,10 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           }
         }
 
+        console.log('Creating user with payload:', payload); // Debug logging
+        
         const created = await api.post('/accounts/users/', payload);
+        console.log('User created successfully:', created); // Debug logging
 
         const newUser = {
           id: created.id,
@@ -313,11 +317,27 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
         };
 
         setUsers(prev => [newUser, ...prev]);
-        onNotify?.('User created successfully', 'success');
+        onNotify?.(`User "${form.name}" has been created successfully`, 'success');
       }
     } catch (err) {
       console.error('User operation failed:', err);
-      onNotify?.('Failed to save user. Check fields and server.', 'error');
+      
+      // Handle specific error cases
+      if (err?.response?.status === 400) {
+        const errorData = err.response.data;
+        if (errorData?.email?.includes('user with this email already exists')) {
+          onNotify?.(`A user with email "${form.email}" already exists`, 'error');
+        } else if (errorData?.employee_code?.includes('employee with this employee code already exists')) {
+          onNotify?.(`An employee with code "${form.employeeCode}" already exists`, 'error');
+        } else {
+          const errorMsg = Object.values(errorData).flat().join(', ') || 'Invalid data provided';
+          onNotify?.(errorMsg, 'error');
+        }
+      } else if (err?.response?.status === 409) {
+        onNotify?.('User already exists with this email or employee code', 'error');
+      } else {
+        onNotify?.('Failed to save user. Please check your connection and try again.', 'error');
+      }
     }
 
     setForm(emptyForm);

@@ -102,3 +102,50 @@ class UserViewSet(viewsets.ModelViewSet):
         """Return the serialized current user (convenience endpoint)."""
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def change_password(self, request):
+        """Allow authenticated users to change their password."""
+        user = request.user
+        current_password = request.data.get('current_password')
+        new_password = request.data.get('new_password')
+        password_confirmation = request.data.get('password_confirmation')
+
+        # Validate required fields
+        if not current_password:
+            return Response(
+                {'error': 'Current password is required.'},
+                status=400
+            )
+        
+        if not new_password:
+            return Response(
+                {'error': 'New password is required.'},
+                status=400
+            )
+        
+        if not password_confirmation:
+            return Response(
+                {'error': 'Password confirmation is required.'},
+                status=400
+            )
+
+        # Validate current password
+        if not user.check_password(current_password):
+            return Response(
+                {'error': 'Current password is incorrect.'},
+                status=400
+            )
+
+        # Validate password confirmation
+        if new_password != password_confirmation:
+            return Response(
+                {'error': 'New password and confirmation do not match.'},
+                status=400
+            )
+
+        # Set the new password
+        user.set_password(new_password)
+        user.save()
+
+        return Response({'message': 'Password changed successfully.'})

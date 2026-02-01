@@ -4,7 +4,7 @@ import { api } from './services/api.service.js';
 import { NotificationProvider } from './context/NotificationContext';
 
 // Core components loaded immediately
-// import Sidebar from './components/Sidebar.jsx';
+import Sidebar from './components/Sidebar.jsx';
 // import Header from './components/Header.jsx';
 import MainLayout from './layout/MainLayout.jsx';
 import Login from './pages/Login.jsx';
