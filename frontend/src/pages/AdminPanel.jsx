@@ -91,7 +91,7 @@ const AdminPanel = ({ onNotify }) => {
         ? `radial-gradient(at 0% 0%, ${alpha(theme.palette.primary.main, 0.1)} 0px, transparent 50%)`
         : `radial-gradient(at 0% 0%, ${alpha(theme.palette.primary.main, 0.05)} 0px, transparent 50%)`,
     }}>
-      <Container maxWidth="xl" sx={{ py: { xs: 3, md: 5 } }}>
+      <Container maxWidth="xl" sx={{ py: { xs: 2, sm: 3, md: 5 }, px: { xs: 1, sm: 2, md: 3 } }}>
         
         {/* Header Section */}
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems="center" spacing={3} mb={6}>
@@ -130,7 +130,6 @@ const AdminPanel = ({ onNotify }) => {
           {[
             { label: 'Employees', val: stats.totalEmployees, icon: <People />, color: 'primary', sub: 'Total Records' },
             { label: 'Attendance', val: `${stats.attendanceRate}%`, icon: <EventAvailable />, color: 'success', sub: `${stats.presentToday} Present` },
-            { label: 'Payroll', val: `$${(stats.payroll/1000).toFixed(1)}k`, icon: <AccountBalanceWallet />, color: 'info', sub: 'Monthly Total' },
             { label: 'Units', val: stats.depts, icon: <Business />, color: 'warning', sub: 'Departments' },
           ].map((stat, i) => (
             <StyledCard key={i} theme={theme}>
@@ -187,7 +186,7 @@ const AdminPanel = ({ onNotify }) => {
             <List sx={{ p: 0 }}>
               {[
                 { t: 'Attendance Sync', s: `${stats.presentToday} checked in`, time: 'Live', c: 'success' },
-                { t: 'Payroll Summary', s: 'Verified for current month', time: 'Static', c: 'info' },
+                { t: 'Department Sync', s: `${stats.depts} departments active`, time: 'Live', c: 'info' },
               ].map((act, i) => (
                 <ListItem key={i} sx={{ px: 3, py: 2 }}>
                   <ListItemAvatar>
