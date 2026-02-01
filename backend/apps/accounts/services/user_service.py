@@ -77,7 +77,7 @@ def update_user(user, **kwargs):
         logger.debug(
             "UPDATE_USER_ROLES | user_id=%s roles=%s",
             user.id,
-            list(roles.values_list("id", flat=True)),
+            list(roles),
         )
         user.roles.set(roles)
 

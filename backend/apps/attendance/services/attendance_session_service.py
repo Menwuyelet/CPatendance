@@ -13,11 +13,6 @@ from config.logging import get_logger
 logger = get_logger(__name__)
 
 
-from config.logging import get_logger
-
-logger = get_logger(__name__)
-
-
 class AttendanceSessionService:
     """
     Attendance business logic
@@ -52,7 +47,6 @@ class AttendanceSessionService:
 
         employee_id = BiometricMatchingService.match_face(embedding, self.session.shift)
 
-
         employee_id = BiometricMatchingService.match_face(embedding, self.session.shift)
 
         if not employee_id:
@@ -62,7 +56,6 @@ class AttendanceSessionService:
             )
 
             return "TRY_AGAIN"
-
 
         entry, created = AttendanceSessionEntry.objects.get_or_create(
             session=self.session,
@@ -78,10 +71,8 @@ class AttendanceSessionService:
             )
             return "STOP_DUPLICATE"
 
-
         logger.warning(
             "SESSION_DUPLICATE_ENTRY | session_id=%s | employee_id=%s",
-
             self.session.id,
             employee_id,
         )
@@ -106,7 +97,6 @@ class AttendanceSessionService:
             )
 
             return "NO_FACE_DETECTED"
-
 
         return self.process_embedding(embedding)
 

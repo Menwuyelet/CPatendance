@@ -114,7 +114,7 @@ const EmployeeDashboard = ({ onNotify }) => {
       {error && (
         <Alert 
           severity="error" 
-          sx={{ mb: 2 }}
+          className="dashboard-alert dashboard-alert-error"
           onClose={() => setError('')}
         >
           {error}
@@ -123,7 +123,7 @@ const EmployeeDashboard = ({ onNotify }) => {
       {success && (
         <Alert 
           severity="success" 
-          sx={{ mb: 2 }}
+          className="dashboard-alert dashboard-alert-success"
           onClose={() => setSuccess('')}
         >
           {success}
@@ -131,217 +131,234 @@ const EmployeeDashboard = ({ onNotify }) => {
       )}
 
       {/* Refresh Button */}
-      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+      <Box className="action-buttons-row" sx={{ mb: 2 }}>
         <Button
           variant="outlined"
           size="small"
           startIcon={<RefreshIcon />}
           onClick={loadDashboardData}
           disabled={loading}
+          className="btn-refresh"
         >
           Refresh
         </Button>
       </Box>
 
       {/* Cards Container */}
-      <Box sx={{ 
-        display: 'flex', 
-        flexWrap: 'wrap', 
-        gap: 2,
-        mb: 3
-      }}>
+      <Box className="dashboard-grid dashboard-grid-3">
         {/* ---------------- Attendance Card ---------------- */}
-        <Box sx={{ flex: '1 1 300px', minWidth: 280 }}>
-          <Card className="dashboard-card card-hover">
-            <CardContent className="dashboard-card-content">
-              {/* Card Header */}
-              <Box className="card-header">
-                <Box className="card-icon">
-                  <AccessTime />
-                </Box>
-                <Typography className="card-title">
-                  Today's Attendance
-                </Typography>
+        <Card className="dashboard-card card-hover">
+          <CardContent className="dashboard-card-content">
+            {/* Card Header */}
+            <Box className="card-header">
+              <Box className="card-icon">
+                <AccessTime />
               </Box>
-
-              {/* Date */}
-              <Typography className="card-date">
-                {todayFormatted}
+              <Typography className="card-title">
+                Today's Attendance
               </Typography>
+            </Box>
 
-              {/* Status */}
-              {attendance?.date || attendance?.attendance_date ? (
-                <>
-                  <Chip
-                    icon={<CheckCircle />}
-                    label={
-                      attendance.check_in_time && !attendance.check_out_time
-                        ? 'Clocked In'
-                        : 'Completed'
-                    }
-                    color="success"
-                    size="small"
-                    sx={{ mb: 2 }}
-                  />
+            {/* Date */}
+            <Typography className="card-date">
+              {todayFormatted}
+            </Typography>
 
-                  {/* Times */}
-                  <Box className="attendance-times">
-                    {attendance.check_in_time && (
-                      <Box className="attendance-time">
-                        <Typography className="time-label">Check In</Typography>
-                        <Typography className="time-value">
-                          {new Date(attendance.check_in_time).toLocaleTimeString()}
-                        </Typography>
-                      </Box>
-                    )}
-                    {attendance.check_out_time && (
-                      <Box className="attendance-time">
-                        <Typography className="time-label">Check Out</Typography>
-                        <Typography className="time-value">
-                          {new Date(attendance.check_out_time).toLocaleTimeString()}
-                        </Typography>
-                      </Box>
-                    )}
-                  </Box>
-                </>
-              ) : (
-                <Typography className="card-date">
-                  No attendance record for today
-                </Typography>
-              )}
+            {/* Status */}
+            {attendance?.date || attendance?.attendance_date ? (
+              <>
+                <Chip
+                  icon={<CheckCircle />}
+                  label={
+                    attendance.check_in_time && !attendance.check_out_time
+                      ? 'Clocked In'
+                      : 'Completed'
+                  }
+                  color="success"
+                  size="small"
+                  className="status-badge status-badge-present"
+                  sx={{ mb: 2 }}
+                />
 
-              {/* Action Buttons */}
-              <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
-                <Button 
-                  variant="outlined" 
-                  size="small" 
-                  onClick={() => navigate('/attendance')}
-                  sx={{ flex: 1 }}
-                >
-                  History
-                </Button>
-                <Button 
-                  variant="outlined" 
-                  size="small" 
-                  onClick={() => navigate('/reports')}
-                  sx={{ flex: 1 }}
-                >
-                  Reports
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
-        </Box>
+                {/* Times */}
+                <Box className="attendance-times">
+                  {attendance.check_in_time && (
+                    <Box className="attendance-time">
+                      <Typography className="time-label">Check In</Typography>
+                      <Typography className="time-value">
+                        {new Date(attendance.check_in_time).toLocaleTimeString()}
+                      </Typography>
+                    </Box>
+                  )}
+                  {attendance.check_out_time && (
+                    <Box className="attendance-time">
+                      <Typography className="time-label">Check Out</Typography>
+                      <Typography className="time-value">
+                        {new Date(attendance.check_out_time).toLocaleTimeString()}
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+              </>
+            ) : (
+              <Typography className="card-date">
+                No attendance record for today
+              </Typography>
+            )}
+
+            {/* Action Buttons */}
+            <Box className="action-buttons-row">
+              <Button 
+                variant="outlined" 
+                size="small" 
+                onClick={() => navigate('/attendance')}
+                className="action-button"
+              >
+                History
+              </Button>
+              <Button 
+                variant="outlined" 
+                size="small" 
+                onClick={() => navigate('/reports')}
+                className="action-button"
+              >
+                Reports
+              </Button>
+            </Box>
+          </CardContent>
+        </Card>
 
         {/* ---------------- Today Info Card ---------------- */}
-        <Box sx={{ flex: '1 1 300px', minWidth: 280 }}>
-          <Card className="dashboard-card card-hover">
-            <CardContent className="dashboard-card-content">
-              {/* Card Header */}
-              <Box className="card-header">
-                <Box className="card-icon">
-                  <Schedule />
-                </Box>
-                <Typography className="card-title">
-                  Today's Info
-                </Typography>
+        <Card className="dashboard-card card-hover">
+          <CardContent className="dashboard-card-content">
+            {/* Card Header */}
+            <Box className="card-header">
+              <Box className="card-icon">
+                <Schedule />
               </Box>
-
-              {/* Current Time */}
-              <Typography className="time-display">
-                <strong>Current Time:</strong> {currentTime}
+              <Typography className="card-title">
+                Today's Info
               </Typography>
+            </Box>
 
-              {/* Status Badge */}
-              {attendance?.status && (
-                <Chip
-                  label={attendance.status}
-                  size="small"
-                  className={getStatusBadgeClass(attendance.status)}
-                  sx={{ mt: 2 }}
-                />
-              )}
+            {/* Current Time */}
+            <Typography className="time-display">
+              <strong>Current Time:</strong> {currentTime}
+            </Typography>
 
-              {/* Tips */}
-              <Box className="tips-section">
-                <Typography className="tip-item">
-                  Remember to clock in/out
-                </Typography>
-                <Typography className="tip-item">
-                  Contact HR for changes
+            {/* Status Badge */}
+            {attendance?.status && (
+              <Chip
+                label={attendance.status}
+                size="small"
+                className={getStatusBadgeClass(attendance.status)}
+                sx={{ mt: 2 }}
+              />
+            )}
+
+            {/* Status Cards */}
+            <Box className="card-stats" sx={{ mt: 2 }}>
+              <Box className="card-stat">
+                <Typography className="stat-label">Status</Typography>
+                <Typography className={`stat-value ${attendance?.status === 'PRESENT' ? 'text-success' : attendance?.status === 'LATE' ? 'text-warning' : attendance?.status === 'ABSENT' ? 'text-error' : ''}`}>
+                  {attendance?.status || 'N/A'}
                 </Typography>
               </Box>
-            </CardContent>
-          </Card>
-        </Box>
+              <Box className="card-stat">
+                <Typography className="stat-label">Check In</Typography>
+                <Typography className="stat-value">
+                  {attendance?.check_in_time ? new Date(attendance.check_in_time).toLocaleTimeString() : '-'}
+                </Typography>
+              </Box>
+              <Box className="card-stat">
+                <Typography className="stat-label">Check Out</Typography>
+                <Typography className="stat-value">
+                  {attendance?.check_out_time ? new Date(attendance.check_out_time).toLocaleTimeString() : '-'}
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* Tips */}
+            <Box className="tips-section">
+              <Typography className="tip-item">
+                Remember to clock in/out
+              </Typography>
+              <Typography className="tip-item">
+                Contact HR for changes
+              </Typography>
+            </Box>
+          </CardContent>
+        </Card>
 
         {/* ---------------- Quick Actions Card ---------------- */}
-        <Box sx={{ flex: '1 1 300px', minWidth: 280 }}>
-          <Card className="dashboard-card card-hover">
-            <CardContent className="dashboard-card-content">
-              {/* Card Header */}
-              <Box className="card-header">
-                <Box className="card-icon">
-                  <EventNote />
-                </Box>
-                <Typography className="card-title">
-                  Quick Actions
+        <Card className="dashboard-card card-hover">
+          <CardContent className="dashboard-card-content">
+            {/* Card Header */}
+            <Box className="card-header">
+              <Box className="card-icon">
+                <EventNote />
+              </Box>
+              <Typography className="card-title">
+                Quick Actions
+              </Typography>
+            </Box>
+
+            {/* Action Buttons */}
+            <Box className="quick-actions">
+              <Button
+                fullWidth
+                variant="outlined"
+                startIcon={<EventNote />}
+                onClick={() => navigate('/attendance')}
+                className="action-button"
+              >
+                Attendance
+              </Button>
+
+              <Button
+                fullWidth
+                variant="outlined"
+                startIcon={<Schedule />}
+                onClick={() => navigate('/leaves')}
+                className="action-button"
+              >
+                Leave Requests
+              </Button>
+
+              <Button
+                fullWidth
+                variant="outlined"
+                onClick={() => navigate('/reports')}
+                className="action-button"
+              >
+                Reports
+              </Button>
+
+              <Button
+                fullWidth
+                variant="outlined"
+                onClick={() => navigate('/settings')}
+                className="action-button"
+              >
+                Settings
+              </Button>
+            </Box>
+
+            {/* Welcome Message */}
+            {(user.full_name || user.email) && (
+              <Box className="welcome-section">
+                <Typography className="welcome-text">
+                  Welcome,{' '}
+                  <span className="welcome-name">
+                    {user.full_name ||
+                      user.email?.split('@')[0] ||
+                      'User'}
+                  </span>
                 </Typography>
               </Box>
-
-              {/* Action Buttons */}
-              <Box className="quick-actions">
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  startIcon={<EventNote />}
-                  onClick={() => navigate('/attendance')}
-                >
-                  Attendance
-                </Button>
-
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  startIcon={<Schedule />}
-                  onClick={() => navigate('/leaves')}
-                >
-                  Leave Requests
-                </Button>
-
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => navigate('/reports')}
-                >
-                  Reports
-                </Button>
-
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => navigate('/settings')}
-                >
-                  Settings
-                </Button>
-              </Box>
-
-              {/* Welcome Message */}
-              {(user.full_name || user.email) && (
-                <Box className="welcome-section">
-                  <Typography className="welcome-text">
-                    Welcome,{' '}
-                    <span className="welcome-name">
-                      {user.full_name ||
-                        user.email?.split('@')[0] ||
-                        'User'}
-                    </span>
-                  </Typography>
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Box>
+            )}
+          </CardContent>
+        </Card>
       </Box>
     </Box>
   );
