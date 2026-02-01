@@ -1,5 +1,6 @@
 // src/context/NotificationContext.jsx
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import { Snackbar, Alert } from '@mui/material'; // ← added for visible toasts
 
 const NotificationContext = createContext(null);
 
@@ -9,7 +10,12 @@ export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const addNotification = useCallback((message) => {
+  // Snackbar state for visible toast
+  const [snackOpen, setSnackOpen] = useState(false);
+  const [snackMessage, setSnackMessage] = useState('');
+  const [snackSeverity, setSnackSeverity] = useState('success');
+
+  const addNotification = useCallback((message, severity = 'success') => {
     setNotifications(prev => {
       // Prevent exact duplicates
       if (prev.some(n => n.message === message && !n.read)) return prev;
@@ -25,6 +31,11 @@ export const NotificationProvider = ({ children }) => {
       setUnreadCount(c => c + 1);
       return [newNotif, ...prev].slice(0, 50); // Keep max 50 notifications
     });
+
+    // Show visible Snackbar
+    setSnackMessage(message);
+    setSnackSeverity(severity);
+    setSnackOpen(true);
   }, []);
 
   const markAsRead = useCallback((id) => {
@@ -47,7 +58,6 @@ export const NotificationProvider = ({ children }) => {
     setUnreadCount(0);
   }, []);
 
-  // Memoize context value to prevent unnecessary re-renders
   const value = useMemo(() => ({
     notifications,
     unreadCount,
@@ -57,9 +67,31 @@ export const NotificationProvider = ({ children }) => {
     clearAll,
   }), [notifications, unreadCount, addNotification, markAsRead, markAllAsRead, clearAll]);
 
+  const handleSnackClose = (event, reason) => {
+    if (reason === 'clickaway') return;
+    setSnackOpen(false);
+  };
+
   return (
     <NotificationContext.Provider value={value}>
       {children}
+
+      {/* Visible Snackbar - shows every time addNotification is called */}
+      <Snackbar
+        open={snackOpen}
+        autoHideDuration={6000}
+        onClose={handleSnackClose}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Alert 
+          onClose={handleSnackClose} 
+          severity={snackSeverity} 
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {snackMessage}
+        </Alert>
+      </Snackbar>
     </NotificationContext.Provider>
   );
 };

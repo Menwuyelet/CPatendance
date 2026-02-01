@@ -57,7 +57,8 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api.service.js';
-import { format, startOfMonth, endOfMonth, addDays, subDays, isWithinInterval } from 'date-fns';
+import { DashboardPage, DashboardStatCard } from '../components/dashboard';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 
 const HRDashboard = ({ onNotify }) => {
   const navigate = useNavigate();
@@ -370,16 +371,21 @@ const HRDashboard = ({ onNotify }) => {
   };
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: '1400px', mx: 'auto' }}>
-      {/* Header */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h4" fontWeight="bold" sx={{ mb: 1 }}>
-          HR Dashboard
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Workforce management and insights
-        </Typography>
-      </Box>
+    <DashboardPage
+      title="HR Dashboard"
+      subtitle="Workforce management and insights"
+      actions={
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+          <Button variant="outlined" size="small" onClick={() => window.location.reload()}>
+            Refresh
+          </Button>
+          <Button variant="contained" size="small" color="primary" onClick={() => navigate('/employees')}>
+            Manage Employees
+          </Button>
+        </Stack>
+      }
+      disablePadding
+    >
 
       {error && (
         <Alert severity="error" sx={{ mb: 4 }}>
@@ -432,75 +438,45 @@ const HRDashboard = ({ onNotify }) => {
         </CardContent>
       </Card>
 
-      {/* Key Statistics Cards */}
+      {/* Key Statistics */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ bgcolor: 'primary.main', color: 'primary.contrastText', borderRadius: 2 }}>
-            <CardContent sx={{ py: 2 }}>
-              <Stack direction="row" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="h5" fontWeight="bold">
-                    {stats.totalEmployees}
-                  </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.9, fontSize: '0.85rem' }}>
-                    Total Employees
-                  </Typography>
-                </Box>
-                <People sx={{ fontSize: 36, opacity: 0.8 }} />
-              </Stack>
-            </CardContent>
-          </Card>
+        <Grid item xs={12} sm={6} lg={3}>
+          <DashboardStatCard
+            label="Total Employees"
+            value={stats.totalEmployees}
+            helperText={`${stats.activeEmployees} active`}
+            icon={<People />}
+            color="primary"
+            onClick={() => navigate('/employees')}
+          />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ bgcolor: 'success.main', color: 'success.contrastText', borderRadius: 2 }}>
-            <CardContent sx={{ py: 2 }}>
-              <Stack direction="row" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="h5" fontWeight="bold">
-                    {stats.activeToday}
-                  </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.9, fontSize: '0.85rem' }}>
-                    Present Today
-                  </Typography>
-                </Box>
-                <CheckCircle sx={{ fontSize: 36, opacity: 0.8 }} />
-              </Stack>
-            </CardContent>
-          </Card>
+        <Grid item xs={12} sm={6} lg={3}>
+          <DashboardStatCard
+            label="Present Today"
+            value={stats.activeToday}
+            helperText={`${stats.lateArrivals} late`}
+            icon={<CheckCircle />}
+            color="success"
+            onClick={() => navigate('/attendance')}
+          />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ bgcolor: 'warning.main', color: 'warning.contrastText', borderRadius: 2 }}>
-            <CardContent sx={{ py: 2 }}>
-              <Stack direction="row" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="h5" fontWeight="bold">
-                    {stats.absenteeismRate}%
-                  </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.9, fontSize: '0.85rem' }}>
-                    Absenteeism Rate
-                  </Typography>
-                </Box>
-                <TrendingDown sx={{ fontSize: 36, opacity: 0.8 }} />
-              </Stack>
-            </CardContent>
-          </Card>
+        <Grid item xs={12} sm={6} lg={3}>
+          <DashboardStatCard
+            label="Absenteeism"
+            value={`${stats.absenteeismRate}%`}
+            helperText="Today"
+            icon={<TrendingDown />}
+            color={stats.absenteeismRate > 20 ? 'error' : 'warning'}
+          />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ bgcolor: 'error.main', color: 'error.contrastText', borderRadius: 2 }}>
-            <CardContent sx={{ py: 2 }}>
-              <Stack direction="row" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="h5" fontWeight="bold">
-                    {stats.pendingLeaves}
-                  </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.9, fontSize: '0.85rem' }}>
-                    Pending Leaves
-                  </Typography>
-                </Box>
-                <CalendarToday sx={{ fontSize: 36, opacity: 0.8 }} />
-              </Stack>
-            </CardContent>
-          </Card>
+        <Grid item xs={12} sm={6} lg={3}>
+          <DashboardStatCard
+            label="On Leave"
+            value={stats.pendingLeaves}
+            helperText="Today"
+            icon={<CalendarToday />}
+            color="info"
+          />
         </Grid>
       </Grid>
 
@@ -558,7 +534,7 @@ const HRDashboard = ({ onNotify }) => {
                 >
                   <MenuItem value="ALL">All Departments</MenuItem>
                   {departments.map((dept) => (
-                    <MenuItem key={dept.id} value={dept.id}>
+                    <MenuItem key={dept.id} value={String(dept.id)}>
                       {dept.name}
                     </MenuItem>
                   ))}
@@ -616,7 +592,7 @@ const HRDashboard = ({ onNotify }) => {
                       emp.user?.email?.toLowerCase().includes(searchQuery.toLowerCase());
 
                     const matchesDept = filterDepartment === 'ALL' ||
-                      emp.department?.id === filterDepartment;
+                      String(emp.department?.id || '') === String(filterDepartment);
 
                     return matchesSearch && matchesDept;
                   });
@@ -624,7 +600,7 @@ const HRDashboard = ({ onNotify }) => {
                   const filteredAttendance = attendanceRecords.filter((record) => {
                     const matchesDate = !filterDate || record.date === filterDate;
                     const matchesStatus = filterStatus === 'ALL' ||
-                      record.status === filterStatus;
+                      String(record.status || '').toUpperCase() === String(filterStatus).toUpperCase();
                     return matchesDate && matchesStatus;
                   });
 
@@ -669,7 +645,7 @@ const HRDashboard = ({ onNotify }) => {
 
                   return finalFiltered.slice(0, 10).map((emp) => {
                     const record = emp.attendanceRecord;
-                    const status = record?.status || 'ABSENT';
+                    const status = String(record?.status || 'ABSENT').toUpperCase();
                     const statusColor = {
                       PRESENT: 'success',
                       LATE: 'warning',
@@ -1067,7 +1043,7 @@ const HRDashboard = ({ onNotify }) => {
           </Card>
         </Grid>
       </Grid>
-    </Box>
+    </DashboardPage>
   );
 };
 

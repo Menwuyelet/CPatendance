@@ -28,6 +28,7 @@ import {
   Alert,
   CircularProgress,
   TableContainer,
+  Snackbar,
 } from '@mui/material';
 import {
   Edit,
@@ -43,8 +44,7 @@ import {
 } from '@mui/icons-material';
 import { api } from '../services/api.service.js';
 
-// Base roles and their fixed ids (1-4). We merge these with any roles
-// discovered from existing users so the dropdown always offers all four.
+// Base roles and their fixed ids (1-4)
 const BASE_ROLES = [
   { id: 1, name: 'ADMIN' },
   { id: 2, name: 'HR' },
@@ -56,14 +56,14 @@ const emptyForm = {
   id: null,
   name: '',
   email: '',
-  role: 'EMPLOYEE',      // normalized uppercase role name
-  roleId: '',            // numeric role id (1-4)
-  department: '',        // department name (for display/filter)
-  departmentId: '',      // department UUID (for API)
+  role: 'EMPLOYEE',
+  roleId: '',
+  department: '',
+  departmentId: '',
   status: 'Active',
   password: '',
   employeeCode: '',
-  employeeId: '',        // employee UUID (for employee API updates)
+  employeeId: '',
 };
 
 const EMPLOYEE_ROLE_NAMES = ['EMPLOYEE', 'HR', 'MANAGER'];
@@ -91,7 +91,24 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
   const canDelete = scope === 'admin';
   const isEmployeeRole = EMPLOYEE_ROLE_NAMES.includes(form.role);
 
-  // Load roles and users from backend
+  // Local Snackbar state (visible fallback if onNotify doesn't show anything)
+  const [snack, setSnack] = useState({ open: false, message: '', severity: 'info' });
+
+  const handleSnackClose = (event, reason) => {
+    if (reason === 'clickaway') return;
+    setSnack(prev => ({ ...prev, open: false }));
+  };
+
+  const showMessage = (message, severity = 'info') => {
+    console.log(`[NOTIFY ${severity.toUpperCase()}] ${message}`);
+    if (onNotify && typeof onNotify === 'function') {
+      onNotify(message, severity);
+    }
+    // Always show visible Snackbar
+    setSnack({ open: true, message, severity });
+  };
+
+  // Load data once
   useEffect(() => {
     if (hasLoadedRef.current) return;
     hasLoadedRef.current = true;
@@ -101,20 +118,15 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
         setLoading(true);
 
         const usersRes = await api.get('/accounts/users/');
-        const usersList = Array.isArray(usersRes)
-          ? usersRes
-          : usersRes?.results || usersRes?.data || [];
+        const usersList = Array.isArray(usersRes) ? usersRes : usersRes?.results || usersRes?.data || [];
 
         const employeesRes = await api.get('/employees/employees/');
-        const employeesList = Array.isArray(employeesRes)
-          ? employeesRes
-          : employeesRes?.results || employeesRes?.data || [];
+        const employeesList = Array.isArray(employeesRes) ? employeesRes : employeesRes?.results || employeesRes?.data || [];
 
         const employeeByUserId = new Map();
-        if (Array.isArray(employeesList)) {
-          employeesList.forEach((e) => {
-            const userId = e.user?.id;
-            if (!userId) return;
+        employeesList.forEach((e) => {
+          const userId = e.user?.id;
+          if (userId) {
             employeeByUserId.set(userId, {
               id: e.id,
               fullName: e.full_name,
@@ -122,8 +134,8 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
               departmentId: e.department?.id || '',
               employeeCode: e.employee_code || '',
             });
-          });
-        }
+          }
+        });
 
         if (Array.isArray(usersList)) {
           const roleMap = new Map();
@@ -136,8 +148,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
 
             const emp = employeeByUserId.get(u.id);
             const deptName = emp?.departmentName || u.department?.name || '';
-            const displayName =
-              emp?.fullName || u.full_name || u.email?.split('@')[0] || 'User';
+            const displayName = emp?.fullName || u.full_name || u.email?.split('@')[0] || 'User';
 
             rawRoles.forEach((r) => {
               const name = (typeof r === 'string' ? r : r.name) || '';
@@ -177,17 +188,12 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           ? departmentsRes
           : departmentsRes?.results || departmentsRes?.data || [];
 
-        if (Array.isArray(departmentsList)) {
-          setDepartments(
-            departmentsList.map((d) => ({ id: d.id, name: d.name })),
-          );
-        }
+        setDepartments(departmentsList.map((d) => ({ id: d.id, name: d.name })));
 
-        onNotify?.('Users and departments loaded successfully', 'success');
+        showMessage('Users and departments loaded successfully', 'success');
       } catch (err) {
         console.error('Failed to load data:', err);
-        const errorMsg = err?.response?.data?.detail || 'Failed to load users or departments. Check server connection.';
-        onNotify?.(errorMsg, 'error');
+        showMessage('Failed to load users or departments. Check server connection.', 'error');
         setUsers([]);
         setRoleOptions([]);
       } finally {
@@ -196,16 +202,15 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
     };
 
     loadData();
-  }, [onNotify]);
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
 
     if (name === 'roleId') {
-      const selectedId = value;
-      const selected = roleOptions.find((r) => String(r.id) === String(selectedId));
+      const selected = roleOptions.find((r) => String(r.id) === String(value));
       const upperName = selected?.name || form.role;
-      setForm((prev) => ({ ...prev, roleId: selectedId, role: upperName }));
+      setForm((prev) => ({ ...prev, roleId: value, role: upperName }));
       return;
     }
 
@@ -216,18 +221,17 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
     e.preventDefault();
 
     if (!form.name.trim() || !form.email.trim()) {
-      onNotify?.('Please provide both name and email address', 'error');
+      showMessage('Please provide both name and email address', 'error');
       return;
     }
 
     if (!isEditing && !form.password.trim()) {
-      onNotify?.('Password is required when creating a new user', 'error');
+      showMessage('Password is required when creating a new user', 'error');
       return;
     }
 
-    // NEW: Validate employee_code for Employee/HR/Manager roles when creating
     if (!isEditing && isEmployeeRole && !form.employeeCode?.trim()) {
-      onNotify?.('Employee Code is required for Employee, HR, and Manager roles when creating new users', 'error');
+      showMessage('Employee Code is required for Employee, HR, and Manager roles when creating new users', 'error');
       return;
     }
 
@@ -274,15 +278,14 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           ),
         );
 
-        onNotify?.(`User "${form.name}" has been updated successfully`, 'success');
+        showMessage(`User "${form.name}" has been updated successfully`, 'success');
       } else {
-        // Create new user
         const roleOption =
           roleOptions.find((r) => String(r.id) === String(form.roleId)) ||
           roleOptions.find((r) => r.name === form.role.toUpperCase());
 
         if (!roleOption) {
-          onNotify?.('Selected role not available', 'error');
+          showMessage('Selected role not available', 'error');
           return;
         }
 
@@ -292,19 +295,18 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           roles: [roleOption.id],
         };
 
-        // Only include employee-related fields if role requires it
         if (isEmployeeRole) {
           payload.full_name = form.name.trim();
-          payload.employee_code = form.employeeCode.trim(); // Required & validated above
+          payload.employee_code = form.employeeCode.trim();
           if (form.departmentId) {
             payload.department = form.departmentId;
           }
         }
 
-        console.log('Creating user with payload:', payload); // Debug logging
-        
+        console.log('Creating user with payload:', payload);
+
         const created = await api.post('/accounts/users/', payload);
-        console.log('User created successfully:', created); // Debug logging
+        console.log('User created successfully:', created);
 
         const newUser = {
           id: created.id,
@@ -316,28 +318,36 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           status: 'Active',
         };
 
-        setUsers(prev => [newUser, ...prev]);
-        onNotify?.(`User "${form.name}" has been created successfully`, 'success');
+        setUsers((prev) => [newUser, ...prev]);
+
+        showMessage(`User "${form.name}" (${form.email}) has been created successfully!`, 'success');
       }
     } catch (err) {
       console.error('User operation failed:', err);
-      
-      // Handle specific error cases
+      console.log('Full error response:', err?.response?.data);
+
+      let errorMsg = err?.message || 'Failed to save user. Please try again.';
+
       if (err?.response?.status === 400) {
-        const errorData = err.response.data;
-        if (errorData?.email?.includes('user with this email already exists')) {
-          onNotify?.(`A user with email "${form.email}" already exists`, 'error');
-        } else if (errorData?.employee_code?.includes('employee with this employee code already exists')) {
-          onNotify?.(`An employee with code "${form.employeeCode}" already exists`, 'error');
-        } else {
-          const errorMsg = Object.values(errorData).flat().join(', ') || 'Invalid data provided';
-          onNotify?.(errorMsg, 'error');
+        const data = err?.response?.data || {};
+
+        if (data.email && (data.email.includes('already exists') || data.email.includes('unique'))) {
+          errorMsg = `A user with email "${form.email}" already exists.`;
+        } else if (data.employee_code && (data.employee_code.includes('already exists') || data.employee_code.includes('unique'))) {
+          errorMsg = `Employee code "${form.employeeCode}" already exists.`;
+        } else if (data.detail) {
+          errorMsg = data.detail;
+        } else if (typeof data === 'object') {
+          const errors = Object.values(data).flat();
+          errorMsg = errors.join('. ') || errorMsg;
         }
-      } else if (err?.response?.status === 409) {
-        onNotify?.('User already exists with this email or employee code', 'error');
-      } else {
-        onNotify?.('Failed to save user. Please check your connection and try again.', 'error');
+      } else if (err?.response?.status === 500) {
+        errorMsg = 'Server error (500). Check backend logs — likely database constraint issue.';
+      } else if (err?.response?.status === 403 || err?.response?.status === 401) {
+        errorMsg = 'Permission denied. Are you logged in as admin?';
       }
+
+      showMessage(errorMsg, 'error');
     }
 
     setForm(emptyForm);
@@ -355,14 +365,21 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
     setIsEditing(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Permanently delete this user? This cannot be undone.')) return;
+  const handleDelete = async (user) => {
+    if (!user?.id) {
+      showMessage('Cannot delete: User ID is missing', 'error');
+      return;
+    }
+
+    if (!window.confirm(`Delete user "${user.name}" permanently?`)) return;
+
     try {
-      await api.delete(`/accounts/users/${id}/`);
-      setUsers(prev => prev.filter(u => u.id !== id));
-      onNotify?.('User deleted permanently', 'info');
+      await api.delete(`/accounts/users/${user.id}/`);
+      setUsers((prev) => prev.filter((u) => u.id !== user.id));
+      showMessage(`User "${user.name}" deleted successfully`, 'info');
     } catch (err) {
-      onNotify?.('Failed to delete user', 'error');
+      console.error('Delete failed:', err);
+      showMessage('Failed to delete user — check console', 'error');
     }
   };
 
@@ -386,17 +403,13 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
         (Array.isArray(u.rolesList) && u.rolesList.includes(filterRole));
 
       const matchesStatus = filterStatus === 'ALL' || u.status === filterStatus;
-      const matchesDepartment =
-        filterDepartment === 'ALL' ||
-        (u.department || '') === filterDepartment;
+      const matchesDepartment = filterDepartment === 'ALL' || (u.department || '') === filterDepartment;
 
       return matchesSearch && matchesRole && matchesStatus && matchesDepartment;
     });
 
-    // Sort users
     filtered.sort((a, b) => {
       let aVal, bVal;
-      
       switch (sortBy) {
         case 'name':
           aVal = a.name?.toLowerCase() || '';
@@ -422,17 +435,11 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           return 0;
       }
 
-      if (sortOrder === 'asc') {
-        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
-      } else {
-        return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
-      }
+      return sortOrder === 'asc' ? (aVal > bVal ? 1 : aVal < bVal ? -1 : 0) : (aVal < bVal ? 1 : aVal > bVal ? -1 : 0);
     });
 
     return filtered;
   }, [users, search, filterRole, filterStatus, filterDepartment, sortBy, sortOrder]);
-
-  const activeCount = users.filter(u => u.status === 'Active').length;
 
   const getRoleLabel = (role) => {
     const map = {
@@ -476,125 +483,116 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
       </Box>
 
       <Grid container spacing={4}>
-        {/* Left: Form */}
-        <Grid size={{ xs: 12, lg: 4 }}>
-          <Card sx={{ height: '100%', borderRadius: 3, boxShadow: 4 }}>
-            <CardHeader
-              title={
-                <Typography variant="h6" fontWeight="medium">
-                  {isEditing ? 'Edit User' : 'Add New User'}
-                </Typography>
-              }
-              avatar={<PersonAdd color="primary" />}
-            />
-            <Divider />
-            <CardContent>
-              <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                <TextField label="Full Name" name="name" value={form.name} onChange={handleChange} fullWidth required />
-                <TextField label="Email Address" name="email" type="email" value={form.email} onChange={handleChange} fullWidth required />
+        {/* Form - only for admin */}
+        {scope === 'admin' && (
+          <Grid size={{ xs: 12, lg: 4 }}>
+            <Card sx={{ height: '100%', borderRadius: 3, boxShadow: 4 }}>
+              <CardHeader
+                title={
+                  <Typography variant="h6" fontWeight="medium">
+                    {isEditing ? 'Edit User' : 'Add New User'}
+                  </Typography>
+                }
+                avatar={<PersonAdd color="primary" />}
+              />
+              <Divider />
+              <CardContent>
+                <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                  <TextField label="Full Name" name="name" value={form.name} onChange={handleChange} fullWidth required />
+                  <TextField label="Email Address" name="email" type="email" value={form.email} onChange={handleChange} fullWidth required />
 
-                <FormControl fullWidth>
-                  <InputLabel>Role</InputLabel>
-                  <Select
-                    name="roleId"
-                    value={form.roleId}
-                    onChange={handleChange}
-                    label="Role"
-                  >
-                    {roleOptions.map((r) => (
-                      <MenuItem key={r.id} value={r.id}>
-                        {`${r.id} - ${r.name}`}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-
-                {isEmployeeRole && (
                   <FormControl fullWidth>
-                    <InputLabel>Department</InputLabel>
-                    <Select
-                      name="departmentId"
-                      value={form.departmentId}
-                      onChange={handleChange}
-                      label="Department"
-                    >
-                      <MenuItem value="">No department</MenuItem>
-                      {departments.map((d) => (
-                        <MenuItem key={d.id} value={String(d.id)}>
-                          {d.name}
+                    <InputLabel>Role</InputLabel>
+                    <Select name="roleId" value={form.roleId} onChange={handleChange} label="Role">
+                      {roleOptions.map((r) => (
+                        <MenuItem key={r.id} value={r.id}>
+                          {`${r.id} - ${r.name}`}
                         </MenuItem>
                       ))}
                     </Select>
                   </FormControl>
-                )}
 
-                {!isEditing && (
-                  <>
-                    <TextField
-                      label="Password"
-                      name="password"
-                      type="password"
-                      value={form.password}
-                      onChange={handleChange}
-                      fullWidth
-                      required
-                    />
-
-                    {/* FIXED: Employee Code now required for Employee/HR/Manager when creating */}
-                    {isEmployeeRole && (
-                      <>
-                        <Typography variant="subtitle2" color="text.secondary">
-                          Employee Details
-                        </Typography>
-                        <TextField
-                          label="Employee Code"
-                          name="employeeCode"
-                          value={form.employeeCode}
-                          onChange={handleChange}
-                          fullWidth
-                          required
-                          placeholder="e.g., EMP001"
-                          helperText="Required for Employee, HR, and Manager roles"
-                        />
-                      </>
-                    )}
-                  </>
-                )}
-
-                <FormControl fullWidth>
-                  <InputLabel>Status</InputLabel>
-                  <Select name="status" value={form.status} onChange={handleChange}>
-                    <MenuItem value="Active">Active</MenuItem>
-                    <MenuItem value="Inactive">Inactive</MenuItem>
-                  </Select>
-                </FormControl>
-
-                <Stack direction="row" spacing={2} sx={{ mt: 3 }}>
-                  {isEditing && (
-                    <Button variant="outlined" startIcon={<Clear />} onClick={handleReset}>
-                      Cancel
-                    </Button>
+                  {isEmployeeRole && (
+                    <FormControl fullWidth>
+                      <InputLabel>Department</InputLabel>
+                      <Select name="departmentId" value={form.departmentId} onChange={handleChange} label="Department">
+                        <MenuItem value="">No department</MenuItem>
+                        {departments.map((d) => (
+                          <MenuItem key={d.id} value={String(d.id)}>
+                            {d.name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
                   )}
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    fullWidth
-                    size="large"
-                    startIcon={isEditing ? <CheckCircle /> : <PersonAdd />}
-                  >
-                    {isEditing ? 'Save Changes' : 'Create User'}
-                  </Button>
-                </Stack>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
 
-        {/* Right: Users Table */}
-        <Grid size={{ xs: 12, lg: 8 }}>
-          {/* Filters Card */}
+                  {!isEditing && (
+                    <>
+                      <TextField
+                        label="Password"
+                        name="password"
+                        type="password"
+                        value={form.password}
+                        onChange={handleChange}
+                        fullWidth
+                        required
+                      />
+
+                      {isEmployeeRole && (
+                        <>
+                          <Typography variant="subtitle2" color="text.secondary">
+                            Employee Details
+                          </Typography>
+                          <TextField
+                            label="Employee Code"
+                            name="employeeCode"
+                            value={form.employeeCode}
+                            onChange={handleChange}
+                            fullWidth
+                            required
+                            placeholder="e.g., EMP001"
+                            helperText="Required for Employee, HR, and Manager roles"
+                          />
+                        </>
+                      )}
+                    </>
+                  )}
+
+                  <FormControl fullWidth>
+                    <InputLabel>Status</InputLabel>
+                    <Select name="status" value={form.status} onChange={handleChange}>
+                      <MenuItem value="Active">Active</MenuItem>
+                      <MenuItem value="Inactive">Inactive</MenuItem>
+                    </Select>
+                  </FormControl>
+
+                  <Stack direction="row" spacing={2} sx={{ mt: 3 }}>
+                    {isEditing && (
+                      <Button variant="outlined" startIcon={<Clear />} onClick={handleReset}>
+                        Cancel
+                      </Button>
+                    )}
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      fullWidth
+                      size="large"
+                      startIcon={isEditing ? <CheckCircle /> : <PersonAdd />}
+                    >
+                      {isEditing ? 'Save Changes' : 'Create User'}
+                    </Button>
+                  </Stack>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
+
+        {/* Table */}
+        <Grid size={{ xs: 12, lg: scope === 'admin' ? 8 : 12 }}>
+          {/* Filters */}
           <Card sx={{ mb: 2, borderRadius: 3, boxShadow: 3 }}>
-            <CardHeader 
+            <CardHeader
               title={
                 <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <FilterList /> Filters & Sorting
@@ -605,7 +603,6 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
             <Divider />
             <CardContent>
               <Grid container spacing={2}>
-                {/* Search */}
                 <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
@@ -624,7 +621,6 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                   />
                 </Grid>
 
-                {/* Role Filter */}
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                   <FormControl fullWidth size="small">
                     <InputLabel>Role</InputLabel>
@@ -638,7 +634,6 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                   </FormControl>
                 </Grid>
 
-                {/* Status Filter */}
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                   <FormControl fullWidth size="small">
                     <InputLabel>Status</InputLabel>
@@ -650,15 +645,10 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                   </FormControl>
                 </Grid>
 
-                {/* Department Filter */}
                 <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                   <FormControl fullWidth size="small">
                     <InputLabel>Department</InputLabel>
-                    <Select
-                      value={filterDepartment}
-                      onChange={(e) => setFilterDepartment(e.target.value)}
-                      label="Department"
-                    >
+                    <Select value={filterDepartment} onChange={(e) => setFilterDepartment(e.target.value)} label="Department">
                       <MenuItem value="ALL">All Departments</MenuItem>
                       {departments.map((d) => (
                         <MenuItem key={d.id} value={d.name}>
@@ -669,7 +659,6 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                   </FormControl>
                 </Grid>
 
-                {/* Sort By */}
                 <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                   <FormControl fullWidth size="small">
                     <InputLabel>Sort By</InputLabel>
@@ -683,7 +672,6 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                   </FormControl>
                 </Grid>
 
-                {/* Sort Order */}
                 <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                   <FormControl fullWidth size="small">
                     <InputLabel>Order</InputLabel>
@@ -700,12 +688,12 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                 <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
                   <Typography variant="body2" color="text.secondary">Active filters:</Typography>
                   {search && <Chip label={`Search: "${search}"`} onDelete={() => setSearch('')} size="small" color="primary" />}
-                  {filterRole !== 'ALL' && <Chip label={`Role: ${getRoleLabel(filterRole)}`} onDelete={() => setFilterRole('ALL')} size="small" color="secondary" />}
+                  {filterRole !== 'ALL' && <Chip label={`Role: ${filterRole}`} onDelete={() => setFilterRole('ALL')} size="small" color="secondary" />}
                   {filterStatus !== 'ALL' && <Chip label={`Status: ${filterStatus}`} onDelete={() => setFilterStatus('ALL')} size="small" color="success" />}
                   {filterDepartment !== 'ALL' && <Chip label={`Dept: ${filterDepartment}`} onDelete={() => setFilterDepartment('ALL')} size="small" color="info" />}
                   {sortBy !== 'name' && <Chip label={`Sorted by: ${sortBy}`} size="small" variant="outlined" />}
-                  <Button 
-                    size="small" 
+                  <Button
+                    size="small"
                     onClick={() => {
                       setSearch('');
                       setFilterRole('ALL');
@@ -723,7 +711,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
             </CardContent>
           </Card>
 
-          {/* Users Table Card */}
+          {/* Users Table */}
           <Card sx={{ borderRadius: 3, boxShadow: 4 }}>
             <CardHeader
               title={<Typography variant="h6">All Users ({filteredUsers.length} of {users.length})</Typography>}
@@ -764,8 +752,8 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredUsers.map((user) => (
-                      <TableRow key={user.id || user.email} hover>
+                    filteredUsers.map((user, index) => (
+                      <TableRow key={user.id || user.email || `user-${index}`} hover>
                         <TableCell>
                           <Stack direction="row" spacing={2} alignItems="center">
                             <Avatar sx={{ bgcolor: 'primary.main' }}>
@@ -797,7 +785,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                           </Tooltip>
                           {canDelete && (
                             <Tooltip title="Delete">
-                              <IconButton size="small" color="error" onClick={() => handleDelete(user.id)}>
+                              <IconButton size="small" color="error" onClick={() => handleDelete(user)}>
                                 <Delete fontSize="small" />
                               </IconButton>
                             </Tooltip>
@@ -812,6 +800,23 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Visible Snackbar for messages */}
+      <Snackbar
+        open={snack.open}
+        autoHideDuration={6000}
+        onClose={handleSnackClose}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Alert 
+          onClose={handleSnackClose} 
+          severity={snack.severity} 
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {snack.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

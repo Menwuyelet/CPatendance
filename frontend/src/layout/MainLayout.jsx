@@ -1,3 +1,4 @@
+// src/layout/MainLayout.jsx
 import React, { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom'; 
 import Sidebar, { LAYOUT } from '../components/Sidebar';
@@ -17,28 +18,34 @@ import { Box, useMediaQuery } from '@mui/material';
  */
 const MainLayout = ({ user, role, userName, notifications, onLogout }) => {
   // Responsive breakpoints matching Sidebar.jsx
-  const isMobile = useMediaQuery('(max-width: 767px)');
-  const isTablet = useMediaQuery('(min-width: 768px) and (max-width: 1024px)');
+  const isMobile  = useMediaQuery('(max-width: 767px)');
+  const isTablet  = useMediaQuery('(min-width: 768px) and (max-width: 1024px)');
   const isDesktop = useMediaQuery('(min-width: 1025px)');
   
   // Sidebar collapsed state - managed here and passed to Sidebar
   const [isCollapsed, setIsCollapsed] = useState(false);
   
-  // Reset collapsed state when switching to desktop
+  // Force expanded sidebar on desktop (even after tablet collapse)
   useEffect(() => {
     if (isDesktop) {
       setIsCollapsed(false);
     }
   }, [isDesktop]);
-  
-  // Calculate main content margin based on viewport and sidebar state
-  // Uses fixed px values to ensure gap doesn't change on zoom
+
+  // Calculate fixed left margin for main content
   const getMainMarginLeft = () => {
-    if (isMobile) return 0; // No margin on mobile (sidebar is hidden)
-    if (isTablet && isCollapsed) {
-      return LAYOUT.SIDEBAR_COLLAPSED_WIDTH + LAYOUT.CONTENT_GAP;
+    if (isMobile) {
+      return 0; // No margin — sidebar is drawer on mobile
     }
-    // Desktop or tablet expanded
+    
+    // Tablet: respect collapsed state
+    if (isTablet) {
+      return isCollapsed 
+        ? LAYOUT.SIDEBAR_COLLAPSED_WIDTH + LAYOUT.CONTENT_GAP
+        : LAYOUT.SIDEBAR_WIDTH + LAYOUT.CONTENT_GAP;
+    }
+    
+    // Desktop: always full width sidebar
     return LAYOUT.SIDEBAR_WIDTH + LAYOUT.CONTENT_GAP;
   };
 
@@ -48,8 +55,9 @@ const MainLayout = ({ user, role, userName, notifications, onLogout }) => {
       width: '100%', 
       minHeight: '100vh',
       backgroundColor: 'var(--bg-primary)',
+      overflowX: 'hidden', // Prevent horizontal scroll
     }}>
-      {/* Sidebar component with controlled collapsed state */}
+      {/* Sidebar - controlled collapse state */}
       <Sidebar 
         user={user} 
         role={role} 
@@ -57,7 +65,7 @@ const MainLayout = ({ user, role, userName, notifications, onLogout }) => {
         onLogout={onLogout} 
         notifications={notifications}
         isCollapsed={isCollapsed}
-        onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
+        onToggleCollapse={() => setIsCollapsed(prev => !prev)}
       />
       
       {/* Main content area */}
@@ -66,25 +74,34 @@ const MainLayout = ({ user, role, userName, notifications, onLogout }) => {
         sx={{ 
           flexGrow: 1,
           width: '100%',
-          minWidth: 0, // Prevents children from pushing the width out
-          // Fixed margin using px - does not change on zoom
-          ml: isMobile ? 0 : `${getMainMarginLeft()}px`,
-          // Fixed top padding for header
+          minWidth: 0,               // Prevents content from forcing width
+          overflowX: 'hidden',
+          
+          // Fixed margin using px — never changes on zoom
+          ml: `${getMainMarginLeft()}px`,
+          
+          // Reserve space for fixed header
           pt: `${LAYOUT.HEADER_HEIGHT}px`,
+          
           display: 'flex',
           flexDirection: 'column',
-          // Smooth transition when sidebar collapses (tablet only)
-          transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          // Visible left border creates the fixed "gap" effect
-          borderLeft: isMobile ? 'none' : `${LAYOUT.CONTENT_GAP}px solid var(--border-subtle)`,
+          
+          // Smooth transition only on tablet (collapse/expand)
+          transition: isTablet ? 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
+          
+          // Visible fixed gap using border (real px gap)
+          borderLeft: isMobile 
+            ? 'none' 
+            : `${LAYOUT.CONTENT_GAP}px solid var(--border-subtle)`,
         }}
       >
-        {/* Content container with fixed padding (px/rem) */}
+        {/* Inner content wrapper with fixed padding */}
         <Box sx={{ 
-          p: '24px', // Fixed 24px padding
+          p: '24px',                 // Consistent fixed padding
           width: '100%',
           maxWidth: '100%',
-          overflowX: 'hidden',
+          flexGrow: 1,
+          overflowY: 'auto',         // Allow vertical scroll if needed
         }}>
           <Outlet /> 
         </Box>

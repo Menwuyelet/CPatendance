@@ -3,6 +3,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api.service.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 
+// Company logo
+import companyLogo from '../asset/logo.jpg';
+
 const Login = ({ onLogin, onNotify }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -292,19 +295,26 @@ const Login = ({ onLogin, onNotify }) => {
         {/* Logo/Header */}
         <div style={{ marginBottom: '40px', position: 'relative' }}>
           <div style={{
-            width: '64px',
-            height: '64px',
-            borderRadius: '16px',
-            background: 'linear-gradient(135deg, #667eea, #764ba2)',
+            width: '120px',
+            height: '120px',
+            borderRadius: '20px',
+            overflow: 'hidden',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            margin: '0 auto 20px',
-            boxShadow: '0 8px 24px rgba(102, 126, 234, 0.3)',
+            margin: '0 auto 24px',
+            boxShadow: '0 12px 32px rgba(102, 126, 234, 0.35)',
+            border: '4px solid #667eea',
           }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-            </svg>
+            <img 
+              src={companyLogo} 
+              alt="Company Logo" 
+              style={{ 
+                width: '100%', 
+                height: '100%', 
+                objectFit: 'cover',
+              }} 
+            />
           </div>
           <h1 style={{
             fontSize: '28px',
@@ -322,7 +332,7 @@ const Login = ({ onLogin, onNotify }) => {
             margin: 0,
             lineHeight: '1.5',
           }}>
-            Sign in to your <strong style={{ color: '#667eea' }}>CAMS</strong> account
+            Sign in to <strong style={{ color: '#667eea' }}>CP Attendance System</strong>
           </p>
         </div>
 

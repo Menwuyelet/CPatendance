@@ -1,6 +1,11 @@
-import React, { useMemo, useCallback, memo, useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+// src/components/Sidebar.jsx
+import React, { useState, useEffect, memo, useMemo } from 'react';
+import { Link, useLocation } from 'react-router-dom'; 
+import { useNotifications } from '../context/NotificationContext';
 import Header from './Header'; // Your existing Header component
+
+// Company logo
+import companyLogo from '../asset/logo.jpg';
 
 import {
   Dashboard as DashboardIcon,
@@ -17,7 +22,7 @@ import {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
 } from '@mui/icons-material';
-import { IconButton, useMediaQuery, Box } from '@mui/material';
+import { IconButton, useMediaQuery, Box, Drawer, Typography } from '@mui/material';
 
 // Fixed layout constants (px/rem) - DO NOT use percentages
 const LAYOUT = {
@@ -89,11 +94,9 @@ const Sidebar = memo(({
   onToggleCollapse,
 }) => {
   const location = useLocation();
+  const notify = useNotifications();
   
   // Responsive breakpoints:
-  // Mobile: < 768px (sidebar hidden, menu button)
-  // Tablet: 768px - 1024px (sidebar collapsible)
-  // Desktop: > 1024px (sidebar always visible)
   const isMobile = useMediaQuery('(max-width: 767px)');
   const isTablet = useMediaQuery('(min-width: 768px) and (max-width: 1024px)');
   const isDesktop = useMediaQuery('(min-width: 1025px)');
@@ -103,9 +106,9 @@ const Sidebar = memo(({
   // Mobile drawer state (always internal)
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Use controlled state if provided, otherwise use internal state
+  // Use controlled state if provided (from MainLayout), otherwise internal
   const isCollapsed = controlledCollapsed !== undefined ? controlledCollapsed : internalCollapsed;
-  const handleToggleCollapse = onToggleCollapse || (() => setInternalCollapsed(!internalCollapsed));
+  const handleToggleCollapse = onToggleCollapse || (() => setInternalCollapsed(prev => !prev));
 
   const currentMenu = useMemo(() => MENU_CONFIG[role] || MENU_CONFIG.Employee, [role]);
 
@@ -114,16 +117,15 @@ const Sidebar = memo(({
     setMobileOpen(false);
   }, [location.pathname]);
 
-  const isActive = useCallback((path) => {
+  const isActive = (path) => {
     return location.pathname === path || location.pathname.startsWith(path + '/');
-  }, [location.pathname]);
+  };
 
   // Calculate sidebar width based on device and state
   const getSidebarWidth = () => {
     if (isMobile) return LAYOUT.SIDEBAR_MOBILE_WIDTH;
     if (isTablet && isCollapsed) return LAYOUT.SIDEBAR_COLLAPSED_WIDTH;
-    if (isTablet) return LAYOUT.SIDEBAR_WIDTH;
-    return LAYOUT.SIDEBAR_WIDTH; // Desktop always expanded
+    return LAYOUT.SIDEBAR_WIDTH; // Desktop or tablet expanded
   };
 
   const sidebarWidth = getSidebarWidth();
@@ -143,7 +145,6 @@ const Sidebar = memo(({
           position: 'fixed',
           top: 0,
           right: 0,
-          // Fixed positioning: sidebar width + gap (in px)
           left: isMobile ? 0 : `${sidebarWidth + LAYOUT.CONTENT_GAP}px`,
           height: `${LAYOUT.HEADER_HEIGHT}px`,
           bgcolor: 'var(--bg-sidebar)',
@@ -152,7 +153,7 @@ const Sidebar = memo(({
           transition: 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           display: 'flex',
           alignItems: 'center',
-          px: '16px', // Fixed padding in px
+          px: '16px',
           justifyContent: 'space-between',
         }}
       >
@@ -181,107 +182,201 @@ const Sidebar = memo(({
         <Header user={user} onLogout={onLogout} notifications={notifications} />
       </Box>
 
-      {/* MOBILE OVERLAY - only on mobile when drawer is open */}
-      {isMobile && mobileOpen && (
-        <Box
-          onClick={() => setMobileOpen(false)}
+      {/* MOBILE DRAWER */}
+      {isMobile && (
+        <Drawer
+          variant="temporary"
+          open={mobileOpen}
+          onClose={() => setMobileOpen(false)}
+          ModalProps={{ keepMounted: true }}
           sx={{
-            position: 'fixed', 
-            inset: 0, 
-            bgcolor: 'rgba(0,0,0,0.5)',
-            backdropFilter: 'blur(4px)', 
-            zIndex: 1100
+            '& .MuiDrawer-paper': {
+              width: LAYOUT.SIDEBAR_MOBILE_WIDTH,
+              boxSizing: 'border-box',
+              bgcolor: 'var(--bg-sidebar)',
+              borderRight: `${LAYOUT.CONTENT_GAP}px solid var(--border-subtle)`,
+            },
           }}
-          aria-hidden="true"
-        />
+        >
+          {/* Logo / Brand */}
+          <Box sx={{
+            p: '12px 16px',
+            height: `${LAYOUT.HEADER_HEIGHT}px`,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            borderBottom: '1px solid var(--border-subtle)',
+          }}>
+            <img 
+              src={companyLogo} 
+              alt="Company Logo" 
+              style={{ width: '36px', height: '36px', objectFit: 'contain', borderRadius: '6px' }} 
+            />
+            <Typography fontWeight={700} fontSize="15px" color="var(--text-primary)">
+              CP ATTENDANCE
+            </Typography>
+          </Box>
+
+          {/* Navigation */}
+          <Box sx={{ flex: 1, p: '16px 8px', overflowY: 'auto' }}>
+            {currentMenu.map((item) => {
+              const active = isActive(item.path);
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '12px',
+                    margin: '4px 0',
+                    borderRadius: '10px',
+                    textDecoration: 'none',
+                    color: active ? 'var(--accent-strong)' : 'var(--text-secondary)',
+                    backgroundColor: active ? 'var(--accent-soft)' : 'transparent',
+                    gap: '12px',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onClick={() => setMobileOpen(false)}
+                >
+                  <span style={{ fontSize: '20px' }}>{ICONS[item.icon]}</span>
+                  <span style={{ fontWeight: active ? '600' : '500', fontSize: '14px' }}>
+                    {item.text}
+                  </span>
+                </Link>
+              );
+            })}
+          </Box>
+
+          {/* Logout */}
+          <Box sx={{ p: '16px', borderTop: '1px solid var(--border-subtle)' }}>
+            <button
+              onClick={onLogout}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px',
+                borderRadius: '10px',
+                border: 'none',
+                background: 'transparent',
+                color: '#ef4444',
+                cursor: 'pointer',
+              }}
+            >
+              <ExitToAppIcon />
+              <span style={{ fontWeight: '600' }}>Logout</span>
+            </button>
+          </Box>
+        </Drawer>
       )}
 
-      {/* SIDEBAR */}
-      <aside style={{
-        position: 'fixed',
-        // Mobile: slide in/out | Tablet/Desktop: always at left:0
-        left: isMobile && !mobileOpen ? `-${LAYOUT.SIDEBAR_MOBILE_WIDTH}px` : 0,
-        top: 0,
-        bottom: 0,
-        width: `${sidebarWidth}px`,
-        backgroundColor: 'var(--bg-sidebar)',
-        color: 'var(--text-secondary)',
-        transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        display: 'flex',
-        flexDirection: 'column',
-        zIndex: 1200,
-        overflowX: 'hidden',
-        // Fixed border (visible gap between sidebar and content)
-        borderRight: `${LAYOUT.CONTENT_GAP}px solid var(--border-subtle)`,
-      }}>
-        
-        {/* LOGO / BRAND AREA */}
-        <div style={{
-          padding: '20px',
-          height: `${LAYOUT.HEADER_HEIGHT}px`,
+      {/* DESKTOP / TABLET SIDEBAR */}
+      {!isMobile && (
+        <aside style={{
+          position: 'fixed',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: `${sidebarWidth}px`,
+          backgroundColor: 'var(--bg-sidebar)',
+          color: 'var(--text-secondary)',
+          transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: showLabels ? 'flex-start' : 'center',
-          borderBottom: '1px solid var(--border-subtle)'
+          flexDirection: 'column',
+          zIndex: 1200,
+          overflowX: 'hidden',
+          borderRight: `${LAYOUT.CONTENT_GAP}px solid var(--border-subtle)`,
         }}>
-           <FingerprintIcon sx={{ color: 'var(--accent-strong)', fontSize: 30 }} />
-           {showLabels && <span style={{ marginLeft: '10px', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>CP PORTAL</span>}
-        </div>
+          
+          {/* LOGO / BRAND AREA */}
+          <div style={{
+            padding: '12px 16px',
+            height: `${LAYOUT.HEADER_HEIGHT}px`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: showLabels ? 'flex-start' : 'center',
+            borderBottom: '1px solid var(--border-subtle)',
+            gap: '10px',
+          }}>
+            <img 
+              src={companyLogo} 
+              alt="Company Logo" 
+              style={{ 
+                width: showLabels ? '36px' : '40px', 
+                height: showLabels ? '36px' : '40px', 
+                objectFit: 'contain',
+                borderRadius: '6px',
+              }} 
+            />
+            {showLabels && (
+              <span style={{ 
+                fontWeight: 700, 
+                fontSize: '15px',
+                color: 'var(--text-primary)', 
+                whiteSpace: 'nowrap' 
+              }}>
+                CP ATTENDANCE
+              </span>
+            )}
+          </div>
 
-        {/* NAVIGATION LINKS */}
-        <nav style={{ flex: 1, padding: '16px 8px', overflowY: 'auto' }}>
-          {currentMenu.map((item) => {
-            const active = isActive(item.path);
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                style={{
-                  display: 'flex', 
-                  alignItems: 'center',
-                  padding: '12px', 
-                  margin: '4px 0', 
-                  borderRadius: '10px',
-                  textDecoration: 'none',
-                  color: active ? 'var(--accent-strong)' : 'var(--text-secondary)',
-                  backgroundColor: active ? 'var(--accent-soft)' : 'transparent',
-                  justifyContent: showLabels ? 'flex-start' : 'center',
-                  gap: '12px', 
-                  transition: 'all 0.2s ease',
-                }}
-                title={!showLabels ? item.text : undefined} // Tooltip when collapsed
-              >
-                <span style={{ fontSize: '20px', display: 'flex', flexShrink: 0 }}>{ICONS[item.icon]}</span>
-                {showLabels && <span style={{ fontWeight: active ? '600' : '500', fontSize: '14px', whiteSpace: 'nowrap' }}>{item.text}</span>}
-              </Link>
-            );
-          })}
-        </nav>
+          {/* NAVIGATION LINKS */}
+          <nav style={{ flex: 1, padding: '16px 8px', overflowY: 'auto' }}>
+            {currentMenu.map((item) => {
+              const active = isActive(item.path);
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  style={{
+                    display: 'flex', 
+                    alignItems: 'center',
+                    padding: '12px', 
+                    margin: '4px 0', 
+                    borderRadius: '10px',
+                    textDecoration: 'none',
+                    color: active ? 'var(--accent-strong)' : 'var(--text-secondary)',
+                    backgroundColor: active ? 'var(--accent-soft)' : 'transparent',
+                    justifyContent: showLabels ? 'flex-start' : 'center',
+                    gap: '12px', 
+                    transition: 'all 0.2s ease',
+                  }}
+                  title={!showLabels ? item.text : undefined}
+                >
+                  <span style={{ fontSize: '20px', display: 'flex', flexShrink: 0 }}>{ICONS[item.icon]}</span>
+                  {showLabels && <span style={{ fontWeight: active ? '600' : '500', fontSize: '14px', whiteSpace: 'nowrap' }}>{item.text}</span>}
+                </Link>
+              );
+            })}
+          </nav>
 
-        {/* LOGOUT AT BOTTOM */}
-        <div style={{ padding: '16px', borderTop: '1px solid var(--border-subtle)' }}>
-          <button
-            onClick={onLogout}
-            title={!showLabels ? 'Logout' : undefined}
-            style={{
-              width: '100%', 
-              display: 'flex', 
-              alignItems: 'center',
-              justifyContent: showLabels ? 'flex-start' : 'center',
-              gap: '12px', 
-              padding: '12px', 
-              borderRadius: '10px',
-              border: 'none', 
-              background: 'transparent', 
-              color: '#ef4444',
-              cursor: 'pointer'
-            }}
-          >
-            <ExitToAppIcon />
-            {showLabels && <span style={{ fontWeight: '600' }}>Logout</span>}
-          </button>
-        </div>
-      </aside>
+          {/* LOGOUT AT BOTTOM */}
+          <div style={{ padding: '16px', borderTop: '1px solid var(--border-subtle)' }}>
+            <button
+              onClick={onLogout}
+              title={!showLabels ? 'Logout' : undefined}
+              style={{
+                width: '100%', 
+                display: 'flex', 
+                alignItems: 'center',
+                justifyContent: showLabels ? 'flex-start' : 'center',
+                gap: '12px', 
+                padding: '12px', 
+                borderRadius: '10px',
+                border: 'none', 
+                background: 'transparent', 
+                color: '#ef4444',
+                cursor: 'pointer'
+              }}
+            >
+              <ExitToAppIcon />
+              {showLabels && <span style={{ fontWeight: '600' }}>Logout</span>}
+            </button>
+          </div>
+        </aside>
+      )}
     </Box>
   );
 });

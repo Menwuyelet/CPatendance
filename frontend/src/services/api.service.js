@@ -35,6 +35,7 @@ const normalizePath = (path) => {
 
 /**
  * Parse error response
+ * Returns an error object that mimics axios error structure for compatibility
  */
 async function parseErrorResponse(response) {
   let errorMessage = `Request failed with status ${response.status}`;
@@ -62,8 +63,15 @@ async function parseErrorResponse(response) {
   }
 
   const error = new Error(errorMessage);
+  // Direct properties for simple access
   error.status = response.status;
   error.data = errorData;
+  // Mimic axios-like response structure for compatibility with existing error handlers
+  error.response = {
+    status: response.status,
+    data: errorData,
+    statusText: response.statusText,
+  };
   return error;
 }
 
@@ -267,9 +275,27 @@ export const api = {
 
   getMyEmployee: async () => {
     try {
-      const res = await request('/employees/employees/', { method: 'GET' });
+      // Backend may return:
+      // - only the current user's employee (then list.length === 1)
+      // - all employees (then we must filter by current user id)
+      const [user, res] = await Promise.all([
+        request('/accounts/users/me/', { method: 'GET' }).catch(() => null),
+        request('/employees/employees/', { method: 'GET' }).catch(() => null),
+      ]);
+
       const list = Array.isArray(res) ? res : res?.results || [];
-      return list[0] || null;
+      if (list.length === 0) return null;
+      if (list.length === 1) return list[0] || null;
+
+      const userId = user?.id ?? user?.user?.id ?? null;
+      if (!userId) return null;
+
+      const match = list.find((emp) => {
+        const empUserId = emp?.user?.id ?? emp?.user;
+        return empUserId !== undefined && String(empUserId) === String(userId);
+      });
+
+      return match || null;
     } catch {
       return null;
     }
@@ -377,9 +403,8 @@ export const api = {
     });
   },
 
-  deleteProfile: async (id) => {
-    return await request(`/biometrics/profiles/${id}/`, { method: 'DELETE' });
-  },
+  // NOTE: deleteProfile removed - API only supports GET/PATCH on profiles
+  // Use updateProfileStatus(id, false) to deactivate instead
 
   // ============ ATTENDANCE SESSIONS METHODS ============
   createAttendanceSession: async (shiftId) => {
@@ -498,39 +523,10 @@ export const api = {
     return await request(`/employees/departments/${departmentId}/`, { method: 'DELETE' });
   },
 
-  // ============ LEAVES METHODS ============
-  getMyLeaves: async () => {
-    return await request('/leaves/my-leaves/', { method: 'GET' });
-  },
-
-  getAllLeaves: async () => {
-    return await request('/leaves/leaves/', { method: 'GET' });
-  },
-
-  createLeave: async (leaveData) => {
-    return await request('/leaves/leaves/', {
-      method: 'POST',
-      body: JSON.stringify(leaveData),
-    });
-  },
-
-  updateLeaveStatus: async (leaveId, status) => {
-    return await request(`/leaves/leaves/${leaveId}/`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    });
-  },
-
-  // ============ REPORTS METHODS ============
-  getAttendanceReport: async (params = {}) => {
-    const queryParams = new URLSearchParams();
-    if (params?.from) queryParams.append('from', params.from);
-    if (params?.to) queryParams.append('to', params.to);
-    if (params?.department_id) queryParams.append('department_id', params.department_id);
-    
-    const query = queryParams.toString();
-    return await request(`/reports/attendance/${query ? `?${query}` : ''}`, { method: 'GET' });
-  },
+  // NOTE: Leaves and Reports endpoints removed - not available in current API
+  // If these features are added later, uncomment and update:
+  // getMyLeaves, getAllLeaves, createLeave, updateLeaveStatus
+  // getAttendanceReport
 
   // ============ HELPER METHODS ============
   extractArray: (response) => {

@@ -17,6 +17,8 @@ export default function DashboardPage({
   actions = null,
   children,
   maxWidth = 1400,
+  disablePadding = false,
+  sx = {},
 }) {
   const theme = useTheme();
   const isPhone = useMediaQuery(theme.breakpoints.down('sm'));
@@ -27,8 +29,9 @@ export default function DashboardPage({
         width: '100%',
         mx: 'auto',
         maxWidth,
-        px: { xs: 1.5, sm: 2.5, md: 3 },
-        py: { xs: 2, md: 3 },
+        px: disablePadding ? 0 : { xs: 1.5, sm: 2.5, md: 3 },
+        py: disablePadding ? 0 : { xs: 2, md: 3 },
+        ...sx,
       }}
     >
       {breadcrumbs?.length > 0 && (

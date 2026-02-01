@@ -57,6 +57,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import { format, subDays } from 'date-fns';
 import Reports from './Reports.jsx';
 import Biometrics from './Biometrics.jsx';
+import { DashboardPage, DashboardStatCard } from '../components/dashboard';
 
 const getStatusColor = (status) => {
   if (!status) return 'default';
@@ -87,54 +88,23 @@ const getSessionShiftName = (session) => {
 };
 
 // ====================== LAYOUT WRAPPER ======================
+// NOTE: Manager routes are rendered inside the app-wide MainLayout.
+// Do NOT render another AppBar/Drawer here (it causes double headers + broken spacing).
 const DashboardLayout = ({ children, title, breadcrumbs = [] }) => {
-  const navigate = useNavigate();
-
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: 'background.default' }}>
-      <AppBar position="static" elevation={0} sx={{ bgcolor: 'var(--bg-sidebar)' }}>
-        <Toolbar>
-          <Typography variant="h6" fontWeight="bold" sx={{ flexGrow: 1 }}>
-            Attendance System
-          </Typography>
-          <Stack direction="row" spacing={2} alignItems="center">
-            <IconButton color="inherit" onClick={() => navigate('/manager/settings')}>
-              <SettingsIcon />
-            </IconButton>
-            <Avatar sx={{ bgcolor: 'primary.main' }}>
-              <Person />
-            </Avatar>
-          </Stack>
-        </Toolbar>
-      </AppBar>
-
-      <Box sx={{ flex: 1, p: { xs: 2, md: 4 }, maxWidth: '1400px', mx: 'auto', width: '100%' }}>
-        <Breadcrumbs separator={<ChevronRight fontSize="small" />} sx={{ mb: 3 }}>
-          <Link to="/manager/dashboard" style={{ textDecoration: 'none', color: 'inherit' }}>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Home fontSize="small" />
-              <Typography variant="body2">Dashboard</Typography>
-            </Stack>
-          </Link>
-          {breadcrumbs.map((crumb, i) => (
-            <Typography key={i} variant="body2" color={i === breadcrumbs.length - 1 ? 'text.primary' : 'text.secondary'}>
-              {crumb}
-            </Typography>
-          ))}
-        </Breadcrumbs>
-
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
-          <Typography variant="h4" fontWeight="bold">
-            {title}
-          </Typography>
-          <Button variant="outlined" startIcon={<Refresh />} onClick={() => window.location.reload()}>
-            Refresh
-          </Button>
-        </Box>
-
-        {children}
-      </Box>
-    </Box>
+    <DashboardPage
+      title={title}
+      subtitle={title === 'Manager Dashboard' ? 'Overview of your team attendance' : undefined}
+      breadcrumbs={[{ label: 'Manager' }, { label: 'Dashboard' }, ...breadcrumbs.map((c) => ({ label: c }))]}
+      actions={
+        <Button variant="outlined" startIcon={<Refresh />} onClick={() => window.location.reload()}>
+          Refresh
+        </Button>
+      }
+      disablePadding
+    >
+      {children}
+    </DashboardPage>
   );
 };
 
@@ -158,10 +128,9 @@ const ManagerDashboardHome = ({ onNotify }) => {
     fetchStats();
     loadClockInState();
   }, []);
-  
+
   const loadClockInState = async () => {
     try {
-      const user = await api.getCurrentUser();
       const emp = await api.getMyEmployee().catch(() => null);
       if (emp?.department) {
         setDepartment(emp.department);
@@ -246,18 +215,18 @@ const ManagerDashboardHome = ({ onNotify }) => {
   const fetchStats = async () => {
     try {
       setLoading(true);
-      // Get manager's department employees
-      const user = await api.getCurrentUser();
+      // Get manager's Employee profile (backend does not embed employee in /me)
+      const emp = await api.getMyEmployee().catch(() => null);
       let employees = [];
       
-      if (user?.employee?.department?.id) {
+      if (emp?.department?.id) {
         // Get employees from manager's department
         const allEmployees = await api.get('/employees/employees/').catch(() => []);
         const employeesList = Array.isArray(allEmployees) ? allEmployees : allEmployees?.results || [];
-        employees = employeesList.filter(emp => emp.department?.id === user.employee.department.id);
-        setDepartment(user.employee.department);
+        employees = employeesList.filter((e) => String(e.department?.id) === String(emp.department.id));
+        setDepartment(emp.department);
       } else {
-        // Fallback to all employees if no department
+        // Fallback: show all employees
         const employeesRes = await api.get('/employees/employees/').catch(() => ({ results: [] }));
         employees = Array.isArray(employeesRes) ? employeesRes : employeesRes.results || [];
       }
@@ -336,7 +305,7 @@ const ManagerDashboardHome = ({ onNotify }) => {
                   {activeSession 
                     ? `Active session: ${getSessionShiftName(activeSession)}`
                     : 'No active session available or you are not assigned to it'}
-                  {department && `  b7 Department: ${department.name || 'N/A'}`}
+                  {department && ` · Department: ${department.name || 'N/A'}`}
                 </Typography>
               </Box>
               <Button
@@ -371,36 +340,43 @@ const ManagerDashboardHome = ({ onNotify }) => {
         </Card>
       </Box>
 
-      <Grid container spacing={4} sx={{ mb: 6 }}>
-        {[
-          { label: 'Team Size', value: stats.teamCount, icon: <Group />, color: 'primary', desc: 'Total members' },
-          { label: 'Present Today', value: stats.presentToday, icon: <CheckCircle />, color: 'success', desc: 'Clocked in' },
-          { label: 'Pending Approvals', value: stats.pendingApprovals, icon: <EventNote />, color: 'warning', desc: 'Awaiting review' },
-          { label: 'Weekly Attendance', value: `${stats.attendanceRate}%`, icon: <TrendingUp />, color: 'info', desc: 'Last 7 days' },
-        ].map((item, i) => (
-          <Grid item xs={12} sm={6} lg={3} key={i}>
-            <Card sx={{ height: '100%', borderRadius: 3, boxShadow: 4 }}>
-              <CardContent>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Box>
-                    <Typography color="text.secondary" variant="body2" gutterBottom>
-                      {item.desc}
-                    </Typography>
-                    <Typography variant="h3" fontWeight="bold" color={`${item.color}.main`}>
-                      {item.value}
-                    </Typography>
-                    <Typography variant="h6" fontWeight="medium" mt={1}>
-                      {item.label}
-                    </Typography>
-                  </Box>
-                  <Avatar sx={{ bgcolor: `${item.color}.light`, width: 64, height: 64 }}>
-                    {React.cloneElement(item.icon, { sx: { fontSize: 36, color: `${item.color}.main` } })}
-                  </Avatar>
-                </Stack>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={6} lg={3}>
+          <DashboardStatCard
+            label="Team Size"
+            value={stats.teamCount}
+            helperText="Total members"
+            icon={<Group />}
+            color="primary"
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} lg={3}>
+          <DashboardStatCard
+            label="Present Today"
+            value={stats.presentToday}
+            helperText="Clocked in"
+            icon={<CheckCircle />}
+            color="success"
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} lg={3}>
+          <DashboardStatCard
+            label="Pending Approvals"
+            value={stats.pendingApprovals}
+            helperText="On leave / pending"
+            icon={<EventNote />}
+            color="warning"
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} lg={3}>
+          <DashboardStatCard
+            label="Weekly Attendance"
+            value={`${stats.attendanceRate}%`}
+            helperText="Last 7 days"
+            icon={<TrendingUp />}
+            color="info"
+          />
+        </Grid>
       </Grid>
 
       <Grid container spacing={4}>
