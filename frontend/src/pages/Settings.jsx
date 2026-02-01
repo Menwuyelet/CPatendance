@@ -50,7 +50,7 @@ const Settings = ({ role, onNotify }) => {
     setPasswordError('');
 
     try {
-      const result = await api.put(`/accounts/users/${user.id}/`, {
+      const result = await api.updateUser(user.id, {
         email: user.email,
       });
 
@@ -62,6 +62,38 @@ const Settings = ({ role, onNotify }) => {
       onNotify?.(err.message || 'Failed to save settings.', 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleEmployeeSave = async () => {
+    if (!user?.employee) return;
+
+    setSaving(true);
+    setError('');
+
+    try {
+      // Update employee information
+      const employeeData = {
+        full_name: user.employee.full_name,
+        employee_code: user.employee.employee_code,
+        department: user.employee.department?.id || null
+      };
+
+      await api.put(`/employees/employees/${user.employee.id}/`, employeeData);
+      onNotify?.('Employee information saved successfully.', 'success');
+    } catch (err) {
+      console.error('Failed to save employee information:', err);
+      setError(err.message || 'Failed to save employee information.');
+      onNotify?.(err.message || 'Failed to save employee information.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCombinedSave = async () => {
+    await handleSave();
+    if (user?.employee) {
+      await handleEmployeeSave();
     }
   };
 
@@ -87,10 +119,11 @@ const Settings = ({ role, onNotify }) => {
     }
 
     try {
-      await api.put(`/accounts/users/${user.id}/`, {
-        current_password: passwordForm.currentPassword,
-        new_password: passwordForm.newPassword,
-      });
+      await api.changePassword(
+        passwordForm.currentPassword,
+        passwordForm.newPassword,
+        passwordForm.confirmPassword
+      );
       setPasswordSuccess('Password changed successfully.');
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
       onNotify?.('Password changed successfully.', 'success');
@@ -195,9 +228,117 @@ const Settings = ({ role, onNotify }) => {
                 <span className="spinner small"></span> Saving...
               </>
             ) : (
-              'Save Changes'
+              'Save User Changes'
             )}
           </button>
+        </div>
+      </div>
+
+      {/* Employee Information Card */}
+      {user?.employee && (
+        <div className="settings-card employee-card">
+          <div className="card-header">
+            <h2>Employee Information</h2>
+          </div>
+
+          <div className="form-grid">
+            <div className="form-group">
+              <label className="form-label">Employee Code</label>
+              <input
+                type="text"
+                className="form-input"
+                value={user.employee.employee_code || ''}
+                onChange={(e) => setUser(prev => ({
+                  ...prev,
+                  employee: { ...prev.employee, employee_code: e.target.value }
+                }))}
+                placeholder="Employee code"
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Department</label>
+              <select
+                className="form-input"
+                value={user.employee.department?.id || ''}
+                onChange={(e) => setUser(prev => ({
+                  ...prev,
+                  employee: { ...prev.employee, department: { id: e.target.value } }
+                }))}
+              >
+                <option value="">Select Department</option>
+                {/* Note: In a real implementation, you'd fetch departments from API */}
+                <option value="1">Engineering</option>
+                <option value="2">Human Resources</option>
+                <option value="3">Sales</option>
+                <option value="4">Marketing</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Status</label>
+              <input
+                type="text"
+                className="form-input disabled"
+                value={user.employee.is_active ? 'Active' : 'Inactive'}
+                disabled
+              />
+            </div>
+          </div>
+
+          <div className="card-actions">
+            <button
+              className="btn btn-secondary"
+              onClick={handleEmployeeSave}
+              disabled={saving}
+            >
+              {saving ? (
+                <>
+                  <span className="spinner small"></span> Saving...
+                </>
+              ) : (
+                'Save Employee Info'
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Combined Actions Card */}
+      <div className="settings-card actions-card">
+        <div className="card-header">
+          <h2>Quick Actions</h2>
+        </div>
+
+        <div className="actions-grid">
+          <div className="action-item">
+            <h3>Save All Changes</h3>
+            <p>Save both user and employee information at once</p>
+            <button
+              className="btn btn-primary"
+              onClick={handleCombinedSave}
+              disabled={saving}
+            >
+              {saving ? (
+                <>
+                  <span className="spinner small"></span> Saving All...
+                </>
+              ) : (
+                'Save All Changes'
+              )}
+            </button>
+          </div>
+
+          <div className="action-item">
+            <h3>Security</h3>
+            <p>Manage your password and security settings</p>
+            <button
+              className="btn btn-outline"
+              onClick={() => setShowPasswordForm(!showPasswordForm)}
+            >
+              {showPasswordForm ? 'Hide Password Form' : 'Change Password'}
+            </button>
+          </div>
         </div>
       </div>
 

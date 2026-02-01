@@ -246,6 +246,25 @@ export const api = {
   // ============ USER METHODS ============
   getCurrentUser: () => request('/accounts/users/me/', { method: 'GET' }),
 
+  updateCurrentUser: (userData) => request('/accounts/users/me/', {
+    method: 'PUT',
+    body: JSON.stringify(userData),
+  }),
+
+  updateUser: (userId, userData) => request(`/accounts/users/${userId}/`, {
+    method: 'PUT',
+    body: JSON.stringify(userData),
+  }),
+
+  changePassword: (currentPassword, newPassword, passwordConfirmation) => request('/accounts/users/change_password/', {
+    method: 'POST',
+    body: JSON.stringify({
+      current_password: currentPassword,
+      new_password: newPassword,
+      password_confirmation: passwordConfirmation
+    }),
+  }),
+
   getMyEmployee: async () => {
     try {
       const res = await request('/employees/employees/', { method: 'GET' });

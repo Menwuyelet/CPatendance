@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import {
   People, EventAvailable, Refresh, PersonAdd, Business, TrendingUp,
-  AccountBalanceWallet, SettingsSuggest, ChevronRight, Security
+  SettingsSuggest, ChevronRight, Security
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api.service.js';
@@ -43,7 +43,6 @@ const AdminPanel = ({ onNotify }) => {
     totalEmployees: 0,
     presentToday: 0,
     attendanceRate: 0,
-    payroll: 0,
     depts: 0
   });
 
@@ -63,13 +62,11 @@ const AdminPanel = ({ onNotify }) => {
       // Logic for actual data
       const today = new Date().toISOString().slice(0, 10);
       const activeNow = attendance.filter(a => a.date === today && (a.status === 'PRESENT' || a.status === 'LATE'));
-      const payrollSum = employees.reduce((acc, curr) => acc + (parseFloat(curr.salary) || 0), 0);
 
       setStats({
         totalEmployees: employees.length,
         presentToday: activeNow.length,
         attendanceRate: employees.length ? Math.round((activeNow.length / employees.length) * 100) : 0,
-        payroll: payrollSum,
         depts: departments.length
       });
     } catch (err) {
