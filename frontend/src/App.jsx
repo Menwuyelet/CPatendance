@@ -26,10 +26,11 @@ const Config = lazy(() => import('./pages/Config.jsx'));
 
 // Loading fallback component
 const PageLoader = () => (
-  <div >
+  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
     <div style={{ textAlign: 'center' }}>
-      <div style={{ width: 40, height: 40, border: '3px solid #e2e8f0', borderTopColor: '#6366f1', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+      <div style={{ width: 40, height: 40, border: '3px solid #e2e8f0', borderTopColor: '#6366f1', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto' }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <p style={{ marginTop: '16px', color: '#64748b' }}>Loading...</p>
     </div>
   </div>
 );

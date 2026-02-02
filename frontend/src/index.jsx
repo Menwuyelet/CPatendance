@@ -9,6 +9,18 @@ import { NotificationProvider } from './context/NotificationContext'; // ← add
 import './index.css';
 import './styles/global.css';
 
+// # Uncomment the following lines for HTTPS redirect in production
+// const isLocalhost = window.location.hostname === 'localhost' || 
+//                     window.location.hostname === '127.0.0.1' ||
+//                     window.location.hostname.startsWith('192.168.') ||
+//                     window.location.hostname.startsWith('10.');
+// 
+// if (typeof window !== 'undefined' && 
+//     window.location.protocol === 'http:' && 
+//     !isLocalhost) {
+//   window.location.href = window.location.href.replace('http:', 'https:');
+// }
+
 // Optional: you can customize theme further
 const theme = createTheme({
   palette: {
@@ -30,20 +42,22 @@ const theme = createTheme({
         },
       },
     },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          borderRadius: 12, // rounded corners
+        },
+      },
+    },
   },
 });
 
 ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode> {/* good practice in development */}
+  <React.StrictMode>
     <ThemeProvider theme={theme}>
-      <CssBaseline /> {/* resets browser defaults */}
-      <NotificationProvider> {/* ← this makes notify() available everywhere */}
-        <BrowserRouter 
-          future={{ 
-            v7_startTransition: true, 
-            v7_relativeSplatPath: true 
-          }}
-        >
+      <CssBaseline />
+      <NotificationProvider>
+        <BrowserRouter>
           <App />
         </BrowserRouter>
       </NotificationProvider>

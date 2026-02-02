@@ -1,6 +1,14 @@
 // src/services/api.service.js
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
+// # Uncomment the following lines for HTTPS in production
+// const ensureHttps = (url) => {
+//   if (url.startsWith('/')) return url;  // Proxy path - don't modify
+//   // Don't convert localhost/127.0.0.1 to HTTPS
+//   if (url.includes('localhost') || url.includes('127.0.0.1')) return url;
+//   return url.replace(/^http:\/\//, 'https://');
+// };
+
 // Token management
 let accessToken = localStorage.getItem('accessToken') || null;
 let refreshToken = localStorage.getItem('refreshToken') || null;

@@ -1,5 +1,6 @@
 // src/pages/HRPanel.jsx
 import React, { useEffect, useState, useCallback } from 'react';
+
 import {
   Box,
   Grid,
@@ -84,8 +85,15 @@ const HRDashboard = ({ onNotify }) => {
   // Filter states
   const [filterDepartment, setFilterDepartment] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
-  const [filterDate, setFilterDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [filterDate, setFilterDate] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Set default date on client-side only to avoid hydration mismatch
+  useEffect(() => {
+    if (!filterDate) {
+      setFilterDate(format(new Date(), 'yyyy-MM-dd'));
+    }
+  }, [filterDate]);
 
   // Session states
   const [sessions, setSessions] = useState([]);

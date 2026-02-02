@@ -28,11 +28,13 @@ const EmployeeDashboard = ({ onNotify }) => {
   const [userData, setUserData] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentTime, setCurrentTime] = useState(null);
 
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Initialize time on client-side only to avoid hydration mismatch
+    setCurrentTime(new Date());
     loadDashboardData();
     
     // Update time every second
@@ -88,13 +90,14 @@ const EmployeeDashboard = ({ onNotify }) => {
     );
   }
 
-  const todayFormatted = format(new Date(), 'EEEE, MMMM d, yyyy');
-  const timeString = currentTime.toLocaleTimeString();
+  // Calculate derived values safely
+  const todayFormatted = currentTime ? format(currentTime, 'EEEE, MMMM d, yyyy') : 'Loading...';
+  const timeString = currentTime ? currentTime.toLocaleTimeString() : 'Loading...';
   const attendance = attendanceToday || {};
   const user = userData || {};
   
   // Get greeting based on time
-  const hour = currentTime.getHours();
+  const hour = currentTime?.getHours() ?? 12;
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
   
   // Get user display name

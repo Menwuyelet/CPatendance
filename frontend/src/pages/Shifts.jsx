@@ -349,9 +349,12 @@ const Shifts = ({ role, onNotify }) => {
       
       // Text search filter
       const searchLower = search.toLowerCase();
+      const name = (shift.name || '').toLowerCase();
+      const description = (shift.description || '').toLowerCase();
+      
       const matchesSearch = !search.trim() || 
-        shift.name.toLowerCase().includes(searchLower) ||
-        shift.description?.toLowerCase().includes(searchLower);
+        name.includes(searchLower) ||
+        description.includes(searchLower);
       
       if (!matchesSearch) return false;
       

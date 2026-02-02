@@ -1,5 +1,17 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import fs from 'fs';
+import path from 'path';
+
+// Check for HTTPS certificates
+const certDir = path.resolve(__dirname, 'cert');
+const hasHttps = fs.existsSync(path.join(certDir, 'cert.pem')) && 
+                 fs.existsSync(path.join(certDir, 'key.pem'));
+
+const https = hasHttps ? {
+  cert: fs.readFileSync(path.join(certDir, 'cert.pem')),
+  key: fs.readFileSync(path.join(certDir, 'key.pem')),
+} : undefined;
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -13,18 +25,14 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
 
     server: {
-      port: 5173,
+      port: 5174,
       host: true, // allows access from local network / mobile testing
-
+      https, // Use HTTPS if certificates exist
       proxy: {
-        // Proxy for API calls – IMPORTANT: we DO NOT strip /api prefix anymore
         '/api': {
           target: proxyTarget,
           changeOrigin: true,
           secure: false,
-          // REMOVE or COMMENT OUT the rewrite line below
-          // rewrite: (path) => path.replace(/^\/api/, ''),  // ← this was causing the problem
-
           configure: (proxy) => {
             proxy.on('error', (err, req) => {
               console.error(
@@ -39,10 +47,6 @@ export default defineConfig(({ mode }) => {
             });
           },
         },
-
-        // You can keep /auth proxy if you want to use /auth/login/ in frontend
-        // But since your backend uses /api/auth/..., it's better to just use /api
-        // '/auth': { ... }  // ← optional – you can remove this block
       },
     },
 
@@ -55,22 +59,7 @@ export default defineConfig(({ mode }) => {
     },
 
     build: {
-      // Increase chunk size warning limit (optional)
       chunkSizeWarningLimit: 1000,
-      
-      rollupOptions: {
-        output: {
-          // Manual chunk splitting for better caching
-          manualChunks: {
-            // Vendor chunks
-            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-            'vendor-mui': ['@mui/material', '@mui/icons-material', '@mui/lab'],
-            // Heavy libraries in separate chunks
-            'vendor-tensorflow': ['@tensorflow/tfjs', '@tensorflow-models/face-landmarks-detection'],
-            'vendor-mediapipe': ['@mediapipe/tasks-vision'],
-          },
-        },
-      },
     },
   };
 });

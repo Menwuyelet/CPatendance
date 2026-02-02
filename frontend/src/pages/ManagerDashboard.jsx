@@ -1,5 +1,5 @@
 // src/pages/ManagerDashboard.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link, Routes, Route, useLocation } from 'react-router-dom';
 import { format, subDays } from 'date-fns';
 import { api } from '../services/api.service.js';
@@ -101,10 +101,19 @@ const ManagerDashboardHome = ({ onNotify }) => {
   const [filterSessionStatus, setFilterSessionStatus] = useState('ALL');
   const [filterSessionDate, setFilterSessionDate] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [currentDate, setCurrentDate] = useState('');
 
+  // Set current date on client-side only to avoid hydration mismatch
   useEffect(() => {
-    fetchStats();
+    setCurrentDate(format(new Date(), 'yyyy-MM-dd'));
   }, []);
+
+  // Fetch stats after date is set
+  useEffect(() => {
+    if (currentDate) {
+      fetchStats();
+    }
+  }, [currentDate]);
 
   const fetchStats = async () => {
     try {
@@ -425,7 +434,7 @@ const ManagerDashboardHome = ({ onNotify }) => {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">
-                          {session.date || format(new Date(), 'yyyy-MM-dd')}
+                          {session.date || currentDate || format(new Date(), 'yyyy-MM-dd')}
                         </Typography>
                       </TableCell>
                       <TableCell>
@@ -528,10 +537,15 @@ const TeamOverviewPage = ({ onNotify }) => {
   };
 
   const filtered = team.filter(member => {
+    const name = (member.name || '').toLowerCase();
+    const email = (member.email || '').toLowerCase();
+    const department = (member.department || '').toLowerCase();
+    const searchLower = search.toLowerCase();
+    
     const matchesSearch = 
-      member.name.toLowerCase().includes(search.toLowerCase()) ||
-      member.email.toLowerCase().includes(search.toLowerCase()) ||
-      member.department.toLowerCase().includes(search.toLowerCase());
+      name.includes(searchLower) ||
+      email.includes(searchLower) ||
+      department.includes(searchLower);
     const matchesDept = deptFilter === 'all' || member.department === deptFilter;
     return matchesSearch && matchesDept;
   });

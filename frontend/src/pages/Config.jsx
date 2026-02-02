@@ -52,9 +52,13 @@ const Config = ({ onNotify, role }) => {
 
   // Filter holidays
   const filteredHolidays = holidays.filter(holiday => {
+    const name = (holiday.name || '').toLowerCase();
+    const date = (holiday.date || '').toLowerCase();
+    const searchLower = search.toLowerCase();
+    
     const matchesSearch = search === '' || 
-      holiday.name.toLowerCase().includes(search.toLowerCase()) ||
-      holiday.date.includes(search);
+      name.includes(searchLower) ||
+      date.includes(searchLower);
     
     const matchesType = typeFilter === '' || holiday.type === typeFilter;
     
