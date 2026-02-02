@@ -1,6 +1,6 @@
 // src/pages/ManagerDashboard.jsx
 import React, { useEffect, useState } from 'react';
-import { Link, Routes, Route } from 'react-router-dom';
+import { Link, Routes, Route, useLocation } from 'react-router-dom';
 import { format, subDays } from 'date-fns';
 import { api } from '../services/api.service.js';
 import Reports from './Reports.jsx';
@@ -681,6 +681,8 @@ const TeamOverviewPage = ({ onNotify }) => {
 
 // ====================== MAIN COMPONENT ======================
 const ManagerDashboard = ({ onNotify }) => {
+  const location = useLocation();
+  
   return (
     <Routes>
       <Route path="dashboard" element={<ManagerDashboardHome onNotify={onNotify} />} />

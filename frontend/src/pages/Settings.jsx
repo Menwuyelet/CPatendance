@@ -118,10 +118,11 @@ const Settings = ({ role, onNotify }) => {
   const [activityLog, setActivityLog] = useState([]);
   const [showActivityLog, setShowActivityLog] = useState(false);
 
-  // Apply theme class to body
+  // Apply theme class to body and data-theme attribute
   useEffect(() => {
     document.body.classList.remove('light-mode', 'dark-mode', 'sepia-mode');
     document.body.classList.add(`${darkMode}-mode`);
+    document.documentElement.setAttribute('data-theme', darkMode);
     localStorage.setItem('themeMode', darkMode);
   }, [darkMode]);
 
@@ -608,8 +609,13 @@ const Settings = ({ role, onNotify }) => {
                   Active: {themes.find(t => t.id === darkMode)?.name}
                 </Typography>
                 <Chip 
-                  label={darkMode === 'dark' ? '🌙' : darkMode === 'sepia' ? '☕' : '☀️'}
+                  label={darkMode === 'dark' ? '🌙 Dark' : darkMode === 'sepia' ? '☕ Sepia' : '☀️ Light'}
                   size="small"
+                  sx={{ 
+                    bgcolor: darkMode === 'dark' ? 'grey.700' : 'primary.light',
+                    color: darkMode === 'dark' ? '#fff' : 'primary.main',
+                    fontWeight: 600,
+                  }}
                 />
               </Box>
             </CardContent>

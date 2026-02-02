@@ -14,7 +14,7 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#f8fafc',
-    backgroundImage: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    backgroundImage: 'linear-gradient(135deg, #000000 0%, #cc0000 100%)',
     padding: '16px',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   },
@@ -49,9 +49,9 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     margin: '0 auto 24px',
-    boxShadow: '0 25px 80px rgba(102, 126, 234, 0.6)',
-    border: 'min(8px, 1.5vw) solid #667eea',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    boxShadow: '0 25px 80px rgba(204, 0, 0, 0.4)',
+    border: 'min(8px, 1.5vw) solid #cc0000',
+    background: 'linear-gradient(135deg, #000000 0%, #cc0000 100%)',
   },
   inputWrapper: {
     position: 'relative',
@@ -112,7 +112,7 @@ const styles = {
     transition: 'all 0.3s',
     position: 'relative',
     overflow: 'hidden',
-    boxShadow: '0 8px 24px rgba(102, 126, 234, 0.3)',
+    boxShadow: '0 8px 24px rgba(204, 0, 0, 0.3), 0 0 0 2px #000000',
   },
   helpButton: {
     width: '100%',
@@ -359,16 +359,16 @@ const Login = ({ onLogin, onNotify }) => {
 
   // Dynamic styles
   const getInputBorderColor = (field) => 
-    focusedField === field ? '#667eea' : '#e2e8f0';
+    focusedField === field ? '#cc0000' : '#e2e8f0';
   
   const getInputBgColor = (field) => 
     focusedField === field ? '#f8fafc' : 'white';
 
   const getSubmitButtonStyle = () => ({
     ...styles.submitButton,
-    background: loading ? '#a0aec0' : (lockUntil || !formValid ? '#cbd5e0' : 'linear-gradient(135deg, #667eea, #764ba2)'),
+    background: loading ? '#a0aec0' : (lockUntil || !formValid ? '#cbd5e0' : 'linear-gradient(135deg, #000000, #cc0000)'),
     cursor: loading || lockUntil || !formValid ? 'not-allowed' : 'pointer',
-    boxShadow: loading || lockUntil || !formValid ? 'none' : '0 8px 24px rgba(102, 126, 234, 0.3)',
+    boxShadow: loading || lockUntil || !formValid ? 'none' : '0 8px 24px rgba(204, 0, 0, 0.3)',
   });
 
   return (
@@ -393,7 +393,7 @@ const Login = ({ onLogin, onNotify }) => {
           right: 0,
           width: '80px',
           height: '80px',
-          background: 'linear-gradient(135deg, transparent 50%, #667eea 50%)',
+          background: 'linear-gradient(135deg, transparent 50%, #cc0000 50%)',
           borderBottomLeftRadius: '24px',
         }} />
         
@@ -416,7 +416,7 @@ const Login = ({ onLogin, onNotify }) => {
             Welcome Back
           </h1>
           <p style={{ color: '#718096', fontSize: 'min(18px, 4vw)', margin: 0, lineHeight: '1.5' }}>
-            Sign in to <strong style={{ color: '#667eea', fontSize: 'min(20px, 4.5vw)', fontWeight: '700', letterSpacing: '0.5px' }}>CP Attendance System</strong>
+            Sign in to <strong style={{ color: '#cc0000', fontSize: 'min(20px, 4.5vw)', fontWeight: '700', letterSpacing: '0.5px' }}>CP Attendance System</strong>
           </p>
         </div>
 
@@ -461,7 +461,7 @@ const Login = ({ onLogin, onNotify }) => {
                 required
                 style={styles.input}
               />
-              <div style={{ ...styles.inputIcon, color: focusedField === 'email' ? '#667eea' : '#a0aec0' }}>
+              <div style={{ ...styles.inputIcon, color: focusedField === 'email' ? '#cc0000' : '#a0aec0' }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
                 </svg>
@@ -484,7 +484,7 @@ const Login = ({ onLogin, onNotify }) => {
                 required
                 style={{ ...styles.passwordInput, letterSpacing: showPassword ? 'normal' : '2px' }}
               />
-              <div style={{ ...styles.inputIcon, color: focusedField === 'password' ? '#667eea' : '#a0aec0' }}>
+              <div style={{ ...styles.inputIcon, color: focusedField === 'password' ? '#cc0000' : '#a0aec0' }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
                 </svg>

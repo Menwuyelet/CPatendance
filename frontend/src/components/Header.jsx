@@ -40,8 +40,10 @@ const Header = memo(({ user, onLogout }) => {
   useEffect(() => {
     if (darkMode) {
       document.body.classList.add('dark-mode');
+      document.documentElement.setAttribute('data-theme', 'dark');
     } else {
       document.body.classList.remove('dark-mode');
+      document.documentElement.setAttribute('data-theme', 'light');
     }
     localStorage.setItem('darkMode', JSON.stringify(darkMode));
   }, [darkMode]);
@@ -80,16 +82,42 @@ const Header = memo(({ user, onLogout }) => {
       width: '100%',
       height: '100%',
     }}>
-      <Typography variant="h8" sx={{ flexGrow: 1, fontWeight: 'bold' }}>
+      <Typography 
+        variant="h8" 
+        sx={{ 
+          flexGrow: 1, 
+          fontWeight: 'bold',
+          background: 'linear-gradient(45deg, #000000 30%, #cc0000 90%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text',
+          fontSize: '1.25rem',
+        }}
+      >
         Attendance Management System
       </Typography>
 
-      <Typography variant="body2" sx={{ mr: 3, minWidth: 140, textAlign: 'right' }}>
+      <Typography variant="body2" sx={{ 
+        mr: 3, 
+        minWidth: 140, 
+        textAlign: 'right',
+        color: 'text.primary',
+        fontWeight: 500,
+      }}>
         {dateLabel}
-        <span style={{ fontSize: '1rem', paddingLeft: 10, fontWeight: 'bold' }}>{timeLabel}</span>
+        <span style={{ 
+          fontSize: '1rem', 
+          paddingLeft: 10, 
+          fontWeight: 'bold',
+          color: 'inherit',
+        }}>{timeLabel}</span>
       </Typography>
 
-      <Typography variant="body2" sx={{ mr: 3 }}>
+      <Typography variant="body2" sx={{ 
+        mr: 3,
+        color: 'text.primary',
+        fontWeight: 500,
+      }}>
         Role: <strong>{user?.role || 'Unknown'}</strong>
       </Typography>
 
@@ -105,13 +133,20 @@ const Header = memo(({ user, onLogout }) => {
         onClick={toggleDarkMode} 
         sx={{ 
           mr: 1,
-          bgcolor: darkMode ? 'grey.700' : 'grey.200',
-          color: darkMode ? '#ffd700' : '#333',
-          '&:hover': { bgcolor: darkMode ? 'grey.600' : 'grey.300' },
+          bgcolor: darkMode ? '#cc0000' : '#f5f5f5',
+          color: darkMode ? '#ffffff' : '#000000',
+          border: '1px solid',
+          borderColor: darkMode ? '#cc0000' : '#ddd',
+          '&:hover': { 
+            bgcolor: darkMode ? '#990000' : '#e0e0e0',
+            borderColor: darkMode ? '#990000' : '#ccc',
+          },
+          width: 36,
+          height: 36,
         }}
-        title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        title={darkMode ? 'Switch to Light Mode ☀️' : 'Switch to Dark Mode 🌙'}
       >
-        {darkMode ? <LightMode /> : <DarkMode />}
+        {darkMode ? <LightMode sx={{ fontSize: 20 }} /> : <DarkMode sx={{ fontSize: 20 }} />}
       </IconButton>
 
       {/* Notification Popover */}

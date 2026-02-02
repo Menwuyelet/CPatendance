@@ -6,7 +6,7 @@
   padding: 24px;
   max-width: 1400px;
   margin: 0 auto;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+  background: #f5f5f5;
   min-height: calc(100vh - 64px);
 }
 
@@ -41,7 +41,7 @@
   color: #1a1a2e;
   margin: 0;
   line-height: 1.2;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #000000 0%, #cc0000 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -101,7 +101,7 @@
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #000000 0%, #cc0000 100%);
 }
 
 .dashboard-card:hover {
@@ -122,7 +122,7 @@
 }
 
 .card-header-icon {
-  color: #1976d2;
+  color: #cc0000;
 }
 
 .card-title {
@@ -172,13 +172,13 @@
   color: #374151;
   margin-bottom: 16px;
   padding: 12px 16px;
-  background: linear-gradient(135deg, #f0f4ff 0%, #e8eaf6 100%);
+  background: #f5f5f5;
   border-radius: 10px;
   text-align: center;
 }
 
 .time-display strong {
-  color: #667eea;
+  color: #cc0000;
   font-weight: 700;
 }
 
@@ -192,7 +192,7 @@
   justify-content: center;
   align-items: center;
   padding: 16px;
-  background: linear-gradient(135deg, #f0f4ff 0%, #e8eaf6 100%);
+  background: #f5f5f5;
   border-radius: 12px;
   margin-bottom: 8px;
   transition: transform 0.2s ease;
@@ -215,7 +215,7 @@
 .time-value {
   font-size: 1.25rem;
   font-weight: 700;
-  color: #667eea;
+  color: #cc0000;
   letter-spacing: 1px;
 }
 
@@ -245,22 +245,22 @@
 }
 
 .action-button:hover {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #000000 0%, #cc0000 100%);
   border-color: transparent;
   color: #ffffff;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 12px rgba(204, 0, 0, 0.3);
 }
 
 .action-button-primary {
-  background: #1976d2;
-  border-color: #1976d2;
+  background: #cc0000;
+  border-color: #cc0000;
   color: #ffffff;
 }
 
 .action-button-primary:hover {
-  background: #1565c0;
-  border-color: #1565c0;
+  background: #990000;
+  border-color: #990000;
 }
 
 /* Welcome Section */
@@ -318,7 +318,7 @@
   width: 48px;
   height: 48px;
   border: 3px solid #e5e7eb;
-  border-top-color: #1976d2;
+  border-top-color: #cc0000;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -413,31 +413,31 @@
 .clock-time {
   font-family: 'Courier New', monospace;
   font-size: 1rem;
-  color: #667eea;
+  color: #cc0000;
   letter-spacing: 1px;
 }
 
 .hours-worked {
   font-size: 1rem;
-  color: #16a34a;
+  color: #000000;
   font-weight: 700;
 }
 
 /* Status Colors */
 .text-success {
-  color: #16a34a !important;
+  color: #000000 !important;
 }
 
 .text-warning {
-  color: #d97706 !important;
+  color: #333333 !important;
 }
 
 .text-error {
-  color: #dc2626 !important;
+  color: #cc0000 !important;
 }
 
 .text-info {
-  color: #0891b2 !important;
+  color: #cc0000 !important;
 }
 
 /* Hover Effects */
@@ -458,9 +458,9 @@
   width: 48px;
   height: 48px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #000000 0%, #cc0000 100%);
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 12px rgba(204, 0, 0, 0.3);
 }
 
 /* Responsive Typography */
