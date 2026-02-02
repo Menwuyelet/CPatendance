@@ -130,7 +130,7 @@ class AttendanceAbsenceService:
 
             if not created and record.status is None:
                 record.status = "ABSENT"
-                record.save(update_fields=["status", "marked_at"])
+                record.save(update_fields=["status", "created_at"])
 
             absent_count += 1
 

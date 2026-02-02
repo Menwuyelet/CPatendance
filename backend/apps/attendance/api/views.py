@@ -285,10 +285,14 @@ class AttendanceRecordViewSet(ViewSet):
                 qs = qs.none()
 
         # ---- FILTERS ----
-        date = request.query_params.get("date")
-        if date:
-            qs = qs.filter(date=date)
+        date_gte = request.query_params.get("date__gte")
+        if date_gte:
+            qs = qs.filter(date__gte=date_gte)
 
+        date_lte = request.query_params.get("date__lte")
+        if date_lte:
+            qs = qs.filter(date__lte=date_lte)
+            
         employee_id = request.query_params.get("employee_id")
         if employee_id:
             qs = qs.filter(employee_id=employee_id)

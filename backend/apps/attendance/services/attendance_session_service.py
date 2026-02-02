@@ -47,8 +47,6 @@ class AttendanceSessionService:
 
         employee_id = BiometricMatchingService.match_face(embedding, self.session.shift)
 
-        employee_id = BiometricMatchingService.match_face(embedding, self.session.shift)
-
         if not employee_id:
             logger.info(
                 "SESSION_EMBEDDING_PROCESS_STARTED | session_id=%s",
@@ -72,7 +70,7 @@ class AttendanceSessionService:
             return "STOP_DUPLICATE"
 
         logger.warning(
-            "SESSION_DUPLICATE_ENTRY | session_id=%s | employee_id=%s",
+            "SESSION_ENTRY_CREATED | session_id=%s | employee_id=%s",
             self.session.id,
             employee_id,
         )
