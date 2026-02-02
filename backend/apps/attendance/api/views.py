@@ -9,6 +9,7 @@ from rest_framework.viewsets import ViewSet
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
+from django.db.models import Q
 from rest_framework.permissions import IsAuthenticated
 from django.core.exceptions import ValidationError
 from accounts.permissions import IsAdmin, IsHRorManager
@@ -94,6 +95,7 @@ class AttendanceSessionViewSet(ViewSet):
     - retrieve
     - update (active state only)
     """
+
     serializer_class = AttendanceSessionSerializer
 
     def list(self, request):
@@ -115,7 +117,9 @@ class AttendanceSessionViewSet(ViewSet):
 
             if employee and employee.department_id:
                 qs = qs.filter(
-                    entries__employee__department_id=employee.department_id
+                    Q(shift__department_id=employee.department_id)
+                    | Q(started_by__employee__department_id=employee.department_id)
+                    | Q(entries__employee__department_id=employee.department_id)
                 ).distinct()
             else:
                 qs = qs.none()
@@ -264,6 +268,7 @@ class AttendanceRecordViewSet(ViewSet):
     - retrieve
     - update (manual correction)
     """
+
     serializer_class = AttendanceSerializer
 
     def list(self, request):
@@ -293,7 +298,14 @@ class AttendanceRecordViewSet(ViewSet):
         date_lte = request.query_params.get("date__lte")
         if date_lte:
             qs = qs.filter(date__lte=date_lte)
-            
+
+        mine = request.query_params.get("mine")
+        if mine and mine.lower() == "true":
+            if hasattr(request.user, "employee"):
+                qs = qs.filter(employee=request.user.employee)
+            else:
+                qs = qs.none()
+
         employee_id = request.query_params.get("employee_id")
         if employee_id:
             qs = qs.filter(employee_id=employee_id)
@@ -363,6 +375,7 @@ class ShiftViewSet(ViewSet):
     Provides CRUD endpoints used by HR/admins to maintain shift
     definitions used across attendance sessions.
     """
+
     serializer_class = ShiftSerializer
 
     permission_classes = [IsAuthenticated, IsHRorManager | IsAdmin]
@@ -443,9 +456,7 @@ class EmployeeShiftViewSet(ViewSet):
                 if hasattr(exc, "messages") and exc.messages
                 else str(exc)
             )
-            return Response(
-                {"detail": message}, status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"detail": message}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(
             EmployeeShiftSerializer(assignment).data, status=status.HTTP_201_CREATED

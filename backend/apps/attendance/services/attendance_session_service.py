@@ -69,7 +69,7 @@ class AttendanceSessionService:
             )
             return "STOP_DUPLICATE"
 
-        logger.warning(
+        logger.info(
             "SESSION_ENTRY_CREATED | session_id=%s | employee_id=%s",
             self.session.id,
             employee_id,
