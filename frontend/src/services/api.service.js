@@ -341,13 +341,12 @@ export const api = {
   getAttendance: async (filters = {}) => {
     const params = new URLSearchParams();
     
-    if (filters?.from) params.append('date__gte', filters.from);
-    if (filters?.to) params.append('date__lte', filters.to);
-    if (filters?.employee_id) params.append('employee', filters.employee_id);
-    if (filters?.status) params.append('status', filters.status);
-    if (filters?.mine) params.append('mine', 'true');
-    if (filters?.session_id) params.append('session_id', filters.session_id);
-    if (filters?.department_id) params.append('department_id', filters.department_id);
+    if (filters?.date) params.append('date', filters.date);
+    if (filters?.from && filters?.to) {
+      // Backend expects single date, so we'll get all and filter locally
+    }
+    if (filters?.employee_id) params.append('employee_id', filters.employee_id);
+    if (filters?.shift_id) params.append('shift_id', filters.shift_id);
     
     const query = params.toString();
     return await request(`/attendance/attendance/${query ? `?${query}` : ''}`, { method: 'GET' });

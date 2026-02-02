@@ -53,24 +53,17 @@ const EmployeeDashboard = ({ onNotify }) => {
       setUserData(user || {});
 
       const today = new Date().toISOString().split('T')[0];
-      let todayAttendance = null;
-
+      
+      // Fetch all attendance and filter locally (backend doesn't support date range or mine filter)
       try {
-        const res = await api.getAttendance({ from: today, to: today, mine: true });
-        const list = api.extractArray(res);
-        todayAttendance =
-          list.find(
-            (a) =>
-              (a?.date || a?.attendance_date) === today
-          ) || null;
-      } catch {
         const fallback = await api.get('/attendance/attendance/');
         const list = api.extractArray(fallback);
-        todayAttendance =
-          list.find(
-            (a) =>
-              (a?.date || a?.attendance_date) === today
-          ) || null;
+        todayAttendance = list.find(
+          (a) => (a?.date || a?.attendance_date) === today
+        ) || null;
+      } catch (e) {
+        console.error('Failed to fetch attendance:', e);
+        todayAttendance = null;
       }
 
       setAttendanceToday(todayAttendance);

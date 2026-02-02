@@ -73,15 +73,22 @@ const AttendanceOverview = ({ role, onNotify }) => {
     setLoading(true);
     setError('');
     try {
+      // Backend only supports single date filter, not date range
       const params = new URLSearchParams();
-      params.append('date__gte', from);
-      params.append('date__lte', to);
-      if (isEmployee) params.append('mine', 'true');
       
-      const query = params.toString();
-      const data = await api.get(`/attendance/attendance/${query ? `?${query}` : ''}`);
+      // Get all records for the month and filter locally
+      const data = await api.get(`/attendance/attendance/`);
       
       let list = Array.isArray(data) ? data : (data?.results || data?.data || []);
+      
+      // Filter by date range locally
+      if (from && to) {
+        list = list.filter(row => {
+          const rowDate = row.date;
+          if (!rowDate) return false;
+          return rowDate >= from && rowDate <= to;
+        });
+      }
       
       // Enrich with employee names if not present
       let employeeMap = {};
@@ -108,7 +115,7 @@ const AttendanceOverview = ({ role, onNotify }) => {
     } finally {
       setLoading(false);
     }
-  }, [from, to, isEmployee, onNotify]);
+  }, [from, to, onNotify]);
 
   useEffect(() => {
     loadAttendance();
