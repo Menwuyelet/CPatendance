@@ -31,9 +31,12 @@ DEBUG = False
 
 ALLOWED_HOSTS = ["*"]
 
-SECURE_SSL_REDIRECT = True
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+# HTTPS settings - use Gunicorn with certificates for production
+# For development: SSL redirect disabled (Django runserver doesn't support HTTPS)
+SECURE_SSL_REDIRECT = False  # Use Gunicorn + certificates for HTTPS in production
+SESSION_COOKIE_SECURE = False  # Set True in production with HTTPS
+CSRF_COOKIE_SECURE = False  # Set True in production with HTTPS
+CSRF_TRUSTED_ORIGINS = ['http://127.0.0.1:5174', 'http://localhost:5174', 'https://10.240.41.144:5174']
 
 
 X_FRAME_OPTIONS = "DENY"
