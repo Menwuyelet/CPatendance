@@ -40,7 +40,7 @@ class EmployeeShiftService:
                 len(existing_shifts),
             )
             raise ValidationError(
-                "Employee already has maximum shifts for applicable days."
+                "Employee already has reached the maximum of 2 shifts per day."
             )
 
         employee_shift = EmployeeShift.objects.create(employee=employee, shift=shift)

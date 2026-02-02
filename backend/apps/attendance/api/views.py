@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
+from django.core.exceptions import ValidationError
 from accounts.permissions import IsAdmin, IsHRorManager
 from attendance.models import AttendanceRecord
 from attendance.models import AttendanceSession, Shift
@@ -431,10 +432,20 @@ class EmployeeShiftViewSet(ViewSet):
         serializer = EmployeeShiftSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        assignment = EmployeeShiftService.assign_shift(
-            employee=serializer.validated_data["employee"],
-            shift=serializer.validated_data["shift"],
-        )
+        try:
+            assignment = EmployeeShiftService.assign_shift(
+                employee=serializer.validated_data["employee"],
+                shift=serializer.validated_data["shift"],
+            )
+        except ValidationError as exc:
+            message = (
+                exc.messages[0]
+                if hasattr(exc, "messages") and exc.messages
+                else str(exc)
+            )
+            return Response(
+                {"detail": message}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         return Response(
             EmployeeShiftSerializer(assignment).data, status=status.HTTP_201_CREATED
