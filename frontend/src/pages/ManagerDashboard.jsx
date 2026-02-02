@@ -121,16 +121,17 @@ const ManagerDashboardHome = ({ onNotify }) => {
       const employeesList = Array.isArray(employeesRes) ? employeesRes : employeesRes?.results || [];
       const attendanceList = Array.isArray(attendanceRes) ? attendanceRes : attendanceRes?.results || [];
 
-      // Filter by department
+      // Filter by department once
       const emp = empRes;
       let employees = emp?.department?.id
         ? employeesList.filter(e => String(e.department?.id) === String(emp.department.id))
         : employeesList;
 
-      const employeeIds = employees.map(e => e.id);
+      // Use Set for O(1) lookups instead of O(n) includes
+      const employeeIds = new Set(employees.map(e => String(e.id)));
       const deptAttendance = attendanceList.filter(a => {
-        const aEmpId = a.employee?.id || a.employee;
-        return employeeIds.includes(aEmpId);
+        const aEmpId = String(a.employee?.id || a.employee);
+        return employeeIds.has(aEmpId);
       });
 
       const todayStr = format(new Date(), 'yyyy-MM-dd');

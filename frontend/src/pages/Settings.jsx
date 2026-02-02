@@ -142,11 +142,14 @@ const Settings = ({ role, onNotify }) => {
   const [showPasswordForm, setShowPasswordForm] = useState(false);
 
   useEffect(() => {
-    loadUserData();
-    loadDepartments();
-    loadNotificationPrefs();
-    loadSessions();
-    loadActivityLog();
+    // Load all data in parallel for better performance
+    Promise.all([
+      loadUserData(),
+      loadDepartments(),
+      loadNotificationPrefs(),
+      loadSessions(),
+      loadActivityLog(),
+    ]).catch(err => console.error('Failed to load settings data:', err));
   }, []);
 
   const loadDepartments = async () => {

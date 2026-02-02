@@ -276,8 +276,7 @@ const Login = ({ onLogin, onNotify }) => {
     setError('');
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
+      // Remove artificial delay for faster login
       const response = await api.login(formData.email, formData.password);
       
       localStorage.removeItem('failedAttempts');

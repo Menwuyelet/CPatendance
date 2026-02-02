@@ -572,5 +572,13 @@ export const api = {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(downloadUrl);
+  },
+
+  // ============ UTILITY METHODS ============
+  /**
+   * Extract array from API response (handles both direct arrays and paginated responses)
+   */
+  extractArray: (response) => {
+    return Array.isArray(response) ? response : response?.results || [];
   }
 };

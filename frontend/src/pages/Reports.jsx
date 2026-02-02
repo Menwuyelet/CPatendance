@@ -98,10 +98,11 @@ const Reports = ({ onNotify }) => {
         ? employeesList
         : employeesList.filter(e => String(e.department?.id) === department);
 
-      const employeeIds = filteredEmployees.map(e => e.id);
+      // Use Set for O(1) lookups
+      const employeeIdSet = new Set(filteredEmployees.map(e => String(e.id)));
       const filteredAttendance = attendanceList.filter(a => {
-        const empId = a.employee?.id || a.employee;
-        return employeeIds.includes(empId);
+        const empId = String(a.employee?.id || a.employee);
+        return employeeIdSet.has(empId);
       });
 
       // Calculate statistics
