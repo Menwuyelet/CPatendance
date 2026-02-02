@@ -6,72 +6,106 @@ import { useNavigate, useLocation } from 'react-router-dom';
 // Company logo
 import companyLogo from '../asset/logo.jpg';
 
+// Dark theme colors
+const colors = {
+  background: '#0a0a0a',
+  card: '#141414',
+  cardBorder: '#2a2a2a',
+  text: '#ffffff',
+  textSecondary: '#a0a0a0',
+  primary: '#cc0000',
+  primaryHover: '#dd3333',
+  inputBg: '#1a1a1a',
+  inputBorder: '#333333',
+  inputBorderFocus: '#cc0000',
+  error: '#ef4444',
+  errorBg: 'rgba(239, 68, 68, 0.1)',
+  success: '#22c55e',
+};
+
 // Inline styles for better performance
 const styles = {
   container: {
     minHeight: '100vh',
-    height: '100dvh',
+    width: '100%',
     display: 'flex',
-    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f8fafc',
-    backgroundImage: 'linear-gradient(135deg, #000000 0%, #cc0000 100%)',
-    padding: '16px',
+    backgroundColor: colors.background,
+    backgroundImage: 'linear-gradient(135deg, #000000 0%, #1a0000 50%, #cc0000 100%)',
+    padding: '20px',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
     boxSizing: 'border-box',
   },
-  backgroundOverlay: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    pointerEvents: 'none',
-  },
   formCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.98)',
-    padding: '32px 24px',
-    borderRadius: '20px',
-    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)',
+    backgroundColor: colors.card,
+    border: `1px solid ${colors.cardBorder}`,
+    padding: '40px 32px',
+    borderRadius: '16px',
+    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
     width: '100%',
-    maxWidth: '380px',
+    maxWidth: '400px',
     textAlign: 'center',
     position: 'relative',
-    margin: 'auto',
-    flexShrink: 0,
   },
   logoContainer: {
-    width: '140px',
-    height: '140px',
-    maxWidth: '35vw',
-    maxHeight: '35vw',
-    borderRadius: '20px',
+    width: '80px',
+    height: '80px',
+    borderRadius: '16px',
     overflow: 'hidden',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    margin: '0 auto 20px',
-    boxShadow: '0 15px 40px rgba(204, 0, 0, 0.3)',
-    border: '4px solid #cc0000',
+    margin: '0 auto 24px',
+    border: `2px solid ${colors.primary}`,
     background: 'linear-gradient(135deg, #000000 0%, #cc0000 100%)',
-    flexShrink: 0,
+  },
+  header: {
+    marginBottom: '32px',
+  },
+  title: {
+    fontSize: '28px',
+    fontWeight: '700',
+    color: colors.text,
+    margin: '0 0 8px',
+    letterSpacing: '-0.5px',
+  },
+  subtitle: {
+    fontSize: '14px',
+    color: colors.textSecondary,
+    margin: 0,
+    lineHeight: '1.5',
+  },
+  subtitleHighlight: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  formGroup: {
+    marginBottom: '20px',
+  },
+  label: {
+    display: 'block',
+    fontSize: '14px',
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginBottom: '8px',
+    textAlign: 'left',
   },
   inputWrapper: {
     position: 'relative',
-    borderRadius: '12px',
-    backgroundColor: 'white',
-    transition: 'all 0.2s',
-    marginBottom: '16px',
+    borderRadius: '10px',
+    backgroundColor: colors.inputBg,
+    border: `1px solid ${colors.inputBorder}`,
+    transition: 'all 0.2s ease',
   },
   input: {
     width: '100%',
-    padding: '16px 16px 16px 48px',
-    fontSize: '16px',
+    padding: '14px 16px 14px 48px',
+    fontSize: '15px',
     border: 'none',
     background: 'transparent',
     outline: 'none',
-    color: '#1a202c',
+    color: colors.text,
     boxSizing: 'border-box',
   },
   inputIcon: {
@@ -79,59 +113,135 @@ const styles = {
     left: '16px',
     top: '50%',
     transform: 'translateY(-50%)',
+    color: colors.textSecondary,
   },
   passwordInput: {
     width: '100%',
-    padding: '16px 48px 16px 48px',
-    fontSize: '16px',
+    padding: '14px 48px 14px 48px',
+    fontSize: '15px',
     border: 'none',
     background: 'transparent',
     outline: 'none',
-    color: '#1a202c',
+    color: colors.text,
     letterSpacing: '2px',
     boxSizing: 'border-box',
   },
   togglePassword: {
     position: 'absolute',
-    right: '16px',
+    right: '12px',
     top: '50%',
     transform: 'translateY(-50%)',
     background: 'none',
     border: 'none',
     cursor: 'pointer',
-    color: '#a0aec0',
+    color: colors.textSecondary,
     padding: '4px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    transition: 'color 0.2s',
   },
   submitButton: {
     width: '100%',
     padding: '16px',
     fontSize: '16px',
     fontWeight: '600',
-    color: 'white',
+    color: '#ffffff',
     border: 'none',
-    borderRadius: '12px',
+    borderRadius: '10px',
     cursor: 'pointer',
-    transition: 'all 0.3s',
-    position: 'relative',
-    boxShadow: '0 8px 24px rgba(204, 0, 0, 0.3), 0 0 0 2px #000000',
+    transition: 'all 0.3s ease',
+    background: `linear-gradient(135deg, ${colors.primary} 0%, #990000 100%)`,
+    boxShadow: '0 4px 15px rgba(204, 0, 0, 0.3)',
     marginTop: '8px',
   },
   helpButton: {
     width: '100%',
-    padding: '12px',
+    padding: '14px',
     fontSize: '14px',
     fontWeight: '500',
     background: 'transparent',
-    color: '#4a5568',
-    border: '1px solid #e2e8f0',
+    color: colors.textSecondary,
+    border: `1px solid ${colors.cardBorder}`,
     borderRadius: '10px',
     cursor: 'pointer',
-    transition: 'all 0.2s',
+    transition: 'all 0.2s ease',
     marginTop: '12px',
   },
+  footer: {
+    marginTop: '24px',
+    paddingTop: '20px',
+    borderTop: `1px solid ${colors.cardBorder}`,
+  },
+  copyright: {
+    fontSize: '12px',
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: '1.6',
+  },
+  copyrightHighlight: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  version: {
+    fontSize: '11px',
+    color: '#666',
+    marginTop: '4px',
+  },
+  errorContainer: {
+    backgroundColor: colors.errorBg,
+    border: '1px solid rgba(239, 68, 68, 0.3)',
+    borderRadius: '10px',
+    padding: '14px 16px',
+    marginBottom: '24px',
+    textAlign: 'left',
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '12px',
+  },
+  lockContainer: {
+    backgroundColor: 'rgba(239, 68, 68, 0.05)',
+    border: '1px solid rgba(239, 68, 68, 0.2)',
+    borderRadius: '10px',
+    padding: '14px 16px',
+    marginBottom: '24px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '10px',
+  },
+  errorText: {
+    color: colors.error,
+    fontWeight: '500',
+    fontSize: '14px',
+    marginBottom: '4px',
+  },
+  errorSubtext: {
+    color: colors.textSecondary,
+    fontSize: '12px',
+  },
+  lockText: {
+    color: colors.error,
+    fontWeight: '500',
+    fontSize: '14px',
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+  },
+  logoPlaceholder: {
+    fontSize: '36px',
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+};
+
+// Helper function to get input border color
+const getInputBorderColor = (focused, error) => {
+  if (error) return colors.error;
+  if (focused) return colors.inputBorderFocus;
+  return colors.inputBorder;
 };
 
 const Login = ({ onLogin, onNotify }) => {
@@ -154,23 +264,6 @@ const Login = ({ onLogin, onNotify }) => {
     const { email, password } = formData;
     return email.includes('@') && email.includes('.') && password.length >= 6;
   }, [formData]);
-
-  // Memoized password strength
-  const passwordStrength = useMemo(() => {
-    const password = formData.password;
-    if (!password) return { strength: 0, label: '', color: '' };
-    
-    let strength = 0;
-    if (password.length >= 6) strength++;
-    if (password.length >= 10) strength++;
-    if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
-    if (/\d/.test(password)) strength++;
-    if (/[^a-zA-Z0-9]/.test(password)) strength++;
-    
-    if (strength <= 1) return { strength: 1, label: 'Weak', color: '#e53e3e' };
-    if (strength <= 3) return { strength: 2, label: 'Medium', color: '#ed8936' };
-    return { strength: 3, label: 'Strong', color: '#48bb78' };
-  }, [formData.password]);
 
   // Memoized remaining time
   const remainingTime = useMemo(() => {
@@ -242,9 +335,11 @@ const Login = ({ onLogin, onNotify }) => {
   // Handle success animation
   const triggerSuccessAnimation = useCallback(() => {
     if (formRef.current) {
-      formRef.current.style.transform = 'scale(0.95)';
+      formRef.current.style.transform = 'scale(0.98)';
       setTimeout(() => {
-        formRef.current.style.transform = 'scale(1)';
+        if (formRef.current) {
+          formRef.current.style.transform = 'scale(1)';
+        }
       }, 150);
     }
   }, []);
@@ -282,7 +377,6 @@ const Login = ({ onLogin, onNotify }) => {
     setError('');
 
     try {
-      // Remove artificial delay for faster login
       const response = await api.login(formData.email, formData.password);
       
       localStorage.removeItem('failedAttempts');
@@ -346,117 +440,81 @@ const Login = ({ onLogin, onNotify }) => {
     }
   }, [lockUntil, formData, attempts, rememberMe, navigate, location, onLogin, onNotify, triggerSuccessAnimation, triggerErrorAnimation]);
 
-  // Handle forgot password
-  const handleForgotPassword = useCallback(() => {
-    if (!formData.email) {
-      setError('Please enter your email first');
-      return;
-    }
-    navigate(`/reset-password?email=${encodeURIComponent(formData.email)}`);
-  }, [formData.email, navigate]);
-
-  // Handle contact support
-  const handleContactSupport = useCallback(() => {
-    const subject = encodeURIComponent('Login Assistance Request');
-    const body = encodeURIComponent(`I need help logging in. My email: ${formData.email || 'Not provided'}`);
-    window.location.href = `mailto:support@company.com?subject=${subject}&body=${body}`;
-  }, [formData.email]);
-
-  // Dynamic styles
-  const getInputBorderColor = (field) => 
-    focusedField === field ? '#cc0000' : '#e2e8f0';
-  
-  const getInputBgColor = (field) => 
-    focusedField === field ? '#f8fafc' : 'white';
-
+  // Dynamic styles based on state
   const getSubmitButtonStyle = () => ({
     ...styles.submitButton,
-    background: loading ? '#a0aec0' : (lockUntil || !formValid ? '#cbd5e0' : 'linear-gradient(135deg, #000000, #cc0000)'),
+    opacity: loading || lockUntil || !formValid ? 0.6 : 1,
     cursor: loading || lockUntil || !formValid ? 'not-allowed' : 'pointer',
-    boxShadow: loading || lockUntil || !formValid ? 'none' : '0 8px 24px rgba(204, 0, 0, 0.3)',
+  });
+
+  const getInputWrapperStyle = (field) => ({
+    ...styles.inputWrapper,
+    border: `1px solid ${getInputBorderColor(focusedField === field, false)}`,
   });
 
   return (
     <div style={styles.container}>
-      {/* Animated background elements */}
-      <div style={{ ...styles.backgroundOverlay, background: 'radial-gradient(circle at 20% 80%, rgba(255,255,255,0.1) 0%, transparent 50%)' }} />
-      <div style={{ ...styles.backgroundOverlay, background: 'radial-gradient(circle at 80% 20%, rgba(255,255,255,0.1) 0%, transparent 50%)' }} />
-      
       <div 
         ref={formRef}
         className="login-form"
         style={{
           ...styles.formCard,
-          transform: shake ? 'translateX(0)' : 'translateX(0)',
           animation: shake ? 'shake 0.5s ease-in-out' : 'fadeIn 0.4s ease-out',
         }}
       >
-        {/* Decorative corner */}
-        <div style={{
-          position: 'absolute',
-          top: 0,
-          right: 0,
-          width: '80px',
-          height: '80px',
-          background: 'linear-gradient(135deg, transparent 50%, #cc0000 50%)',
-          borderBottomLeftRadius: '24px',
-        }} />
-        
-        {/* Logo/Header */}
-        <div style={{ marginBottom: '24px', position: 'relative' }}>
-          <div style={styles.logoContainer}>
-            {companyLogo ? (
-              <img 
-                src={companyLogo} 
-                alt="Company Logo" 
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-              />
-            ) : (
-              <span style={{ fontSize: '60px', fontWeight: 'bold', color: 'white', textShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
-                C
-              </span>
-            )}
-          </div>
-          <h1 style={{ fontSize: '24px', fontWeight: '800', color: '#1a202c', margin: '0 0 8px', letterSpacing: '-0.5px', lineHeight: '1.2' }}>
-            Welcome Back
-          </h1>
-          <p style={{ color: '#718096', fontSize: '14px', margin: 0, lineHeight: '1.5' }}>
-            Sign in to <strong style={{ color: '#cc0000', fontWeight: '700', letterSpacing: '0.5px' }}>CP Attendance</strong>
+        {/* Logo */}
+        <div style={styles.logoContainer}>
+          {companyLogo ? (
+            <img 
+              src={companyLogo} 
+              alt="Company Logo" 
+              style={styles.logoImage}
+            />
+          ) : (
+            <span style={styles.logoPlaceholder}>C</span>
+          )}
+        </div>
+
+        {/* Header */}
+        <div style={styles.header}>
+          <h1 style={styles.title}>Welcome Back</h1>
+          <p style={styles.subtitle}>
+            Sign in to <strong style={styles.subtitleHighlight}>CP Attendance</strong>
           </p>
         </div>
 
         {/* Lock timer */}
         {lockUntil && (
-          <div style={{ backgroundColor: '#fff5f5', border: '1px solid #fed7d7', borderRadius: '12px', padding: '12px 16px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="#e53e3e">
-              <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+          <div style={styles.lockContainer}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill={colors.error}>
+              <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
             </svg>
-            <span style={{ color: '#c53030', fontWeight: '500', fontSize: '14px' }}>Locked for {remainingTime}</span>
+            <span style={styles.lockText}>Locked for {remainingTime}</span>
           </div>
         )}
 
         {/* Error message */}
         {error && (
-          <div style={{ backgroundColor: '#fff5f5', border: '1px solid #fed7d7', borderRadius: '12px', padding: '12px 14px', marginBottom: '20px', textAlign: 'left', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="#e53e3e">
+          <div style={styles.errorContainer}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill={colors.error}>
               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
             </svg>
             <div>
-              <div style={{ color: '#c53030', fontWeight: '500', fontSize: '14px' }}>{error}</div>
+              <div style={styles.errorText}>{error}</div>
               {attempts > 0 && attempts < 5 && (
-                <div style={{ color: '#718096', fontSize: '12px' }}>{5 - attempts} attempt{attempts === 4 ? '' : 's'} remaining</div>
+                <div style={styles.errorSubtext}>{5 - attempts} attempt{attempts === 4 ? '' : 's'} remaining</div>
               )}
             </div>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ marginBottom: '24px' }}>
+        <form onSubmit={handleSubmit}>
           {/* Email field */}
-          <div>
-            <div style={{ ...styles.inputWrapper, border: `2px solid ${getInputBorderColor('email')}`, backgroundColor: getInputBgColor('email') }}>
+          <div style={styles.formGroup}>
+            <div style={getInputWrapperStyle('email')}>
               <input
                 type="email"
-                placeholder="corporate@company.com"
+                placeholder="Email address"
                 value={formData.email}
                 onChange={(e) => handleInputChange('email', e.target.value)}
                 onFocus={() => setFocusedField('email')}
@@ -466,7 +524,10 @@ const Login = ({ onLogin, onNotify }) => {
                 required
                 style={styles.input}
               />
-              <div style={{ ...styles.inputIcon, color: focusedField === 'email' ? '#cc0000' : '#a0aec0' }}>
+              <div style={{
+                ...styles.inputIcon,
+                color: focusedField === 'email' ? colors.primary : colors.textSecondary
+              }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
                 </svg>
@@ -475,11 +536,11 @@ const Login = ({ onLogin, onNotify }) => {
           </div>
 
           {/* Password field */}
-          <div>
-            <div style={{ ...styles.inputWrapper, border: `2px solid ${getInputBorderColor('password')}`, backgroundColor: getInputBgColor('password') }}>
+          <div style={styles.formGroup}>
+            <div style={getInputWrapperStyle('password')}>
               <input
                 type={showPassword ? 'text' : 'password'}
-                placeholder="••••••••"
+                placeholder="Password"
                 value={formData.password}
                 onChange={(e) => handleInputChange('password', e.target.value)}
                 onFocus={() => setFocusedField('password')}
@@ -487,18 +548,28 @@ const Login = ({ onLogin, onNotify }) => {
                 onKeyPress={handleKeyPress}
                 disabled={loading || lockUntil}
                 required
-                style={{ ...styles.passwordInput, letterSpacing: showPassword ? 'normal' : '2px' }}
+                style={{
+                  ...styles.passwordInput,
+                  letterSpacing: showPassword ? 'normal' : '2px'
+                }}
               />
-              <div style={{ ...styles.inputIcon, color: focusedField === 'password' ? '#cc0000' : '#a0aec0' }}>
+              <div style={{
+                ...styles.inputIcon,
+                color: focusedField === 'password' ? colors.primary : colors.textSecondary
+              }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
+                  <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
                 </svg>
               </div>
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 disabled={loading || lockUntil}
-                style={{ ...styles.togglePassword, cursor: loading || lockUntil ? 'not-allowed' : 'pointer' }}
+                style={{
+                  ...styles.togglePassword,
+                  color: showPassword ? colors.primary : colors.textSecondary,
+                  cursor: loading || lockUntil ? 'not-allowed' : 'pointer'
+                }}
               >
                 {showPassword ? (
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -511,41 +582,6 @@ const Login = ({ onLogin, onNotify }) => {
                 )}
               </button>
             </div>
-            
-            {/* Password strength indicator */}
-            {formData.password && focusedField === 'password' && (
-              <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
-                <div style={{ flex: 1, height: '4px', backgroundColor: '#e2e8f0', borderRadius: '2px', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${(passwordStrength.strength / 3) * 100}%`, backgroundColor: passwordStrength.color, transition: 'all 0.3s ease' }} />
-                </div>
-                <span style={{ fontSize: '12px', fontWeight: '500', color: passwordStrength.color, minWidth: '60px' }}>{passwordStrength.label}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Remember me and Forgot password */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: loading || lockUntil ? 'not-allowed' : 'pointer', userSelect: 'none' }}>
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                disabled={loading || lockUntil}
-                style={{ width: '18px', height: '18px', cursor: loading || lockUntil ? 'not-allowed' : 'pointer', accentColor: '#667eea' }}
-              />
-              <span style={{ color: '#4a5568', fontSize: '14px', fontWeight: '500' }}>Remember me</span>
-            </label>
-
-            <button
-              type="button"
-              onClick={handleForgotPassword}
-              disabled={loading || lockUntil}
-              style={{ background: 'none', border: 'none', color: '#667eea', fontSize: '14px', fontWeight: '500', cursor: loading || lockUntil ? 'not-allowed' : 'pointer', padding: '4px 8px', borderRadius: '6px', transition: 'all 0.2s' }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = '#edf2f7'}
-              onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-            >
-              Forgot password?
-            </button>
           </div>
 
           {/* Submit button */}
@@ -553,57 +589,26 @@ const Login = ({ onLogin, onNotify }) => {
             type="submit"
             disabled={loading || lockUntil || !formValid}
             style={getSubmitButtonStyle()}
-            onMouseEnter={(e) => {
-              if (!loading && !lockUntil && formValid) {
-                e.target.style.transform = 'translateY(-2px)';
-                e.target.style.boxShadow = '0 12px 28px rgba(102, 126, 234, 0.4)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!loading && !lockUntil && formValid) {
-                e.target.style.transform = 'translateY(0)';
-                e.target.style.boxShadow = '0 8px 24px rgba(102, 126, 234, 0.3)';
-              }
-            }}
           >
-            {loading ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-                <div style={{ width: '20px', height: '20px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                Authenticating...
-              </div>
-            ) : lockUntil ? (
-              `Locked (${remainingTime})`
-            ) : (
-              'Sign In'
-            )}
+            {loading ? 'Signing in...' : 'Sign In'}
+          </button>
+
+          {/* Help button */}
+          <button
+            type="button"
+            onClick={() => navigate('/help')}
+            style={styles.helpButton}
+          >
+            Need Help?
           </button>
         </form>
 
-        {/* Help section */}
-        <div style={{ paddingTop: '24px', borderTop: '1px solid #e2e8f0' }}>
-          <div style={{ color: '#718096', fontSize: '14px', marginBottom: '16px' }}>Need help signing in?</div>
-          <button
-            type="button"
-            onClick={handleContactSupport}
-            style={styles.helpButton}
-            onMouseEnter={(e) => { e.target.style.backgroundColor = '#f8fafc'; e.target.style.borderColor = '#cbd5e0'; }}
-            onMouseLeave={(e) => { e.target.style.backgroundColor = 'transparent'; e.target.style.borderColor = '#e2e8f0'; }}
-          >
-            Contact System Administrator
-          </button>
-        </div>
-
-        {/* Footer */}
-        <div style={{ marginTop: '32px', paddingTop: '20px', borderTop: '1px solid #e2e8f0', color: '#a0aec0', fontSize: '12px', lineHeight: '1.5' }}>
-          <div style={{ marginBottom: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="#48bb78">
-                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
-              </svg>
-              <span>Secure corporate portal • v2.4.0</span>
-            </div>
+        {/* Copyright Footer */}
+        <div style={styles.footer}>
+          <div style={styles.copyright}>
+            © {new Date().getFullYear()} <span style={styles.copyrightHighlight}>AMN System</span> - Smart solutions that make your work easier.
           </div>
-          <div>© {new Date().getFullYear()} Corporate Attendance System • All rights reserved</div>
+          <div style={styles.version}>Version 1.0.0</div>
         </div>
       </div>
 
@@ -614,37 +619,22 @@ const Login = ({ onLogin, onNotify }) => {
           10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
           20%, 40%, 60%, 80% { transform: translateX(5px); }
         }
-        
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-        
         @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-10px); }
+          from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        
+        .login-form {
+          animation: fadeIn 0.4s ease-out;
+        }
+        input::placeholder {
+          color: #666;
+        }
         input:-webkit-autofill,
         input:-webkit-autofill:hover,
         input:-webkit-autofill:focus {
-          -webkit-text-fill-color: #1a202c;
-          -webkit-box-shadow: 0 0 0px 1000px white inset;
+          -webkit-text-fill-color: #ffffff;
+          -webkit-box-shadow: 0 0 0px 1000px #1a1a1a inset;
           transition: background-color 5000s ease-in-out 0s;
-        }
-        
-        input:focus { outline: none; }
-        
-        button:focus { outline: 2px solid #667eea; outline-offset: 2px; }
-        
-        @media (max-width: 480px) {
-          .login-form { padding: 32px 24px !important; margin: 0 16px; max-width: 100% !important; }
-          .login-form h1 { font-size: 24px !important; }
-          .login-form input { font-size: 16px !important; padding: 16px 16px 16px 48px !important; }
-          .login-form button[type="submit"] { padding: 18px !important; }
-        }
-        
-        @media (max-width: 380px) {
-          .login-form { padding: 24px 20px !important; }
         }
       `}</style>
     </div>
