@@ -10,13 +10,16 @@ import companyLogo from '../asset/logo.jpg';
 const styles = {
   container: {
     minHeight: '100vh',
+    height: '100dvh',
     display: 'flex',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#f8fafc',
     backgroundImage: 'linear-gradient(135deg, #000000 0%, #cc0000 100%)',
     padding: '16px',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    boxSizing: 'border-box',
   },
   backgroundOverlay: {
     position: 'fixed',
@@ -28,40 +31,42 @@ const styles = {
   },
   formCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.98)',
-    padding: '48px 40px',
-    borderRadius: '24px',
+    padding: '32px 24px',
+    borderRadius: '20px',
     boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)',
     width: '100%',
-    maxWidth: '420px',
+    maxWidth: '380px',
     textAlign: 'center',
     position: 'relative',
-    overflow: 'hidden',
+    margin: 'auto',
+    flexShrink: 0,
   },
   logoContainer: {
-    width: 'min(280px, 40vw)',
-    height: 'min(280px, 40vw)',
-    maxWidth: '200px',
-    maxHeight: '200px',
-    aspectRatio: '1',
-    borderRadius: 'min(40px, 6vw)',
+    width: '140px',
+    height: '140px',
+    maxWidth: '35vw',
+    maxHeight: '35vw',
+    borderRadius: '20px',
     overflow: 'hidden',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    margin: '0 auto 24px',
-    boxShadow: '0 25px 80px rgba(204, 0, 0, 0.4)',
-    border: 'min(8px, 1.5vw) solid #cc0000',
+    margin: '0 auto 20px',
+    boxShadow: '0 15px 40px rgba(204, 0, 0, 0.3)',
+    border: '4px solid #cc0000',
     background: 'linear-gradient(135deg, #000000 0%, #cc0000 100%)',
+    flexShrink: 0,
   },
   inputWrapper: {
     position: 'relative',
     borderRadius: '12px',
     backgroundColor: 'white',
     transition: 'all 0.2s',
+    marginBottom: '16px',
   },
   input: {
     width: '100%',
-    padding: '20px 20px 20px 52px',
+    padding: '16px 16px 16px 48px',
     fontSize: '16px',
     border: 'none',
     background: 'transparent',
@@ -71,7 +76,7 @@ const styles = {
   },
   inputIcon: {
     position: 'absolute',
-    left: '20px',
+    left: '16px',
     top: '50%',
     transform: 'translateY(-50%)',
   },
@@ -88,7 +93,7 @@ const styles = {
   },
   togglePassword: {
     position: 'absolute',
-    right: '20px',
+    right: '16px',
     top: '50%',
     transform: 'translateY(-50%)',
     background: 'none',
@@ -102,7 +107,7 @@ const styles = {
   },
   submitButton: {
     width: '100%',
-    padding: '20px',
+    padding: '16px',
     fontSize: '16px',
     fontWeight: '600',
     color: 'white',
@@ -111,12 +116,12 @@ const styles = {
     cursor: 'pointer',
     transition: 'all 0.3s',
     position: 'relative',
-    overflow: 'hidden',
     boxShadow: '0 8px 24px rgba(204, 0, 0, 0.3), 0 0 0 2px #000000',
+    marginTop: '8px',
   },
   helpButton: {
     width: '100%',
-    padding: '14px',
+    padding: '12px',
     fontSize: '14px',
     fontWeight: '500',
     background: 'transparent',
@@ -125,6 +130,7 @@ const styles = {
     borderRadius: '10px',
     cursor: 'pointer',
     transition: 'all 0.2s',
+    marginTop: '12px',
   },
 };
 
@@ -397,7 +403,7 @@ const Login = ({ onLogin, onNotify }) => {
         }} />
         
         {/* Logo/Header */}
-        <div style={{ marginBottom: '32px', position: 'relative' }}>
+        <div style={{ marginBottom: '24px', position: 'relative' }}>
           <div style={styles.logoContainer}>
             {companyLogo ? (
               <img 
@@ -406,47 +412,47 @@ const Login = ({ onLogin, onNotify }) => {
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
               />
             ) : (
-              <span style={{ fontSize: 'min(100px, 15vw)', fontWeight: 'bold', color: 'white', textShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
+              <span style={{ fontSize: '60px', fontWeight: 'bold', color: 'white', textShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
                 C
               </span>
             )}
           </div>
-          <h1 style={{ fontSize: 'min(42px, 7vw)', fontWeight: '800', color: '#1a202c', margin: '0 0 12px', letterSpacing: '-1px', lineHeight: '1.1' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: '800', color: '#1a202c', margin: '0 0 8px', letterSpacing: '-0.5px', lineHeight: '1.2' }}>
             Welcome Back
           </h1>
-          <p style={{ color: '#718096', fontSize: 'min(18px, 4vw)', margin: 0, lineHeight: '1.5' }}>
-            Sign in to <strong style={{ color: '#cc0000', fontSize: 'min(20px, 4.5vw)', fontWeight: '700', letterSpacing: '0.5px' }}>CP Attendance System</strong>
+          <p style={{ color: '#718096', fontSize: '14px', margin: 0, lineHeight: '1.5' }}>
+            Sign in to <strong style={{ color: '#cc0000', fontWeight: '700', letterSpacing: '0.5px' }}>CP Attendance</strong>
           </p>
         </div>
 
         {/* Lock timer */}
         {lockUntil && (
-          <div style={{ backgroundColor: '#fff5f5', border: '1px solid #fed7d7', borderRadius: '12px', padding: '12px 16px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+          <div style={{ backgroundColor: '#fff5f5', border: '1px solid #fed7d7', borderRadius: '12px', padding: '12px 16px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="#e53e3e">
               <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
             </svg>
-            <span style={{ color: '#c53030', fontWeight: '500' }}>Locked for {remainingTime}</span>
+            <span style={{ color: '#c53030', fontWeight: '500', fontSize: '14px' }}>Locked for {remainingTime}</span>
           </div>
         )}
 
         {/* Error message */}
         {error && (
-          <div style={{ backgroundColor: '#fff5f5', border: '1px solid #fed7d7', borderRadius: '12px', padding: '14px 16px', marginBottom: '24px', textAlign: 'left', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="#e53e3e">
+          <div style={{ backgroundColor: '#fff5f5', border: '1px solid #fed7d7', borderRadius: '12px', padding: '12px 14px', marginBottom: '20px', textAlign: 'left', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#e53e3e">
               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
             </svg>
             <div>
-              <div style={{ color: '#c53030', fontWeight: '500', marginBottom: '4px' }}>{error}</div>
+              <div style={{ color: '#c53030', fontWeight: '500', fontSize: '14px' }}>{error}</div>
               {attempts > 0 && attempts < 5 && (
-                <div style={{ color: '#718096', fontSize: '14px' }}>{5 - attempts} attempt{attempts === 4 ? '' : 's'} remaining</div>
+                <div style={{ color: '#718096', fontSize: '12px' }}>{5 - attempts} attempt{attempts === 4 ? '' : 's'} remaining</div>
               )}
             </div>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ marginBottom: '32px' }}>
+        <form onSubmit={handleSubmit} style={{ marginBottom: '24px' }}>
           {/* Email field */}
-          <div style={{ marginBottom: '20px' }}>
+          <div>
             <div style={{ ...styles.inputWrapper, border: `2px solid ${getInputBorderColor('email')}`, backgroundColor: getInputBgColor('email') }}>
               <input
                 type="email"
@@ -469,7 +475,7 @@ const Login = ({ onLogin, onNotify }) => {
           </div>
 
           {/* Password field */}
-          <div style={{ marginBottom: '16px' }}>
+          <div>
             <div style={{ ...styles.inputWrapper, border: `2px solid ${getInputBorderColor('password')}`, backgroundColor: getInputBgColor('password') }}>
               <input
                 type={showPassword ? 'text' : 'password'}
