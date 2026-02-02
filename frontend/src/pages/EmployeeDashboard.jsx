@@ -55,6 +55,7 @@ const EmployeeDashboard = ({ onNotify }) => {
       const today = new Date().toISOString().split('T')[0];
       
       // Fetch all attendance and filter locally (backend doesn't support date range or mine filter)
+      let todayAttendance = null;
       try {
         const fallback = await api.get('/attendance/attendance/');
         const list = api.extractArray(fallback);
