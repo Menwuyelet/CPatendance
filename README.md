@@ -205,3 +205,273 @@ The data model is updated to reflect the use of MySQL and the inclusion of facia
 | **TimeEntries**    | `entry_id` (PK), `user_id` (FK), `clock_in_time`, `clock_out_time`, `ip_address`, `status`, **`verification_method`** (e.g., 'Face', 'Web', 'Mobile') | One-to-Many with Users              | Records the actual attendance logs, now including the verification method.               |
 | **LeaveRequests**  | `request_id` (PK), `user_id` (FK), `leave_type_id` (FK), `start_date`, `end_date`, `reason`, `status`, `manager_id` (FK)                              | One-to-Many with Users, LeaveTypes  | Manages the submission and approval of time-off requests.                                |
 | **LeaveTypes**     | `type_id` (PK), `type_name` (Sick, Vacation), `max_days`                                                                                              | One-to-Many with LeaveRequests      | Defines the different categories of leave available.                                     |
+
+---
+
+## 5. Project Structure
+
+This section documents the current folder structure of the CP Attendance Management System (CPAMS).
+
+### 5.1. Root Directory
+
+```
+CPatendance/
+├── backend/                 # Django REST Framework backend
+├── frontend/                # React frontend application
+├── docs/                    # Documentation files
+├── .github/                 # GitHub configurations
+├── .vscode/                 # VSCode settings
+├── package.json             # Root package file
+├── yarn.lock                # Yarn lock file
+├── README.md                # Main documentation
+└── .gitignore               # Git ignore rules
+```
+
+### 5.2. Backend Structure
+
+```
+backend/
+├── manage.py                # Django management script
+├── README.md               # Backend documentation
+├── apps/                    # Django applications
+│   ├── __init__.py
+│   ├── accounts/           # User authentication & management
+│   │   ├── __init__.py
+│   │   ├── admin.py
+│   │   ├── apps.py
+│   │   ├── constants.py
+│   │   ├── managers.py
+│   │   ├── tests.py
+│   │   ├── api/            # REST API endpoints
+│   │   │   ├── serializers.py
+│   │   │   ├── urls.py
+│   │   │   ├── views.py
+│   │   │   └── tests/
+│   │   ├── migrations/     # Database migrations
+│   │   ├── models/         # Data models
+│   │   │   ├── __init__.py
+│   │   │   ├── role.py
+│   │   │   └── user.py
+│   │   ├── permissions/    # Access control
+│   │   │   ├── hr_or_manager.py
+│   │   │   ├── is_admin.py
+│   │   │   ├── is_employee.py
+│   │   │   ├── is_hr.py
+│   │   │   ├── is_manager.py
+│   │   │   └── utils.py
+│   │   ├── policies/       # Business logic policies
+│   │   │   ├── attendance.py
+│   │   │   ├── biometric.py
+│   │   │   ├── common.py
+│   │   │   └── leave.py
+│   │   ├── services/       # Business logic services
+│   │   │   ├── __init__.py
+│   │   │   └── user_service.py
+│   │   └── tests/
+│   │
+│   ├── attendance/        # Attendance management
+│   │   ├── __init__.py
+│   │   ├── admin.py
+│   │   ├── apps.py
+│   │   ├── models.py
+│   │   ├── tests.py
+│   │   ├── api/            # REST API endpoints
+│   │   │   ├── serializers.py
+│   │   │   ├── urls.py
+│   │   │   └── views.py
+│   │   ├── migrations/     # Database migrations
+│   │   ├── models/         # Data models
+│   │   │   ├── __init__.py
+│   │   │   ├── atendance_record.py
+│   │   │   ├── atendance_session.py
+│   │   │   ├── employee_shift.py
+│   │   │   ├── session_entry.py
+│   │   │   └── shift.py
+│   │   ├── permissions/    # Access control
+│   │   │   └── employee_shift_permission.py
+│   │   ├── services/       # Business logic services
+│   │   │   ├── __init__.py
+│   │   │   ├── attendance_service.py
+│   │   │   ├── attendance_session_service.py
+│   │   │   ├── daily_jobs.py
+│   │   │   ├── employee_shift_service.py
+│   │   │   ├── process_session_service.py
+│   │   │   ├── shift_resolution_service.py
+│   │   │   ├── shift_service.py
+│   │   │   └── status.py
+│   │   └── tests/
+│   │
+│   ├── biometrics/        # Facial recognition
+│   │   ├── __init__.py
+│   │   ├── admin.py
+│   │   ├── apps.py
+│   │   ├── tests.py
+│   │   ├── api/            # REST API endpoints
+│   │   │   ├── __init__.py
+│   │   │   ├── permissions.py
+│   │   │   ├── serializers.py
+│   │   │   ├── urls.py
+│   │   │   └── views.py
+│   │   ├── migrations/     # Database migrations
+│   │   ├── models/         # Data models
+│   │   │   ├── __init__.py
+│   │   │   └── biometric_record.py
+│   │   ├── services/       # Business logic services
+│   │   │   ├── __init__.py
+│   │   │   ├── employe_embedding_load_service.py
+│   │   │   ├── encryption_service.py
+│   │   │   ├── enrollment_service.py
+│   │   │   ├── face_engine.py
+│   │   │   └── matching_service.py
+│   │   └── tests/
+│   │
+│   └── employees/         # Employee management
+│       ├── __init__.py
+│       ├── admin.py
+│       ├── apps.py
+│       ├── tests.py
+│       ├── api/            # REST API endpoints
+│       │   ├── serializers.py
+│       │   └── urls.py
+│       └── migrations/
+```
+
+### 5.3. Frontend Structure
+
+```
+frontend/
+├── package.json            # NPM dependencies & scripts
+├── vite.config.js          # Vite configuration
+├── index.html             # Entry HTML file
+├── public/                # Static assets
+│   └── models/           # ML models for face detection
+│       ├── face_expression_model-*
+│       ├── face_landmark_68_model-*
+│       └── tiny_face_detector_model-*
+│
+└── src/
+    ├── index.jsx          # React entry point
+    ├── index.css          # Global styles
+    ├── App.jsx            # Main application component
+    │
+    ├── asset/           # Static assets
+    │   └── logo.jpg
+    │
+    ├── components/      # Reusable components
+    │   ├── Header.jsx
+    │   ├── Sidebar.jsx
+    │   ├── Modal.jsx
+    │   ├── Navbar.jsx
+    │   ├── NotificationBell.jsx
+    │   ├── Toast.jsx
+    │   ├── FaceCaptureDialog.jsx
+    │   ├── ResponsiveDashboard.jsx
+    │   └── dashboard/     # Dashboard-specific components
+    │       ├── DashboardPage.jsx
+    │       ├── DashboardStatCard.jsx
+    │       └── index.js
+    │
+    ├── context/         # React contexts
+    │   └── NotificationContext.jsx
+    │
+    ├── layout/          # Layout components
+    │   └── MainLayout.jsx
+    │
+    ├── pages/           # Page components
+    │   ├── Login.jsx
+    │   ├── EmployeeDashboard.jsx
+    │   ├── ManagerDashboard.jsx
+    │   ├── HRPanel.jsx
+    │   ├── AdminPanel.jsx
+    │   ├── UserManagement.jsx
+    │   ├── Departments.jsx
+    │   ├── Biometrics.jsx
+    │   ├── Settings.jsx
+    │   ├── Reports.jsx
+    │   ├── Shifts.jsx
+    │   ├── Attendance.jsx
+    │   ├── AttendanceOverview.jsx
+    │   ├── AttendanceSessions.jsx
+    │   ├── Config.jsx
+    │   ├── FaceCamera.jsx
+    │   └── __tests__/     # Page tests
+    │       └── Login.test.jsx
+    │
+    ├── services/        # API services
+    │   ├── api.service.js
+    │   └── __tests__/     # Service tests
+    │       └── api.service.test.js
+    │
+    ├── styles/          # CSS styles
+    │   ├── global.css
+    │   ├── employee-dashboard.css
+    │   ├── admin-dashboard.css
+    │   ├── settings.css
+    │   ├── shifts.css
+    │   └── responsive-layout.css
+    │
+    ├── test/            # Test utilities
+    │   └── setup.js
+    │
+    └── utils/           # Utility functions
+        └── __tests__/     # Utility tests
+            └── helpers.test.js
+```
+
+### 5.4. Documentation Structure
+
+```
+docs/
+├── FSE.md                  # Functional Specification
+└── SRS.md                  # Software Requirements Specification
+```
+
+---
+
+## 6. Quick Start
+
+### 6.1. Backend Setup
+
+```bash
+cd backend
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
+```
+
+### 6.2. Frontend Setup
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### 6.3. Running Tests
+
+```bash
+cd frontend
+npm install
+npm run test        # Run tests with UI
+npm run test:run    # Run tests in CLI mode
+```
+
+---
+
+## 7. Technology Stack
+
+| Layer | Technology |
+| :---- | :--------- |
+| **Frontend** | React 18, Material-UI 7, React Router 6, date-fns |
+| **Backend** | Django 4.2, Django REST Framework |
+| **Database** | PostgreSQL |
+| **Authentication** | JWT (SimpleJWT) |
+| **Biometrics** | InsightFace 0.7.3, OpenCV, NumPy |
+| **Testing** | Vitest, Testing Library |
+| **Build Tool** | Vite 5 |
+
+---
+
+_Document Author: CPAMS Development Team_
+_Date: February 2025_
+
