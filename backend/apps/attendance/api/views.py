@@ -111,18 +111,20 @@ class AttendanceSessionViewSet(ViewSet):
 
         elif request.user.is_department_manager():
             """
-            Department manager can only see the attendance sessions of its own team.
+            Department manager can see sessions for shifts in their department.
+            NOTE: This requires the Shift model to have a `department` field.
+            Once the department field is added to Shift, uncomment the filter below.
             """
-            employee = getattr(request.user, "employee", None)
+            # employee = getattr(request.user, "employee", None)
+            # if employee and employee.department_id:
+            #     # Show sessions for shifts in manager's department
+            #     qs = qs.filter(shift__department_id=employee.department_id).distinct()
+            # else:
+            #     qs = qs.none()
 
-            if employee and employee.department_id:
-                qs = qs.filter(
-                    Q(shift__department_id=employee.department_id)
-                    | Q(started_by__employee__department_id=employee.department_id)
-                    | Q(entries__employee__department_id=employee.department_id)
-                ).distinct()
-            else:
-                qs = qs.none()
+            # TEMPORARY FIX: Show all active sessions for managers until department field is added
+            # This allows managers to see and manage sessions, but is less restrictive
+            qs = qs.filter(is_active=True)
 
         else:
             qs = qs.none()

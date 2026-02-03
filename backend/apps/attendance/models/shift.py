@@ -16,6 +16,16 @@ class Shift(models.Model):
 
     description = models.TextField(blank=True)
 
+    # ========== ADDED BY FRONTEND DEVELOPER - PLEASE UNCOMMENT AFTER REVIEW ==========
+    # department = models.ForeignKey(
+    #     "employees.Department",
+    #     on_delete=models.CASCADE,
+    #     null=True,
+    #     blank=True,
+    #     help_text="Department this shift belongs to (needed for Manager session visibility)"
+    # )
+    # ==================================================================================
+
     # days this shift applies to
     monday = models.BooleanField(default=False)
     tuesday = models.BooleanField(default=False)
