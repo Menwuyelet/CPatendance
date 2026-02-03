@@ -5,10 +5,10 @@ import path from 'path';
 
 // Check for HTTPS certificates
 const certDir = path.resolve(__dirname, 'cert');
-const hasHttps = fs.existsSync(path.join(certDir, 'cert.pem')) && 
+const hasHttps = fs.existsSync(path.join(certDir, 'cert.pem')) &&
                  fs.existsSync(path.join(certDir, 'key.pem'));
 
-const https = hasHttps ? {
+const httpsConfig = hasHttps ? {
   cert: fs.readFileSync(path.join(certDir, 'cert.pem')),
   key: fs.readFileSync(path.join(certDir, 'key.pem')),
 } : undefined;
@@ -16,18 +16,18 @@ const https = hasHttps ? {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
-  const proxyTarget =
-    env.VITE_PROXY_TARGET ||
-    env.VITE_BACKEND_URL ||
-    'http://127.0.0.1:8000';
+  const proxyTarget = env.VITE_PROXY_TARGET ||
+                      env.VITE_BACKEND_URL ||
+                      'http://127.0.0.1:8000';
 
   return {
     plugins: [react()],
 
     server: {
       port: 5174,
-      host: true, // allows access from local network / mobile testing
-      https, // Use HTTPS if certificates exist
+      host: true,           // allow access from local network / mobile testing
+      https: httpsConfig,   // use HTTPS only if certificates exist
+
       proxy: {
         '/api': {
           target: proxyTarget,
@@ -36,10 +36,11 @@ export default defineConfig(({ mode }) => {
           configure: (proxy) => {
             proxy.on('error', (err, req) => {
               console.error(
-                `[vite proxy] Error proxying ${req.url} → ${proxyTarget}`,
+                `[vite proxy] Error proxying ${req.method} ${req.url} → ${proxyTarget}`,
                 err?.code || err.message
               );
             });
+
             proxy.on('proxyReq', (proxyReq, req) => {
               console.log(
                 `[vite proxy] ${req.method} ${req.url} → ${proxyTarget}${req.url}`
@@ -48,10 +49,26 @@ export default defineConfig(({ mode }) => {
           },
         },
       },
+
+      // Uncomment if you want to disable the red error overlay in browser
+      // hmr: { overlay: false },
     },
 
     optimizeDeps: {
-      include: ['@remix-run/router', 'react-router-dom'],
+      include: [
+        '@mui/material',
+        '@mui/icons-material',
+        '@mui/x-date-pickers',
+        '@emotion/react',
+        '@emotion/styled',
+        'dayjs',                    // if using AdapterDayjs
+        '@remix-run/router',
+        'react-router-dom',
+      ],
+      exclude: [
+        'moment',
+        'moment-timezone',
+      ],
     },
 
     esbuild: {

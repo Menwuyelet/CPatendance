@@ -1,6 +1,6 @@
 // src/context/NotificationContext.jsx
-import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
-import { Snackbar, Alert } from '@mui/material'; // ← added for visible toasts
+import React, { createContext, useContext, useState, useCallback, useMemo, useRef } from 'react';
+import { Snackbar, Alert } from '@mui/material';
 
 const NotificationContext = createContext(null);
 
@@ -14,14 +14,21 @@ export const NotificationProvider = ({ children }) => {
   const [snackOpen, setSnackOpen] = useState(false);
   const [snackMessage, setSnackMessage] = useState('');
   const [snackSeverity, setSnackSeverity] = useState('success');
+  const [snackId, setSnackId] = useState(0);
+  
+  // Ref to track current snack for rapid updates
+  const currentSnackRef = useRef({ message: '', severity: 'success', id: 0 });
 
   const addNotification = useCallback((message, severity = 'success') => {
+    // Create a unique ID for this notification
+    const id = Date.now() + Math.random();
+    
+    // Update the ref for potential rapid updates
+    currentSnackRef.current = { message, severity, id };
+    
     setNotifications(prev => {
-      // Prevent exact duplicates
-      if (prev.some(n => n.message === message && !n.read)) return prev;
-
       const newNotif = {
-        id: Date.now() + Math.random(),
+        id,
         message,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         date: new Date().toLocaleDateString('en-GB'),
@@ -32,10 +39,15 @@ export const NotificationProvider = ({ children }) => {
       return [newNotif, ...prev].slice(0, 50); // Keep max 50 notifications
     });
 
-    // Show visible Snackbar
-    setSnackMessage(message);
-    setSnackSeverity(severity);
-    setSnackOpen(true);
+    // Show visible Snackbar with a slight delay to ensure state is updated
+    // Use timeout to prevent batching issues
+    setTimeout(() => {
+      // Always update snackbar for new notification
+      setSnackMessage(message);
+      setSnackSeverity(severity);
+      setSnackId(id);
+      setSnackOpen(true);
+    }, 10);
   }, []);
 
   const markAsRead = useCallback((id) => {
@@ -77,12 +89,20 @@ export const NotificationProvider = ({ children }) => {
       {children}
 
       <Snackbar
-        key={snackMessage}
+        key={snackId}
         open={snackOpen}
         autoHideDuration={6000}
         onClose={handleSnackClose}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        sx={{ '& .MuiSnackbar-root': { position: 'fixed', zIndex: 9999, bottom: '24px', left: '50%', transform: 'translateX(-50%)' } }}
+        sx={{ 
+          '& .MuiSnackbar-root': { 
+            position: 'fixed', 
+            zIndex: 99999, 
+            bottom: '24px', 
+            left: '50%', 
+            transform: 'translateX(-50%)' 
+          } 
+        }}
       >
         <Alert 
           onClose={handleSnackClose} 

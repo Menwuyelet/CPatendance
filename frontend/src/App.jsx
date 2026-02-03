@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useCallback, useMemo, lazy, Suspense } from 'react';
 import { api } from './services/api.service.js';
-import { NotificationProvider } from './context/NotificationContext';
+import { NotificationProvider, useNotifications } from './context/NotificationContext';
 
 // Core components loaded immediately
 import Sidebar from './components/Sidebar.jsx';
@@ -39,19 +39,17 @@ function App() {
   const navigate = useNavigate();
   const [user, setUser] = useState({ role: null, name: '' });
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState({ message: '', type: 'success' });
   const [notifications, setNotifications] = useState([]); // recent notifications for header
+  const { addNotification } = useNotifications();
 
   const notify = useCallback((message, type = 'success') => {
     if (!message) return;
-    setToast({ message, type });
-    // Store last 20 notifications (newest first)
+    addNotification(message, type);
     setNotifications((prev) => [
       { id: Date.now(), message, type, time: new Date().toISOString() },
       ...prev,
     ].slice(0, 20));
-    setTimeout(() => setToast({ message: '', type: 'success' }), 3000);
-  }, []);
+  }, [addNotification]);
 
   // Check auth on load/refresh
   useEffect(() => {
@@ -143,7 +141,6 @@ return (
               userName={user.name}
               notifications={notifications}
               onLogout={handleLogout}
-              toast={toast}
             />
           }
         >

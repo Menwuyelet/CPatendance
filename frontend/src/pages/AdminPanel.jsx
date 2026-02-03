@@ -10,6 +10,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api.service.js';
+import '../styles/admin-dashboard.css';
 
 /* ----------------------------- Professional Card Design ----------------------------- */
 const StyledCard = ({ children, theme }) => (
@@ -24,10 +25,9 @@ const StyledCard = ({ children, theme }) => (
     boxShadow: theme.palette.mode === 'dark'
       ? '0 8px 32px rgba(0,0,0,0.3)'
       : '0 8px 32px rgba(0,0,0,0.05)',
-    transition: 'transform 0.2s ease-in-out',
+    transition: 'box-shadow 0.2s ease',
     '&:hover': {
-      transform: 'translateY(-4px)',
-      boxShadow: `0 12px 40px ${alpha(theme.palette.primary.main, 0.15)}`,
+      boxShadow: `0 4px 20px ${alpha(theme.palette.primary.main, 0.12)}`,
     }
   }}>
     {children}
@@ -46,18 +46,74 @@ const AdminPanel = ({ onNotify }) => {
     depts: 0
   });
 
+  // Excess shifts state
+  const [excessShiftEmployees, setExcessShiftEmployees] = useState([]);
+  const MAX_SHIFTS_PER_DAY = 2;
+
+  // Detect employees with excess shifts
+  const detectExcessShifts = useCallback((employeeShifts, shifts) => {
+    const excessEmployees = [];
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+    const shiftsByEmployee = {};
+    employeeShifts.forEach(assignment => {
+      const employeeId = assignment.employee?.id || assignment.employee;
+      if (!shiftsByEmployee[employeeId]) {
+        shiftsByEmployee[employeeId] = {
+          employee: assignment.employee,
+          excessDays: []
+        };
+      }
+
+      days.forEach(day => {
+        if (assignment.shift && assignment.shift[day]) {
+          const shiftsOnDay = employeeShifts.filter(a => {
+            const empId = a.employee?.id || a.employee;
+            return empId === employeeId && a.shift && a.shift[day];
+          });
+
+          if (shiftsOnDay.length > MAX_SHIFTS_PER_DAY) {
+            const dayName = day.charAt(0).toUpperCase() + day.slice(1);
+            if (!shiftsByEmployee[employeeId].excessDays.includes(dayName)) {
+              shiftsByEmployee[employeeId].excessDays.push(dayName);
+            }
+          }
+        }
+      });
+    });
+
+    Object.values(shiftsByEmployee).forEach(data => {
+      if (data.excessDays.length > 0) {
+        excessEmployees.push({
+          employee: data.employee,
+          excessDays: data.excessDays
+        });
+      }
+    });
+
+    return excessEmployees;
+  }, []);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [empRes, attRes, depRes] = await Promise.all([
-        api.get('/employees/employees/'),
-        api.get('/attendance/attendance/'),
-        api.getAllDepartments(),
+      const [empRes, attRes, depRes, shiftsRes, empShiftsRes] = await Promise.all([
+        api.get('/employees/employees/').catch(() => []),
+        api.get('/attendance/attendance/').catch(() => []),
+        api.getAllDepartments().catch(() => []),
+        api.get('/attendance/shifts/').catch(() => []),
+        api.listEmployeeShifts().catch(() => []),
       ]);
 
-      const employees = empRes?.data || empRes || [];
-      const attendance = attRes?.data || attRes || [];
-      const departments = depRes?.data || depRes || [];
+      const employees = Array.isArray(empRes) ? empRes : empRes?.data || empRes?.results || [];
+      const attendance = Array.isArray(attRes) ? attRes : attRes?.data || attRes?.results || [];
+      const departments = Array.isArray(depRes) ? depRes : depRes?.data || depRes?.results || [];
+      const shifts = Array.isArray(shiftsRes) ? shiftsRes : shiftsRes?.data || shiftsRes?.results || [];
+      const employeeShifts = Array.isArray(empShiftsRes) ? empShiftsRes : empShiftsRes?.data || empShiftsRes?.results || [];
+
+      // Detect excess shifts
+      const excessShifts = detectExcessShifts(employeeShifts, shifts);
+      setExcessShiftEmployees(excessShifts);
 
       // Logic for actual data
       const today = new Date().toISOString().slice(0, 10);
@@ -74,9 +130,18 @@ const AdminPanel = ({ onNotify }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [detectExcessShifts]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Notify when excess shifts are detected
+  useEffect(() => {
+    if (excessShiftEmployees.length > 0 && !loading) {
+      const firstExcess = excessShiftEmployees[0];
+      const message = `⚠️ ${firstExcess.employee?.full_name || 'An employee'} has ${firstExcess.excessDays.length > 3 ? 'excess shifts' : 'more than 2 shifts on ' + firstExcess.excessDays.join(', ')}`;
+      onNotify?.(message, 'warning');
+    }
+  }, [excessShiftEmployees, loading, onNotify]);
 
   return (
     <Box sx={{ 
@@ -85,11 +150,10 @@ const AdminPanel = ({ onNotify }) => {
       maxWidth: '100vw', 
       overflowX: 'hidden', // Essential fix for the right-side gap
       bgcolor: 'background.default',
-      transition: 'background 0.3s ease',
-      // Dynamic background based on light/dark mode
+      // Dynamic background - only for dark mode
       backgroundImage: theme.palette.mode === 'dark' 
         ? `radial-gradient(at 0% 0%, ${alpha(theme.palette.primary.main, 0.1)} 0px, transparent 50%)`
-        : `radial-gradient(at 0% 0%, ${alpha(theme.palette.primary.main, 0.05)} 0px, transparent 50%)`,
+        : 'none',
     }}>
       <Container maxWidth="xl" sx={{ py: { xs: 2, sm: 3, md: 5 }, px: { xs: 1, sm: 2, md: 3 } }}>
         
@@ -165,8 +229,8 @@ const AdminPanel = ({ onNotify }) => {
                   onClick={() => navigate(item.path)}
                   sx={{
                     p: 3, borderRadius: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    bgcolor: alpha(item.color, 0.05), border: '1px solid transparent', transition: '0.2s',
-                    '&:hover': { borderColor: item.color, bgcolor: alpha(item.color, 0.1) }
+                    bgcolor: alpha(item.color, 0.05), border: '1px solid transparent', transition: 'border-color 0.15s ease, background-color 0.15s ease',
+                    '&:hover': { borderColor: item.color, bgcolor: alpha(item.color, 0.08) }
                   }}
                 >
                   <Stack direction="row" spacing={2} alignItems="center">

@@ -101,6 +101,59 @@ const HRDashboard = ({ onNotify }) => {
   const [filterSessionStatus, setFilterSessionStatus] = useState('ALL');
   const [filterSessionDate, setFilterSessionDate] = useState('');
 
+  // Excess shifts state
+  const [excessShiftEmployees, setExcessShiftEmployees] = useState([]);
+  const MAX_SHIFTS_PER_DAY = 2;
+
+  // Detect employees with excess shifts
+  const detectExcessShifts = useCallback((employeeShifts, shifts) => {
+    const excessEmployees = [];
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+    // Group shifts by employee
+    const shiftsByEmployee = {};
+    employeeShifts.forEach(assignment => {
+      const employeeId = assignment.employee?.id || assignment.employee;
+      if (!shiftsByEmployee[employeeId]) {
+        shiftsByEmployee[employeeId] = {
+          employee: assignment.employee,
+          excessDays: []
+        };
+      }
+
+      // Check each day for this shift
+      days.forEach(day => {
+        if (assignment.shift && assignment.shift[day]) {
+          // Count all shifts on this day for this employee
+          const shiftsOnDay = employeeShifts.filter(a => {
+            const empId = a.employee?.id || a.employee;
+            return empId === employeeId && a.shift && a.shift[day];
+          });
+
+          if (shiftsOnDay.length > MAX_SHIFTS_PER_DAY) {
+            const dayName = day.charAt(0).toUpperCase() + day.slice(1);
+            if (!shiftsByEmployee[employeeId].excessDays.includes(dayName)) {
+              shiftsByEmployee[employeeId].excessDays.push(dayName);
+            }
+          }
+        }
+      });
+    });
+
+    // Collect employees with excess shifts
+    Object.values(shiftsByEmployee).forEach(data => {
+      if (data.excessDays.length > 0) {
+        excessEmployees.push({
+          employee: data.employee,
+          excessDays: data.excessDays,
+          message: `${data.employee?.full_name || 'Unknown'} has ${data.excessDays.length > 3 ? 'excess shifts' : data.excessDays.join(', ')} with more than ${MAX_SHIFTS_PER_DAY} shifts per day`
+        });
+      }
+    });
+
+    return excessEmployees;
+  }, []);
+
   // Fetch HR data function
   const fetchHRData = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
@@ -116,15 +169,23 @@ const HRDashboard = ({ onNotify }) => {
       const attendanceRes = await api.get('/attendance/attendance/').catch(() => ({ results: [] }));
       const departmentsRes = await api.get('/employees/departments/').catch(() => ({ results: [] }));
       const sessionsRes = await api.listAttendanceSessions({}).catch(() => []);
+      const shiftsRes = await api.get('/attendance/shifts/').catch(() => []);
+      const employeeShiftsRes = await api.listEmployeeShifts().catch(() => []);
 
       const employeesData = Array.isArray(employeesRes) ? employeesRes : employeesRes?.results || [];
       const attendanceData = Array.isArray(attendanceRes) ? attendanceRes : attendanceRes?.results || [];
       const departmentsList = Array.isArray(departmentsRes) ? departmentsRes : departmentsRes?.results || [];
+      const shiftsData = Array.isArray(shiftsRes) ? shiftsRes : shiftsRes?.results || [];
+      const employeeShiftsData = Array.isArray(employeeShiftsRes) ? employeeShiftsRes : employeeShiftsRes?.results || [];
 
       setEmployees(employeesData);
       setAttendanceRecords(attendanceData);
       setDepartments(departmentsList);
       setSessions(Array.isArray(sessionsRes) ? sessionsRes : []);
+
+      // Detect excess shifts
+      const excessShifts = detectExcessShifts(employeeShiftsData, shiftsData);
+      setExcessShiftEmployees(excessShifts);
 
       // Calculate statistics
       const totalEmployees = employeesData.length;
@@ -191,7 +252,16 @@ const HRDashboard = ({ onNotify }) => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [onNotify]);
+  }, [onNotify, detectExcessShifts]);
+
+  // Notify when excess shifts are detected
+  useEffect(() => {
+    if (excessShiftEmployees.length > 0 && !loading) {
+      const firstExcess = excessShiftEmployees[0];
+      const message = `⚠️ ${firstExcess.employee?.full_name || 'An employee'} has ${firstExcess.excessDays.length > 3 ? 'excess shifts' : 'more than 2 shifts on ' + firstExcess.excessDays.join(', ')}`;
+      onNotify?.(message, 'warning');
+    }
+  }, [excessShiftEmployees, loading, onNotify]);
 
   // Load clock-in state
   const loadClockInState = useCallback(async () => {
