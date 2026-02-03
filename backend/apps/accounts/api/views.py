@@ -3,7 +3,6 @@
 This file contains the views for the accounts app.
 """
 
-from accounts.permissions.hr_or_manager import IsHRorManager
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -14,7 +13,7 @@ from accounts.models import User
 from accounts.constants import Roles
 from .serializers import UserSerializer, UserCreateSerializer, UserUpdateSerializer
 from accounts.services.user_service import create_user, update_user, get_users_for_user
-from accounts.permissions import IsAdmin
+from accounts.permissions import IsAdmin, IsHRManagerOrAdmin
 from .serializers import CustomTokenObtainPairSerializer
 
 
@@ -31,7 +30,7 @@ class UserViewSet(viewsets.ModelViewSet):
     """
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsAuthenticated | IsAdmin | IsHRorManager]
+    permission_classes = [IsAuthenticated, IsHRManagerOrAdmin]
 
     def get_queryset(self):
         """Return the set of users visible to the requesting user."""

@@ -12,7 +12,7 @@ from rest_framework.pagination import PageNumberPagination
 from employees.models import Employee, Department
 from .serializers import EmployeeSerializer, EmployeeUpdateSerializer, DepartmentSerializer
 from employees.services.employee_service import update_employee, get_employees_for_user
-from accounts.permissions import IsAdmin, IsHRorManager
+from accounts.permissions import IsAdmin, IsHRorManager, IsHRManagerOrAdmin
 
 
 class DepartmentViewSet(viewsets.ModelViewSet):
@@ -23,7 +23,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     semantics instead of the default AND behaviour for multiple permission
     classes.
     """
-    permission_classes = [IsAuthenticated, IsHRorManager | IsAdmin]
+    permission_classes = [IsAuthenticated, IsHRManagerOrAdmin]
     def get_permissions(self):
         """Adjust permissions for mutating department endpoints.
 

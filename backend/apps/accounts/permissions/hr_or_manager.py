@@ -15,3 +15,18 @@ class IsHRorManager(BasePermission):
             user_has_role(request.user, "HR") or
             user_has_role(request.user, "MANAGER")
         )
+
+
+class IsHRManagerOrAdmin(BasePermission):
+    """Allow access to users who are HR, MANAGER, or ADMIN.
+    
+    This permission class implements OR logic between IsHRorManager and IsAdmin.
+    """
+
+    def has_permission(self, request, view):
+        """Return True when `request.user` is HR, MANAGER, or ADMIN."""
+        # First check if user is HR or Manager
+        if user_has_role(request.user, "HR") or user_has_role(request.user, "MANAGER"):
+            return True
+        # Then check if user is Admin
+        return user_has_role(request.user, "ADMIN")
