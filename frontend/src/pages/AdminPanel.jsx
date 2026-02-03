@@ -148,11 +148,12 @@ const AdminPanel = ({ onNotify }) => {
       minHeight: '100vh', 
       width: '100%',
       maxWidth: '100vw', 
-      overflowX: 'hidden', // Essential fix for the right-side gap
-      bgcolor: 'background.default',
+      overflowX: 'hidden',
+      // Explicit background color - works in both modes
+      bgcolor: theme.palette.mode === 'dark' ? '#0a0a0a' : '#f5f5f5',
       // Dynamic background - only for dark mode
       backgroundImage: theme.palette.mode === 'dark' 
-        ? `radial-gradient(at 0% 0%, ${alpha(theme.palette.primary.main, 0.1)} 0px, transparent 50%)`
+        ? `radial-gradient(at 0% 0%, ${alpha(theme.palette.primary.main, 0.15)} 0px, transparent 50%)`
         : 'none',
     }}>
       <Container maxWidth="xl" sx={{ py: { xs: 2, sm: 3, md: 5 }, px: { xs: 1, sm: 2, md: 3 } }}>

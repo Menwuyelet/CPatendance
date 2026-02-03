@@ -1,8 +1,12 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { Badge, IconButton } from '@mui/material';
+import { Notifications } from '@mui/icons-material';
+import { useNotifications } from '../context/NotificationContext';
 
 const Navbar = ({ role, onLogout, theme = 'dark', onToggleTheme }) => {
   const location = useLocation();
+  const { unreadCount } = useNotifications() || {};
 
   return (
     <header className="navbar">
@@ -18,6 +22,13 @@ const Navbar = ({ role, onLogout, theme = 'dark', onToggleTheme }) => {
         >
           {theme === 'dark' ? 'Light mode' : 'Dark mode'}
         </button>
+        {unreadCount > 0 && (
+          <IconButton color="inherit" sx={{ ml: 1 }}>
+            <Badge badgeContent={unreadCount} color="error">
+              <Notifications />
+            </Badge>
+          </IconButton>
+        )}
         {role ? (
           <>
             <span className="navbar-role">Role: {role}</span>

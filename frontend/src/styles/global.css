@@ -1,285 +1,314 @@
 /* Global CSS Styles for CPatendance */
 
-/* Dark Mode - Professional & Complete */
-body.dark-mode {
-  background-color: #121212;
-  color: #e0e0e0;
+/* TRUE BLACK Dark Mode - Default Theme */
+body {
+  background-color: #0a0a0a;
+  color: #ffffff;
+  font-family: 'Roboto', 'Helvetica', 'Arial', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-body.dark-mode .MuiCard-root {
-  background-color: #1e1e1e;
-  border: 1px solid #333;
+/* LIGHT MODE - Body and text colors */
+[data-theme="light"] body,
+:root[data-theme="light"] body {
+  background-color: #f5f5f5;
+  color: #1a1a1a;
 }
 
-body.dark-mode .MuiPaper-root {
-  background-color: #1e1e1e;
-  border: 1px solid #333;
+/* MUI Component Dark Mode Overrides */
+.MuiCard-root {
+  background-color: #141414;
+  border: 1px solid #2a2a2a;
 }
 
-body.dark-mode .MuiTypography-root {
-  color: #e0e0e0;
+.MuiPaper-root {
+  background-color: #141414;
+  border: 1px solid #2a2a2a;
 }
 
-body.dark-mode .MuiTypography-color primary {
+.MuiTypography-root {
+  color: #ffffff;
+}
+
+/* LIGHT MODE - MUI Component Overrides */
+[data-theme="light"] .MuiCard-root,
+:root[data-theme="light"] .MuiCard-root {
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+}
+
+[data-theme="light"] .MuiPaper-root,
+:root[data-theme="light"] .MuiPaper-root {
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+}
+
+[data-theme="light"] .MuiTypography-root,
+:root[data-theme="light"] .MuiTypography-root {
+  color: #1a1a1a;
+}
+
+[data-theme="light"] .MuiTypography-colorPrimary,
+:root[data-theme="light"] .MuiTypography-colorPrimary {
   color: #cc0000;
 }
 
-body.dark-mode .MuiTypography-color secondary {
-  color: #aaa;
+[data-theme="light"] .MuiTypography-colorSecondary,
+:root[data-theme="light"] .MuiTypography-colorSecondary {
+  color: #666666;
 }
 
-body.dark-mode .MuiTextField-root,
-body.dark-mode .MuiOutlinedInput-root {
-  background-color: #2d2d2d;
+.MuiTypography-colorPrimary {
+  color: #cc0000;
+}
+
+.MuiTypography-colorSecondary {
+  color: #a0a0a0;
+}
+
+.MuiTextField-root,
+.MuiOutlinedInput-root {
+  background-color: #1a1a1a;
   border-radius: 8px;
 }
 
-body.dark-mode .MuiOutlinedInput-notchedOutline {
-  border-color: #444;
+.MuiOutlinedInput-notchedOutline {
+  border-color: #333333;
 }
 
-body.dark-mode .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
-  border-color: #666;
+.MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: #444444;
 }
 
-body.dark-mode .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+.MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
   border-color: #cc0000;
 }
 
-body.dark-mode .MuiInputLabel-root {
-  color: #aaa;
+.MuiInputLabel-root {
+  color: #a0a0a0;
 }
 
-body.dark-mode .MuiInputLabel-root.Mui-focused {
+.MuiInputLabel-root.Mui-focused {
   color: #cc0000;
 }
 
-body.dark-mode .MuiTableCell-root {
-  background-color: #1e1e1e;
-  color: #e0e0e0;
-  border-color: #333;
+.MuiTableCell-root {
+  background-color: #141414;
+  color: #ffffff;
+  border-color: #2a2a2a;
 }
 
-body.dark-mode .MuiTableCell-head {
-  background-color: #252525;
-  color: #fff;
+.MuiTableCell-head {
+  background-color: #1a1a1a;
+  color: #ffffff;
   font-weight: 600;
 }
 
-body.dark-mode .MuiTableRow-hover:hover {
-  background-color: #252525;
+.MuiTableRow-hover:hover {
+  background-color: #1a1a1a;
 }
 
-body.dark-mode .MuiChip-root {
-  background-color: #333;
-  color: #e0e0e0;
+.MuiChip-root {
+  background-color: #1a1a1a;
+  color: #ffffff;
+  border: 1px solid #333333;
 }
 
-body.dark-mode .MuiAlert-root {
-  background-color: #2d2d2d;
-  color: #e0e0e0;
-  border: 1px solid #444;
+.MuiAlert-root {
+  background-color: #1a1a1a;
+  color: #ffffff;
+  border: 1px solid #333333;
 }
 
-body.dark-mode .MuiDialog-paper {
-  background-color: #1e1e1e;
-  color: #e0e0e0;
+.MuiDialog-paper {
+  background-color: #141414;
+  color: #ffffff;
 }
 
-body.dark-mode .MuiSelect-select {
-  background-color: #2d2d2d;
-  color: #e0e0e0;
+.MuiSelect-select {
+  background-color: #1a1a1a;
+  color: #ffffff;
 }
 
-body.dark-mode .MuiListItemButton-root:hover {
-  background-color: #252525;
+.MuiListItemButton-root:hover {
+  background-color: #1a1a1a;
 }
 
-body.dark-mode .MuiDrawer-paper {
-  background-color: #1e1e1e;
-  border-right: 1px solid #333;
+.MuiDrawer-paper {
+  background-color: #0a0a0a;
+  border-right: 1px solid #2a2a2a;
 }
 
-body.dark-mode .MuiAppBar-root {
-  background-color: #1e1e1e;
-  border-bottom: 1px solid #333;
+.MuiAppBar-root {
+  background-color: #0a0a0a;
+  border-bottom: 1px solid #2a2a2a;
 }
 
-body.dark-mode .MuiButton-root {
-  color: #e0e0e0;
+.MuiButton-root {
+  color: #ffffff;
 }
 
-body.dark-mode .MuiButton-contained {
+.MuiButton-contained {
   background-color: #cc0000;
   color: #ffffff;
 }
 
-body.dark-mode .MuiButton-contained:hover {
-  background-color: #990000;
+.MuiButton-contained:hover {
+  background-color: #dd3333;
 }
 
-body.dark-mode .MuiButton-outlined {
+.MuiButton-outlined {
   border-color: #cc0000;
   color: #cc0000;
 }
 
-body.dark-mode .MuiButton-outlined:hover {
+.MuiButton-outlined:hover {
   background-color: rgba(204, 0, 0, 0.1);
 }
 
-body.dark-mode .MuiIconButton-root {
-  color: #e0e0e0;
+.MuiIconButton-root {
+  color: #ffffff;
 }
 
-body.dark-mode .MuiIconButton-root:hover {
-  background-color: #333;
+.MuiIconButton-root:hover {
+  background-color: #1a1a1a;
 }
 
-body.dark-mode .MuiAvatar-root {
+/* Light Mode - IconButton */
+[data-theme="light"] .MuiIconButton-root,
+:root[data-theme="light"] .MuiIconButton-root {
+  color: #333;
+}
+
+[data-theme="light"] .MuiIconButton-root:hover,
+:root[data-theme="light"] .MuiIconButton-root:hover {
+  background-color: #f0f0f0;
+}
+
+/* Light Mode - Badge */
+[data-theme="light"] .MuiBadge-badge,
+:root[data-theme="light"] .MuiBadge-badge {
+  background-color: #d32f2f;
+  color: #ffffff;
+}
+
+.MuiAvatar-root {
   background-color: #cc0000;
   color: #ffffff;
 }
 
-body.dark-mode .MuiDivider-root {
-  border-color: #333;
+.MuiDivider-root {
+  border-color: #2a2a2a;
 }
 
-body.dark-mode .MuiLinearProgress-root {
-  background-color: #333;
+.MuiLinearProgress-root {
+  background-color: #1a1a1a;
 }
 
-body.dark-mode .MuiCircularProgress-root {
+.MuiCircularProgress-root {
   color: #cc0000;
 }
 
-body.dark-mode .MuiTabs-indicator {
+.MuiTabs-indicator {
   background-color: #cc0000;
 }
 
-body.dark-mode .MuiTab-root {
-  color: #aaa;
+.MuiTab-root {
+  color: #a0a0a0;
 }
 
-body.dark-mode .MuiTab-root.Mui-selected {
+.MuiTab-root.Mui-selected {
   color: #cc0000;
 }
 
-body.dark-mode .MuiSwitch-track {
-  background-color: #444;
+.MuiSwitch-track {
+  background-color: #1a1a1a;
 }
 
-body.dark-mode .MuiSwitch-thumb {
+.MuiSwitch-thumb {
   background-color: #cc0000;
 }
 
-body.dark-mode ::-webkit-scrollbar-track {
-  background: #252525;
+.MuiTooltip-tooltip {
+  background-color: #1a1a1a;
+  color: #ffffff;
 }
 
-body.dark-mode ::-webkit-scrollbar-thumb {
-  background: #444;
+.MuiPopover-paper {
+  background-color: #141414;
+  color: #ffffff;
+}
+
+.MuiMenu-paper {
+  background-color: #141414;
+  color: #ffffff;
+}
+
+.MuiMenuItem-root:hover {
+  background-color: #1a1a1a;
+}
+
+.MuiFilledInput-root {
+  background-color: #1a1a1a;
+}
+
+.MuiFilledInput-underline:before {
+  border-bottom-color: #333333;
+}
+
+.MuiFilledInput-underline:hover:before {
+  border-bottom-color: #444444;
+}
+
+.MuiFilledInput-underline.Mui-focused:before {
+  border-bottom-color: #cc0000;
+}
+
+.MuiRadio-root {
+  color: #a0a0a0;
+}
+
+.MuiRadio-root.Mui-checked {
+  color: #cc0000;
+}
+
+.MuiCheckbox-root {
+  color: #a0a0a0;
+}
+
+.MuiCheckbox-root.Mui-checked {
+  color: #cc0000;
+}
+
+/* Scrollbar Styling - Dark */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333333;
   border-radius: 4px;
 }
 
-body.dark-mode ::-webkit-scrollbar-thumb:hover {
-  background: #555;
+::-webkit-scrollbar-thumb:hover {
+  background: #444444;
 }
 
-/* Dark Mode Link Styles */
-body.dark-mode a {
+/* Link Styles - Dark */
+a {
   color: #cc0000;
+  text-decoration: none;
 }
 
-body.dark-mode a:hover {
+a:hover {
   color: #ff3333;
-}
-
-/* Sepia Theme */
-body.sepia-mode {
-  background-color: #f4ecd8;
-  color: #5c4b37;
-}
-
-body.sepia-mode .MuiCard-root {
-  background-color: #fffbf0;
-}
-
-body.sepia-mode .MuiPaper-root {
-  background-color: #fffbf0;
-}
-
-body.sepia-mode .MuiTypography-root {
-  color: #5c4b37;
-}
-
-body.sepia-mode .MuiTextField-root,
-body.sepia-mode .MuiOutlinedInput-root {
-  background-color: #f9f3e8;
-}
-
-body.sepia-mode .MuiOutlinedInput-notchedOutline {
-  border-color: #d4c4a8;
-}
-
-body.sepia-mode .MuiInputLabel-root {
-  color: #8b7355;
-}
-
-body.sepia-mode .MuiTableCell-root {
-  background-color: #fffbf0;
-  color: #5c4b37;
-  border-color: #e8dcc8;
-}
-
-body.sepia-mode .MuiTableCell-head {
-  background-color: #f5efe0;
-}
-
-body.sepia-mode .MuiTableRow-hover:hover {
-  background-color: #f5efe0;
-}
-
-body.sepia-mode .MuiChip-root {
-  background-color: #e8dcc8;
-  color: #5c4b37;
-}
-
-body.sepia-mode .MuiAlert-root {
-  background-color: #f9f3e8;
-  color: #5c4b37;
-}
-
-body.sepia-mode .MuiDialog-paper {
-  background-color: #fffbf0;
-  color: #5c4b37;
-}
-
-body.sepia-mode .MuiSelect-select {
-  background-color: #f9f3e8;
-}
-
-body.sepia-mode .MuiListItemButton-root:hover {
-  background-color: #f0e8d8;
-}
-
-body.sepia-mode .MuiDrawer-paper {
-  background-color: #fffbf0;
-}
-
-body.sepia-mode .MuiAppBar-root {
-  background-color: #fffbf0;
-}
-
-body.sepia-mode ::-webkit-scrollbar-track {
-  background: #e8dcc8;
-}
-
-body.sepia-mode ::-webkit-scrollbar-thumb {
-  background: #c4a87c;
-}
-
-body.sepia-mode ::-webkit-scrollbar-thumb:hover {
-  background: #a08060;
 }
 
 /* Base Styles */
@@ -292,41 +321,6 @@ body.sepia-mode ::-webkit-scrollbar-thumb:hover {
 html, body, #root {
   height: 100%;
   width: 100%;
-}
-
-body {
-  font-family: 'Roboto', 'Helvetica', 'Arial', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background-color: #f5f5f5;
-  color: #333;
-  transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-/* Scrollbar Styling */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
-
-/* Link Styles */
-a {
-  color: inherit;
-  text-decoration: none;
 }
 
 /* Button Focus Styles */
@@ -342,17 +336,18 @@ button:focus {
 
 .card-hover:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
 /* Table Styles */
 .table-container {
   border-radius: 8px;
   overflow: hidden;
+  border: 1px solid #2a2a2a;
 }
 
 .table-row-hover:hover {
-  background-color: rgba(204, 0, 0, 0.04);
+  background-color: rgba(204, 0, 0, 0.1);
 }
 
 /* Loading Animation */
@@ -385,13 +380,13 @@ button:focus {
 /* Badge Pulse Animation */
 @keyframes pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.4);
+    box-shadow: 0 0 0 0 rgba(204, 0, 0, 0.4);
   }
   70% {
-    box-shadow: 0 0 0 10px rgba(244, 67, 54, 0);
+    box-shadow: 0 0 0 10px rgba(204, 0, 0, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(244, 67, 54, 0);
+    box-shadow: 0 0 0 0 rgba(204, 0, 0, 0);
   }
 }
 
@@ -399,21 +394,21 @@ button:focus {
   animation: pulse 2s infinite;
 }
 
-/* Status Indicator Colors */
+/* Status Indicator Colors - Dark */
 .status-present {
-  color: #000000;
+  color: #22c55e;
 }
 
 .status-absent {
-  color: #cc0000;
+  color: #ef4444;
 }
 
 .status-late {
-  color: #333333;
+  color: #f59e0b;
 }
 
 .status-on-leave {
-  color: #cc0000;
+  color: #3b82f6;
 }
 
 /* Print Styles */
@@ -440,4 +435,176 @@ button:focus {
   body {
     font-size: 16px;
   }
+}
+
+/* Input Autofill - Dark */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #ffffff;
+  -webkit-box-shadow: 0 0 0px 1000px #1a1a1a inset;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Input Autofill - Light */
+[data-theme="light"] input:-webkit-autofill,
+[data-theme="light"] input:-webkit-autofill:hover,
+[data-theme="light"] input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #1a1a1a;
+  -webkit-box-shadow: 0 0 0px 1000px #ffffff inset;
+}
+
+/* Selection - Dark */
+::selection {
+  background-color: #cc0000;
+  color: #ffffff;
+}
+
+/* Selection - Light */
+[data-theme="light"] ::selection {
+  background-color: #cc0000;
+  color: #ffffff;
+}
+
+/* LIGHT MODE - Apply with [data-theme="light"] attribute */
+[data-theme="light"] body,
+:root[data-theme="light"] body {
+  background-color: #f5f5f5;
+  color: #333;
+}
+
+[data-theme="light"] .MuiCard-root,
+:root[data-theme="light"] .MuiCard-root {
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+}
+
+[data-theme="light"] .MuiPaper-root,
+:root[data-theme="light"] .MuiPaper-root {
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+}
+
+[data-theme="light"] .MuiTypography-root,
+:root[data-theme="light"] .MuiTypography-root {
+  color: #333;
+}
+
+[data-theme="light"] .MuiTextField-root,
+[data-theme="light"] .MuiOutlinedInput-root,
+:root[data-theme="light"] .MuiTextField-root,
+:root[data-theme="light"] .MuiOutlinedInput-root {
+  background-color: #ffffff;
+}
+
+[data-theme="light"] .MuiOutlinedInput-notchedOutline,
+:root[data-theme="light"] .MuiOutlinedInput-notchedOutline {
+  border-color: #e0e0e0;
+}
+
+[data-theme="light"] .MuiTableCell-root,
+:root[data-theme="light"] .MuiTableCell-root {
+  background-color: #ffffff;
+  color: #333;
+  border-color: #e0e0e0;
+}
+
+[data-theme="light"] .MuiTableCell-head,
+:root[data-theme="light"] .MuiTableCell-head {
+  background-color: #f5f5f5;
+  color: #000;
+}
+
+[data-theme="light"] .MuiChip-root,
+:root[data-theme="light"] .MuiChip-root {
+  background-color: #e0e0e0;
+  color: #333;
+}
+
+[data-theme="light"] .MuiAlert-root,
+:root[data-theme="light"] .MuiAlert-root {
+  background-color: #ffffff;
+  color: #333;
+  border: 1px solid #e0e0e0;
+}
+
+[data-theme="light"] .MuiDrawer-paper,
+:root[data-theme="light"] .MuiDrawer-paper {
+  background-color: #ffffff;
+  border-right: 1px solid #e0e0e0;
+}
+
+[data-theme="light"] .MuiAppBar-root,
+:root[data-theme="light"] .MuiAppBar-root {
+  background-color: #ffffff;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+[data-theme="light"] .MuiButton-root,
+:root[data-theme="light"] .MuiButton-root {
+  color: #333;
+}
+
+[data-theme="light"] .MuiIconButton-root,
+:root[data-theme="light"] .MuiIconButton-root {
+  color: #333;
+}
+
+[data-theme="light"] .MuiIconButton-root:hover,
+:root[data-theme="light"] .MuiIconButton-root:hover {
+  background-color: #f0f0f0;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-track,
+:root[data-theme="light"] ::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb,
+:root[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+}
+
+/* LIGHT MODE - Select/Dropdown Fixes */
+[data-theme="light"] .MuiSelect-select,
+:root[data-theme="light"] .MuiSelect-select {
+  background-color: #ffffff;
+  color: #1a1a1a;
+}
+
+[data-theme="light"] .MuiMenu-paper,
+:root[data-theme="light"] .MuiMenu-paper {
+  background-color: #ffffff;
+  color: #1a1a1a;
+}
+
+[data-theme="light"] .MuiMenuItem-root,
+:root[data-theme="light"] .MuiMenuItem-root {
+  color: #1a1a1a;
+}
+
+[data-theme="light"] .MuiMenuItem-root:hover,
+:root[data-theme="light"] .MuiMenuItem-root:hover {
+  background-color: #f0f0f0;
+}
+
+[data-theme="light"] .MuiPopover-paper,
+:root[data-theme="light"] .MuiPopover-paper {
+  background-color: #ffffff;
+  color: #1a1a1a;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover,
+:root[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+[data-theme="light"] a,
+:root[data-theme="light"] a {
+  color: #cc0000;
+}
+
+[data-theme="light"] a:hover,
+:root[data-theme="light"] a:hover {
+  color: #ff3333;
 }

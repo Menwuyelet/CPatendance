@@ -1,6 +1,6 @@
 /* 
  * Modern Responsive Layout System
- * Replaces problematic CSS-in-JS with clean, scalable styles
+ * Dark Mode Default with True Black Background
  */
 
 /* CSS Custom Properties for consistent theming */
@@ -21,7 +21,33 @@
   --header-height: 64px;
   --mobile-header-height: 56px;
 
-  /* Colors */
+  /* Dark Mode Colors (Default) */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #141414;
+  --bg-tertiary: #1a1a1a;
+  --text-primary: #f5f5f5;
+  --text-secondary: #e0e0e0;
+  --text-muted: #a0a0a0;
+  --border-color: #2a2a2a;
+  --accent-color: #667eea;
+  --success-color: #4ade80;
+  --warning-color: #fbbf24;
+  --error-color: #f87171;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-normal: 300ms ease;
+  --transition-slow: 500ms ease;
+}
+
+/* Light Theme Overrides */
+[data-theme="light"] {
   --bg-primary: #f8fafc;
   --bg-secondary: #ffffff;
   --bg-tertiary: #f1f5f9;
@@ -33,32 +59,10 @@
   --success-color: #10b981;
   --warning-color: #f59e0b;
   --error-color: #ef4444;
-
-  /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-
-  /* Transitions */
-  --transition-fast: 150ms ease;
-  --transition-normal: 300ms ease;
-  --transition-slow: 500ms ease;
-}
-
-/* Dark Theme Overrides */
-[data-theme="dark"] {
-  --bg-primary: #0f172a;
-  --bg-secondary: #111827;
-  --bg-tertiary: #1f2937;
-  --text-primary: #f8fafc;
-  --text-secondary: #e5e7eb;
-  --text-muted: #94a3b8;
-  --border-color: #334155;
-  --accent-color: #60a5fa;
-  --success-color: #34d399;
-  --warning-color: #fbbf24;
-  --error-color: #f87171;
 }
 
 /* Base Reset & Modern Box Sizing */
@@ -67,7 +71,7 @@
 }
 
 html {
-  font-size: 16px; /* Base font size for rem calculations */
+  font-size: 16px;
   scroll-behavior: smooth;
 }
 
@@ -200,6 +204,7 @@ body {
 .card-header {
   padding: var(--space-lg);
   border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-tertiary);
 }
 
 .card-body {
@@ -381,13 +386,13 @@ body {
 
 .btn-primary {
   background-color: var(--accent-color);
-  color: white;
+  color: #ffffff;
   border-color: var(--accent-color);
 }
 
 .btn-primary:hover {
   filter: brightness(1.1);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
 .btn-secondary {
@@ -428,27 +433,27 @@ body {
 }
 
 .status-success {
-  background-color: rgba(16, 185, 129, 0.1);
+  background-color: rgba(74, 222, 128, 0.2);
   color: var(--success-color);
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  border: 1px solid rgba(74, 222, 128, 0.3);
 }
 
 .status-warning {
-  background-color: rgba(245, 158, 11, 0.1);
+  background-color: rgba(251, 191, 36, 0.2);
   color: var(--warning-color);
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  border: 1px solid rgba(251, 191, 36, 0.3);
 }
 
 .status-error {
-  background-color: rgba(239, 68, 68, 0.1);
+  background-color: rgba(248, 113, 113, 0.2);
   color: var(--error-color);
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  border: 1px solid rgba(248, 113, 113, 0.3);
 }
 
 .status-info {
-  background-color: rgba(59, 130, 246, 0.1);
+  background-color: rgba(102, 126, 234, 0.2);
   color: var(--accent-color);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  border: 1px solid rgba(102, 126, 234, 0.3);
 }
 
 /* Loading States */
@@ -471,7 +476,7 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(255, 255, 255, 0.8);
+  background-color: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -498,90 +503,7 @@ body {
   background: var(--text-muted);
 }
 
-/* Focus States for Accessibility */
-*:focus {
-  outline: 2px solid var(--accent-color);
-  outline-offset: 2px;
-}
-
-*:focus:not(:focus-visible) {
-  outline: none;
-}
-
-/* Print Styles */
-@media print {
-  .sidebar, .header, .btn {
-    display: none !important;
-  }
-  
-  .main-content {
-    margin-left: 0 !important;
-  }
-  
-  .content-wrapper {
-    padding: 0 !important;
-  }
-  
-  .card {
-    box-shadow: none !important;
-    border: 1px solid var(--border-color) !important;
-  }
-}
-
-/* High Contrast Mode Support */
-@media (prefers-contrast: high) {
-  :root {
-    --border-color: #000000;
-    --text-primary: #000000;
-    --text-secondary: #333333;
-    --bg-secondary: #ffffff;
-  }
-  
-  [data-theme="dark"] {
-    --border-color: #ffffff;
-    --text-primary: #ffffff;
-    --text-secondary: #cccccc;
-    --bg-secondary: #000000;
-  }
-}
-
-/* Reduced Motion Support */
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* Print Optimization */
-@media print {
-  body {
-    background-color: white !important;
-    color: black !important;
-  }
-  
-  .sidebar, .header, .btn, .sidebar.mobile-hidden {
-    display: none !important;
-  }
-  
-  .main-content {
-    margin-left: 0 !important;
-    min-height: auto !important;
-  }
-  
-  .content-wrapper {
-    padding: 0 !important;
-    max-width: none !important;
-  }
-  
-  .card {
-    box-shadow: none !important;
-    border: 1px solid #000 !important;
-    break-inside: avoid;
-  }
-  
-  h1, h2, h3, h4, h5, h6 {
-    color: #000 !important;
-  }
+/* Dark Mode Scrollbar Override */
+[data-theme="light"] .loading-overlay {
+  background-color: rgba(255, 255, 255, 0.8);
 }

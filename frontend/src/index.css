@@ -6,6 +6,7 @@
  * - Mobile: sidebar hidden, menu button
  * - Tablet: sidebar collapsible
  * - Desktop: sidebar always visible
+ * - DARK MODE is the DEFAULT theme
  */
 
 *,
@@ -42,6 +43,8 @@ body {
 /* ====================== */
 /* CSS VARIABLES          */
 /* ====================== */
+
+/* DARK MODE - Default Theme */
 :root {
   /* Layout constants (fixed px values - do NOT use percentages) */
   --sidebar-width: 260px;
@@ -51,55 +54,89 @@ body {
   --content-gap: 1px;
   --content-padding: 24px;
   
-  /* Colors */
+  /* Colors - TRUE BLACK Dark Mode */
+  --bg-primary: #0a0a0a;
+  --bg-sidebar: #141414;
+  --bg-card: #141414;
+  --bg-surface: #141414;
+  --bg-surface-alt: #1a1a1a;
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0a0;
+  --text-muted: #666666;
+  --border: #2a2a2a;
+  --border-subtle: #333333;
+  --accent: #cc0000;
+  --accent-hover: #dd3333;
+  --accent-soft: rgba(204, 0, 0, 0.15);
+  --accent-strong: #cc0000;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --danger: #dc2626;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.5);
+  --shadow: 0 4px 20px rgba(0,0,0,0.5);
+  --shadow-lg: 0 10px 40px rgba(0,0,0,0.6);
+  --hover-bg: rgba(255, 255, 255, 0.05);
+}
+
+/* LIGHT MODE - Preserved (use data-theme="light" to enable) */
+[data-theme="light"],
+:root[data-theme="light"],
+body[data-theme="light"] {
   --bg-primary: #f5f5f5;
   --bg-sidebar: #ffffff;
   --bg-card: #ffffff;
   --bg-surface: #ffffff;
   --bg-surface-alt: #f8f8f8;
-  --text-primary: #000000;
-  --text-secondary: #333333;
-  --text-muted: #666666;
+  --text-primary: #1a1a1a;
+  --text-secondary: #4a4a4a;
+  --text-muted: #6b6b6b;
   --border: #e0e0e0;
-  --border-subtle: #e0e0e0;
+  --border-subtle: #e8e8e8;
   --accent: #cc0000;
   --accent-hover: #990000;
   --accent-soft: rgba(204, 0, 0, 0.12);
   --accent-strong: #cc0000;
-  --success: #000000;
-  --warning: #333333;
-  --error: #cc0000;
-  --danger: #990000;
+  --success: #166534;
+  --warning: #92400e;
+  --error: #dc2626;
+  --danger: #b91c1c;
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
   --shadow: 0 4px 20px rgba(0,0,0,0.08);
   --shadow-lg: 0 10px 40px rgba(0,0,0,0.12);
   --hover-bg: rgba(0, 0, 0, 0.04);
 }
 
-[data-theme="dark"],
-:root[data-theme="dark"] {
-  --bg-primary: #0a0a0a;
-  --bg-sidebar: #1a1a1a;
-  --bg-card: #1a1a1a;
-  --bg-surface: #1a1a1a;
-  --bg-surface-alt: #0d0d0d;
-  --text-primary: #ffffff;
-  --text-secondary: #cccccc;
-  --text-muted: #888888;
-  --border: #333333;
-  --border-subtle: #222222;
-  --accent: #cc0000;
-  --accent-hover: #ff3333;
-  --accent-soft: rgba(204, 0, 0, 0.2);
-  --accent-strong: #cc0000;
-  --success: #ffffff;
-  --warning: #cccccc;
-  --error: #cc0000;
-  --danger: #ff3333;
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-  --shadow: 0 4px 20px rgba(0,0,0,0.3);
-  --shadow-lg: 0 10px 40px rgba(0,0,0,0.4);
-  --hover-bg: rgba(255, 255, 255, 0.04);
+/* Apply light theme to body directly */
+[data-theme="light"] body {
+  background-color: #f5f5f5 !important;
+  color: #1a1a1a !important;
+}
+
+/* Force light mode on MUI components in light theme */
+[data-theme="light"] .MuiPaper-root,
+[data-theme="light"] .MuiCard-root,
+[data-theme="light"] .MuiCardContent-root {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+}
+
+[data-theme="light"] .MuiTableCell-root {
+  color: #1a1a1a !important;
+  border-color: #e0e0e0 !important;
+}
+
+[data-theme="light"] .MuiTableCell-head {
+  background-color: #f8f8f8 !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="light"] .MuiTableRow-root {
+  background-color: #ffffff !important;
+}
+
+[data-theme="light"] .MuiTableRow-root:hover {
+  background-color: #f5f5f5 !important;
 }
 
 /* ====================== */
@@ -136,18 +173,18 @@ body {
   color: white;
 }
 
-/* Enhanced Cards */
+/* Enhanced Cards - Smooth, Professional Animations */
 .MuiPaper-root {
   background-color: var(--bg-card) !important;
   border-radius: 16px !important;
   box-shadow: var(--shadow) !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
   border: 1px solid var(--border) !important;
+  transition: box-shadow 0.2s ease, background-color 0.2s ease !important;
 }
 
 .MuiPaper-root:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg) !important;
+  box-shadow: var(--shadow) !important;
+  /* Subtle lift without transform - more professional */
 }
 
 /* Buttons */
@@ -160,10 +197,195 @@ body {
   padding: 10px 24px !important;
 }
 
-/* Inputs & Forms */
+/* ==========================================
+   LIGHT MODE RESET - Clean White Backgrounds
+   Add this at the TOP of index.css
+   ========================================== */
+
+/* Force clean white backgrounds in light mode */
+[data-theme="light"] {
+  --bg-primary: #ffffff !important;
+  --bg-sidebar: #ffffff !important;
+  --bg-card: #ffffff !important;
+  --bg-surface: #ffffff !important;
+  --bg-surface-alt: #f8f8f8 !important;
+  --text-primary: #1a1a1a !important;
+  --text-secondary: #4a4a4a !important;
+  --border: #e0e0e0 !important;
+}
+
+/* Force light mode on all MUI components */
+[data-theme="light"] .MuiPaper-root,
+[data-theme="light"] .MuiCard-root,
+[data-theme="light"] .MuiCardContent-root,
+[data-theme="light"] .MuiAppBar-root,
+[data-theme="light"] .MuiDrawer-paper,
+[data-theme="light"] .MuiTableCell-root,
+[data-theme="light"] .MuiTableRow-root,
+[data-theme="light"] .MuiMenu-paper,
+[data-theme="light"] .MuiSelect-select,
+[data-theme="light"] .MuiOutlinedInput-root {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+}
+
+/* Force light mode on body and html */
+[data-theme="light"] body,
+[data-theme="light"] html {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+}
+
+/* Main content area */
+[data-theme="light"] main,
+[data-theme="light"] .main-content,
+[data-theme="light"] .content-area {
+  background-color: #ffffff !important;
+}
+
+/* Sidebar specific */
+[data-theme="light"] .sidebar,
+[data-theme="light"] [class*="Sidebar"],
+[data-theme="light"] [class*="drawer"] {
+  background-color: #ffffff !important;
+  border-right: 1px solid #e0e0e0 !important;
+}
+
+/* Cards and boxes */
+[data-theme="light"] .card,
+[data-theme="light"] [class*="Card"],
+[data-theme="light"] [class*="Box"],
+[data-theme="light"] .box {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+}
+
+/* Quick directories / grid items */
+[data-theme="light"] [class*="Quick"],
+[data-theme="light"] [class*="directory"],
+[data-theme="light"] [class*="directory-item"] {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+}
+
+/* ==========================================
+   INPUTS & FORMS - FIXED for Light/Dark Mode
+   ========================================== */
 .MuiOutlinedInput-root {
   border-radius: 12px !important;
   background-color: var(--bg-card);
+  color: var(--text-primary);
+}
+
+/* Light mode input styles */
+[data-theme="light"] .MuiOutlinedInput-root {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+}
+
+[data-theme="light"] .MuiOutlinedInput-input {
+  color: #1a1a1a !important;
+}
+
+[data-theme="light"] .MuiOutlinedInput-input::placeholder {
+  color: #666666 !important;
+  opacity: 1 !important;
+}
+
+[data-theme="light"] .MuiInputLabel-root {
+  color: #4a4a4a !important;
+}
+
+[data-theme="light"] .MuiOutlinedInput-notchedOutline {
+  border-color: #d0d0d0 !important;
+}
+
+[data-theme="light"] .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: #999999 !important;
+}
+
+[data-theme="light"] .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: #667eea !important;
+}
+
+/* TextField styles */
+[data-theme="light"] .MuiTextField-root .MuiOutlinedInput-root {
+  background-color: #ffffff !important;
+}
+
+[data-theme="light"] .MuiTextField-root input,
+[data-theme="light"] .MuiTextField-root textarea {
+  color: #1a1a1a !important;
+}
+
+/* Select styles */
+[data-theme="light"] .MuiSelect-select,
+[data-theme="light"] .MuiSelect-select:focus {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+}
+
+/* FormControl and Select menu */
+[data-theme="light"] .MuiFormControl-root {
+  background-color: #ffffff !important;
+}
+.MuiOutlinedInput-root {
+  border-radius: 12px !important;
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+}
+
+/* Light mode input styles */
+[data-theme="light"] .MuiOutlinedInput-root {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+}
+
+[data-theme="light"] .MuiOutlinedInput-input {
+  color: #1a1a1a !important;
+}
+
+[data-theme="light"] .MuiOutlinedInput-input::placeholder {
+  color: #666666 !important;
+  opacity: 1 !important;
+}
+
+[data-theme="light"] .MuiInputLabel-root {
+  color: #4a4a4a !important;
+}
+
+[data-theme="light"] .MuiOutlinedInput-notchedOutline {
+  border-color: #d0d0d0 !important;
+}
+
+[data-theme="light"] .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: #999999 !important;
+}
+
+[data-theme="light"] .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: #667eea !important;
+}
+
+/* TextField styles */
+[data-theme="light"] .MuiTextField-root .MuiOutlinedInput-root {
+  background-color: #ffffff !important;
+}
+
+[data-theme="light"] .MuiTextField-root input,
+[data-theme="light"] .MuiTextField-root textarea {
+  color: #1a1a1a !important;
+}
+
+/* Select styles */
+[data-theme="light"] .MuiSelect-select,
+[data-theme="light"] .MuiSelect-select:focus {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+}
+
+/* FormControl and Select menu */
+[data-theme="light"] .MuiFormControl-root {
+  background-color: #ffffff !important;
 }
 
 /* Custom Scrollbar */
@@ -182,7 +404,7 @@ body {
 
 /* ====================== */
 /* RESPONSIVE BREAKPOINTS */
-/* ====================== */
+/* ====================== */ 
 /* 
  * Mobile: < 768px - Sidebar hidden, hamburger menu
  * Tablet: 768px - 1024px - Sidebar collapsible

@@ -50,6 +50,38 @@ const getMuiTheme = (mode) => createTheme({
         },
       },
     },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          '& .MuiOutlinedInput-root': {
+            backgroundColor: mode === 'dark' ? '#1a1a1a' : '#ffffff',
+            '& input': {
+              color: mode === 'dark' ? '#f5f5f5' : '#1a1a1a',
+            },
+            '& .MuiOutlinedInput-notchedOutline': {
+              borderColor: mode === 'dark' ? '#2a2a2a' : '#d0d0d0',
+            },
+            '&:hover .MuiOutlinedInput-notchedOutline': {
+              borderColor: mode === 'dark' ? '#3a3a3a' : '#999999',
+            },
+            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+              borderColor: '#667eea',
+            },
+          },
+        },
+      },
+    },
+    MuiInputBase: {
+      styleOverrides: {
+        input: {
+          color: mode === 'dark' ? '#f5f5f5' : '#1a1a1a',
+          '&::placeholder': {
+            color: mode === 'dark' ? '#666666' : '#6b6b6b',
+            opacity: 1,
+          },
+        },
+      },
+    },
     MuiCard: {
       styleOverrides: {
         root: {
@@ -126,14 +158,6 @@ const getMuiTheme = (mode) => createTheme({
           '&:hover': {
             backgroundColor: mode === 'dark' ? '#1a1a1a' : '#f5f5f5',
           },
-        },
-      },
-    },
-    MuiCard: {
-      styleOverrides: {
-        root: {
-          backgroundColor: mode === 'dark' ? '#141414' : '#ffffff',
-          color: mode === 'dark' ? '#f5f5f5' : '#1a1a1a',
         },
       },
     },

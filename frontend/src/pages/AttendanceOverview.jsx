@@ -31,7 +31,7 @@ import {
   Assessment, Timelapse, Refresh
 } from '@mui/icons-material';
 
-import moment from 'moment-timezone';
+import { format, startOfMonth, endOfMonth, differenceInHours, parseISO } from 'date-fns';
 import { api } from '../services/api.service.js';
 
 const AttendanceOverview = ({ role, onNotify }) => {
@@ -48,21 +48,21 @@ const AttendanceOverview = ({ role, onNotify }) => {
     ? 'Attendance Overview'
     : 'Attendance Records';
 
-  // Live current time
+  // Live current time (EAT timezone is UTC+3)
   const [currentTime, setCurrentTime] = useState(
-    moment().tz('Africa/Addis_Ababa').format('hh:mm A z')
+    format(new Date(), 'hh:mm a')
   );
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setCurrentTime(moment().tz('Africa/Addis_Ababa').format('hh:mm A z'));
+      setCurrentTime(format(new Date(), 'hh:mm a'));
     }, 1000);
     return () => clearInterval(timer);
   }, []);
 
   // Filter States
-  const [from, setFrom] = useState(moment().startOf('month').format('YYYY-MM-DD'));
-  const [to, setTo] = useState(moment().endOf('month').format('YYYY-MM-DD'));
+  const [from, setFrom] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
+  const [to, setTo] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -150,7 +150,9 @@ const AttendanceOverview = ({ role, onNotify }) => {
     const absent = filteredRows.filter(r => r.status?.toUpperCase() === 'ABSENT').length;
     const hours = filteredRows.reduce((sum, r) => {
       if (r.check_out_time && r.check_in_time) {
-        return sum + moment(r.check_out_time).diff(moment(r.check_in_time), 'hours', true);
+        const checkIn = parseISO(r.check_in_time);
+        const checkOut = parseISO(r.check_out_time);
+        return sum + differenceInHours(checkOut, checkIn, true);
       }
       return sum;
     }, 0).toFixed(1);
@@ -291,7 +293,11 @@ const AttendanceOverview = ({ role, onNotify }) => {
                 ) : (
                   filteredRows.map((row) => {
                     const duration = row.check_in_time && row.check_out_time 
-                        ? moment(row.check_out_time).diff(moment(row.check_in_time), 'hours', true).toFixed(2)
+                        ? (() => {
+                            const checkIn = parseISO(row.check_in_time);
+                            const checkOut = parseISO(row.check_out_time);
+                            return differenceInHours(checkOut, checkIn, true).toFixed(2);
+                          })()
                         : '—';
                     
                     return (
@@ -306,9 +312,9 @@ const AttendanceOverview = ({ role, onNotify }) => {
                             </Typography>
                           </TableCell>
                         )}
-                        <TableCell>{moment(row.date).format('MMM DD, YYYY')}</TableCell>
-                        <TableCell>{row.check_in_time ? moment(row.check_in_time).format('hh:mm A') : '—'}</TableCell>
-                        <TableCell>{row.check_out_time ? moment(row.check_out_time).format('hh:mm A') : '—'}</TableCell>
+                        <TableCell>{format(parseISO(row.date), 'MMM dd, yyyy')}</TableCell>
+                        <TableCell>{row.check_in_time ? format(parseISO(row.check_in_time), 'hh:mm a') : '—'}</TableCell>
+                        <TableCell>{row.check_out_time ? format(parseISO(row.check_out_time), 'hh:mm a') : '—'}</TableCell>
                         <TableCell>{duration}</TableCell>
                         <TableCell>{getStatusChip(row.status)}</TableCell>
                       </TableRow>
