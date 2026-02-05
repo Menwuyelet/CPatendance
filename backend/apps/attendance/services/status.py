@@ -50,3 +50,31 @@ def evaluate_status(record):
     )
 
     return "LATE"
+
+
+def evaluate_left_early(record, grace_minutes=15):
+    """Return True when `record.check_out_time` is before shift end minus grace.
+
+    Uses the shift assigned to the record to compute the scheduled end. Handles
+    overnight shifts by rolling the end time into the next day.
+    """
+    if not record.check_out_time:
+        return False
+
+    shift = record.employee_shift.shift
+    shift_start = combine_date_time(record.date, shift.start_time)
+    shift_end = combine_date_time(record.date, shift.end_time)
+
+    if shift_end <= shift_start:
+        shift_end = shift_end + timedelta(days=1)
+
+    grace_delta = timedelta(minutes=grace_minutes)
+    left_early = record.check_out_time < (shift_end - grace_delta)
+
+    logger.info(
+        "EVALUATE_EARLY_LEAVE | record_id=%s left_early=%s",
+        record.id,
+        left_early,
+    )
+
+    return left_early

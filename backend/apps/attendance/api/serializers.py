@@ -9,6 +9,7 @@ from attendance.models import AttendanceSession
 from attendance.models import EmployeeShift
 from attendance.models import Shift
 
+
 class AttendanceCheckInSerializer(serializers.Serializer):
     """Serializer for attendance check-in requests.
 
@@ -16,6 +17,7 @@ class AttendanceCheckInSerializer(serializers.Serializer):
     - `employee_id` (int, optional): explicit employee to check in
     - `check_in_time` (datetime, optional): explicit check-in time
     """
+
     employee_id = serializers.IntegerField(required=False)
     check_in_time = serializers.DateTimeField(required=False)
 
@@ -30,6 +32,7 @@ class AttendanceCheckInSerializer(serializers.Serializer):
 
 class AttendanceSessionSerializer(serializers.ModelSerializer):
     """Model serializer representing an attendance session."""
+
     class Meta:
         model = AttendanceSession
         fields = (
@@ -37,30 +40,53 @@ class AttendanceSessionSerializer(serializers.ModelSerializer):
             "shift",
             "started_by",
             "started_at",
+            "check_in_closed_at",
+            "check_out_started_at",
+            "check_out_closed_at",
             "is_active",
+            "phase",
             "ended_at",
         )
         read_only_fields = (
             "started_by",
             "started_at",
-            "ednded_at",
+            "check_in_closed_at",
+            "check_out_started_at",
+            "check_out_closed_at",
+            "ended_at",
         )
+
 
 class AttendanceCheckOutSerializer(serializers.Serializer):
     """Serializer for attendance check-out requests."""
+
     employee_id = serializers.IntegerField(required=False)
 
 
 class AttendanceSerializer(serializers.ModelSerializer):
     """Serializer representing an `AttendanceRecord` instance."""
+
     class Meta:
         model = AttendanceRecord
-        fields = ["id", "employee", "employee_shift", "date", "check_in_time", "check_out_time","status", "taken_by", "created_at"]
+        fields = [
+            "id",
+            "employee",
+            "employee_shift",
+            "date",
+            "check_in_time",
+            "check_out_time",
+            "left_early",
+            "no_check_out",
+            "status",
+            "taken_by",
+            "created_at",
+        ]
         read_only_fields = fields
 
 
 class EmployeeShiftSerializer(serializers.ModelSerializer):
     """Serializer for `EmployeeShift` associations."""
+
     class Meta:
         model = EmployeeShift
         fields = [
@@ -69,8 +95,10 @@ class EmployeeShiftSerializer(serializers.ModelSerializer):
             "shift",
         ]
 
+
 class ShiftSerializer(serializers.ModelSerializer):
     """Serializer describing a `Shift` (schedule pattern)."""
+
     class Meta:
         model = Shift
         fields = [

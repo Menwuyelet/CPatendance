@@ -6,7 +6,7 @@ This file contains the attendance taking services for marking attendance status.
 from django.utils import timezone
 from accounts.policies.attendance import AttendancePolicy
 from attendance.models import AttendanceRecord, AttendanceSessionEntry
-from .status import evaluate_status
+from .status import evaluate_status, evaluate_left_early
 from django.db import transaction
 from attendance.models import EmployeeShift
 from employees.models import Employee
@@ -16,7 +16,14 @@ from config.logging import get_logger
 logger = get_logger(__name__)
 
 
-def mark_attendance(employee, user, session, check_in_time=None):
+def mark_attendance(
+    employee,
+    user,
+    session,
+    check_in_time=None,
+    check_out_time=None,
+    early_leave_grace_minutes=15,
+):
     """Record a check-in for `employee` taken by `user` during `session`.
 
     Inputs:
@@ -58,6 +65,15 @@ def mark_attendance(employee, user, session, check_in_time=None):
 
     record.check_in_time = check_in_time or timezone.now()
     record.status = evaluate_status(record)
+
+    if check_out_time is not None:
+        record.check_out_time = check_out_time
+        record.left_early = evaluate_left_early(
+            record, grace_minutes=early_leave_grace_minutes
+        )
+        record.no_check_out = False
+    else:
+        record.no_check_out = True
     record.save()
 
     logger.info(
