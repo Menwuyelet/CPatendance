@@ -50,7 +50,7 @@ const isWithinShiftTime = (shift) => {
   return currentTime >= shift.start_time && currentTime <= shift.end_time;
 };
 
-// Helper function to get available shifts for current time
+// Helper function to enrich sessions with shift and user data
 const enrichSessions = async (sessionsList) => {
   try {
     // Fetch shifts, users, and employees in parallel
@@ -64,35 +64,54 @@ const enrichSessions = async (sessionsList) => {
     const usersList = Array.isArray(usersData) ? usersData : usersData?.results || [];
     const employeesList = Array.isArray(employeesData) ? employeesData : employeesData?.results || [];
 
+    console.log('Enriching sessions - Users:', usersList.length, 'Employees:', employeesList.length, 'Shifts:', shiftsList.length);
+
+    // Create lookup maps for faster access
+    const shiftsMap = new Map(shiftsList.map(s => [String(s.id), s]));
+    const usersMap = new Map(usersList.map(u => [String(u.id), u]));
+    const employeesMap = new Map(employeesList.map(e => [String(e.user?.id), e]));
+
     // Enrich sessions with shift and user data
     return sessionsList.map((session) => {
       // Get shift ID (could be object with id, or just the id number)
       const shiftId = typeof session.shift === 'object' && session.shift !== null
-        ? session.shift.id
-        : session.shift;
+        ? String(session.shift.id)
+        : String(session.shift);
       
       // Get started_by ID (could be object with id, or just the id/UUID)
       const startedById = typeof session.started_by === 'object' && session.started_by !== null
-        ? session.started_by.id
-        : session.started_by;
+        ? String(session.started_by.id)
+        : String(session.started_by);
 
-      // Find matching shift and user
-      const shift = shiftsList.find((s) => String(s.id) === String(shiftId));
-      const user = usersList.find((u) => String(u.id) === String(startedById));
+      // Find matching shift and user from maps
+      const shift = shiftsMap.get(shiftId);
+      const user = usersMap.get(startedById);
       
       // Find employee for this user to get full_name
-      const employee = employeesList.find((e) => e.user?.id === String(startedById));
+      const employee = employeesMap.get(startedById);
       
-      // Combine user and employee data
-      const enrichedUser = user ? {
-        ...user,
-        full_name: employee?.full_name || user.full_name,
-      } : null;
+      // Build enriched user object with full_name
+      let enrichedUser = null;
+      if (user) {
+        // Priority: employee.full_name > user.full_name > user email
+        enrichedUser = {
+          ...user,
+          full_name: employee?.full_name || user.full_name || user.email || 'Unknown User',
+        };
+      } else if (session.started_by) {
+        // If user not found in list, use the raw started_by data with fallback
+        const raw = session.started_by;
+        enrichedUser = typeof raw === 'object' 
+          ? { ...raw, full_name: raw.full_name || raw.email || 'Unknown User' }
+          : { id: raw, full_name: 'Unknown User' };
+      }
+
+      console.log(`Session ${session.id}: started_by=${startedById}, user found=${!!user}, employee found=${!!employee}, full_name=${enrichedUser?.full_name}`);
 
       return {
         ...session,
         shift: shift || session.shift,
-        started_by: enrichedUser || session.started_by,
+        started_by: enrichedUser,
       };
     });
   } catch (err) {
@@ -564,7 +583,9 @@ const AttendanceSessions = ({ role, onNotify: propsNotify }) => {
                     {sessions.map((session) => (
                       <TableRow key={session.id} hover>
                         <TableCell><strong>{session.shift?.name || 'Unknown'}</strong></TableCell>
-                        <TableCell>{session.started_by?.email || session.started_by?.full_name || 'Unknown'}</TableCell>
+                        <TableCell>
+                          {session.started_by?.full_name || session.started_by?.email || `User ID: ${session.started_by?.id || session.started_by || 'Unknown'}`}
+                        </TableCell>
                         <TableCell>
                           {session.started_at ? new Date(session.started_at).toLocaleString() : '-'}
                         </TableCell>
