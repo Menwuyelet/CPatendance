@@ -4,6 +4,7 @@ This file contains the views for the attendance app.
 """
 
 from accounts.permissions.is_hr import IsHR
+from datetime import timedelta
 from attendance.models.employee_shift import EmployeeShift
 from rest_framework.viewsets import ViewSet
 from rest_framework.response import Response
@@ -11,6 +12,7 @@ from rest_framework import status
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
 from django.core.exceptions import ValidationError
 from accounts.permissions import IsAdmin, IsHRorManager
 from attendance.models import AttendanceRecord
@@ -19,6 +21,7 @@ from attendance.services.attendance_session_service import AttendanceSessionServ
 from attendance.services.process_session_service import process_attendance_session
 from django.utils import timezone
 from attendance.services.shift_service import ShiftService
+from attendance.services.status import combine_date_time
 from attendance.services.employee_shift_service import EmployeeShiftService
 from attendance.permissions.employee_shift_permission import CanManageEmployeeShift
 from rest_framework.parsers import MultiPartParser
@@ -46,9 +49,30 @@ class AttendanceSessionCreateViewSet(ViewSet):
         """
         shift = get_object_or_404(Shift, id=request.data.get("shift_id"))
 
+        now = timezone.localtime(timezone.now())
+        today = now.date()
+
+        if not shift.applies_today(today):
+            return Response(
+                {"detail": "Attendance session can only start on a shift day."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        shift_start = combine_date_time(today, shift.start_time)
+        shift_end = combine_date_time(today, shift.end_time)
+        if shift_end <= shift_start:
+            shift_end = shift_end + timedelta(days=1)
+
+        if not (shift_start <= now <= shift_end):
+            return Response(
+                {"detail": "Attendance session can only start during shift hours."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         session = AttendanceSession.objects.create(
             shift=shift,
             started_by=request.user,
+            started_at=now,
             is_active=True,
         )
 
@@ -98,6 +122,17 @@ class AttendanceSessionViewSet(ViewSet):
 
     serializer_class = AttendanceSessionSerializer
 
+    def _paginate(self, request, qs, serializer_class):
+        """Paginate a queryset using default DRF pagination settings."""
+        paginator = PageNumberPagination()
+        page = paginator.paginate_queryset(qs, request)
+        if page is not None:
+            serializer = serializer_class(page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+
+        serializer = serializer_class(qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     def list(self, request):
         """List attendance sessions visible to the requesting user."""
         qs = AttendanceSession.objects.select_related("shift", "started_by").order_by(
@@ -137,9 +172,7 @@ class AttendanceSessionViewSet(ViewSet):
         if shift_id:
             qs = qs.filter(shift_id=shift_id)
 
-        return Response(
-            AttendanceSessionSerializer(qs, many=True).data, status=status.HTTP_200_OK
-        )
+        return self._paginate(request, qs, AttendanceSessionSerializer)
 
     def retrieve(self, request, pk=None):
         """Retrieve a single attendance session by id after permission checks."""
@@ -273,6 +306,17 @@ class AttendanceRecordViewSet(ViewSet):
 
     serializer_class = AttendanceSerializer
 
+    def _paginate(self, request, qs, serializer_class):
+        """Paginate a queryset using default DRF pagination settings."""
+        paginator = PageNumberPagination()
+        page = paginator.paginate_queryset(qs, request)
+        if page is not None:
+            serializer = serializer_class(page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+
+        serializer = serializer_class(qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     def list(self, request):
         """List attendance sessions visible to the requesting user."""
         qs = AttendanceRecord.objects.select_related("employee", "employee_shift")
@@ -316,9 +360,7 @@ class AttendanceRecordViewSet(ViewSet):
         if shift_id:
             qs = qs.filter(employee_shift__shift_id=shift_id)
 
-        return Response(
-            AttendanceSerializer(qs, many=True).data, status=status.HTTP_200_OK
-        )
+        return self._paginate(request, qs, AttendanceSerializer)
 
     def retrieve(self, request, pk=None):
         """Retrieve a single attendance session by id after permission checks."""
