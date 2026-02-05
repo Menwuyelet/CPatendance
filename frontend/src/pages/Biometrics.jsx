@@ -49,7 +49,7 @@ const Biometrics = ({ role, onNotify }) => {
   const isHR = role === 'HR';
 
   const showAttendanceCapture = isHR || isManager;
-  const showProfileList = isHR || isAdmin;
+  const showProfileList = isHR || isManager || isAdmin;
   const showEnrollment = true; 
 
   // Initialize tab based on role priority

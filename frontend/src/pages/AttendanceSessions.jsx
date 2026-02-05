@@ -1,5 +1,6 @@
 // src/pages/AttendanceSessions.jsx
 import React, { useEffect, useState, useMemo } from 'react';
+import { useNotifications } from '../context/NotificationContext';
 import {
   Box,
   Card,
@@ -31,7 +32,25 @@ import {
 import { Add as AddIcon, Delete as DeleteIcon, PlayArrow, Stop, Search, Clear } from '@mui/icons-material';
 import { api } from '../services/api.service.js';
 
-// Helper function to enrich sessions with shift and user data
+// Helper function to check if current time is within shift time
+const isWithinShiftTime = (shift) => {
+  if (!shift || !shift.start_time || !shift.end_time) return false;
+  
+  const now = new Date();
+  const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
+  
+  // Get current day of week (lowercase)
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const currentDay = days[now.getDay()];
+  
+  // Check if shift is active on current day
+  if (!shift[currentDay]) return false;
+  
+  // Check if current time is within shift start and end time
+  return currentTime >= shift.start_time && currentTime <= shift.end_time;
+};
+
+// Helper function to get available shifts for current time
 const enrichSessions = async (sessionsList) => {
   try {
     // Fetch shifts, users, and employees in parallel
@@ -83,10 +102,26 @@ const enrichSessions = async (sessionsList) => {
   }
 };
 
-const AttendanceSessions = ({ role, onNotify }) => {
+const AttendanceSessions = ({ role, onNotify: propsNotify }) => {
   const isManager = role === 'Manager';
   const isHR = role === 'HR';
   const isAdmin = role === 'Admin';
+
+  // Use notifications hook, fallback to props
+  const notifyContext = useNotifications();
+  
+  // Helper function to show notifications
+  const showNotification = (message, severity = 'info') => {
+    if (propsNotify && typeof propsNotify === 'function') {
+      propsNotify(message, severity);
+    } else if (propsNotify && typeof propsNotify.addNotification === 'function') {
+      propsNotify.addNotification(message, severity);
+    } else if (notifyContext && typeof notifyContext.addNotification === 'function') {
+      notifyContext.addNotification(message, severity);
+    } else {
+      console.warn('Notification:', message);
+    }
+  };
 
   // Permissions
   const canManageSessions = isHR || isManager || isAdmin;
@@ -146,14 +181,14 @@ const AttendanceSessions = ({ role, onNotify }) => {
         console.error('Unable to load attendance sessions:', err);
         setSessions([]);
         setSessionError('Unable to load attendance sessions.');
-        onNotify?.('Failed to fetch attendance sessions.', 'error');
+        showNotification('Failed to fetch attendance sessions.', 'error');
       } finally {
         setSessionsLoading(false);
       }
     };
 
     loadSessions();
-  }, [canManageSessions, onNotify]);
+  }, [canManageSessions]);
 
   // Load employee shifts
   useEffect(() => {
@@ -203,14 +238,14 @@ const AttendanceSessions = ({ role, onNotify }) => {
         console.error('Unable to load employee shifts:', err);
         setEmployeeShifts([]);
         setEmployeeShiftsError('Unable to load employee shifts.');
-        onNotify?.('Failed to fetch employee shifts.', 'error');
+        showNotification('Failed to fetch employee shifts.', 'error');
       } finally {
         setEmployeeShiftsLoading(false);
       }
     };
 
     loadEmployeeShifts();
-  }, [canManageEmployeeShifts, onNotify]);
+  }, [canManageEmployeeShifts]);
 
   // Filter employees based on search
   const filteredEmployees = useMemo(() => {
@@ -257,15 +292,48 @@ const AttendanceSessions = ({ role, onNotify }) => {
     });
   }, [employeeShifts, employees, shifts]);
 
+  // Filter shifts that are applicable today and within time window
+  const availableShiftsForSession = useMemo(() => {
+    const now = new Date();
+    const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const currentDay = days[now.getDay()];
+    
+    return shifts.filter(shift => {
+      // Check if shift is active on current day
+      if (!shift[currentDay]) return false;
+      // Check if current time is within shift hours
+      return currentTime >= shift.start_time && currentTime <= shift.end_time;
+    });
+  }, [shifts]);
+
   // Sessions handlers
   const handleStartSession = async () => {
     if (!selectedShiftForSession) {
-      onNotify?.('Please select a shift to start the session.', 'warning');
+      showNotification('Please select a shift to start the session.', 'warning');
       return;
     }
+    
+    // Find the selected shift
+    const selectedShift = shifts.find(s => String(s.id) === String(selectedShiftForSession));
+    if (!selectedShift) {
+      showNotification('Selected shift not found.', 'error');
+      return;
+    }
+    
+    // Check if current time is within shift time
+    if (!isWithinShiftTime(selectedShift)) {
+      const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      const now = new Date();
+      const currentDay = days[now.getDay()];
+      const dayName = currentDay.charAt(0).toUpperCase() + currentDay.slice(1);
+      showNotification(`Cannot start session: Current time is outside the shift hours (${selectedShift.start_time} - ${selectedShift.end_time}) on ${dayName}.`, 'warning');
+      return;
+    }
+    
     try {
       await api.createAttendanceSession(selectedShiftForSession);
-      onNotify?.('Attendance session started successfully.', 'success');
+      showNotification('Attendance session started successfully.', 'success');
       setSessionDialogOpen(false);
       setSelectedShiftForSession('');
       // Reload sessions with enrichment
@@ -275,7 +343,7 @@ const AttendanceSessions = ({ role, onNotify }) => {
       setSessions(enrichedSessions);
     } catch (err) {
       console.error('Failed to start session:', err);
-      onNotify?.(err.message || 'Failed to start attendance session.', 'error');
+      showNotification(err.message || 'Failed to start attendance session.', 'error');
     }
   };
 
@@ -284,7 +352,7 @@ const AttendanceSessions = ({ role, onNotify }) => {
     if (!confirmed) return;
     try {
       await api.closeAttendanceSession(sessionId);
-      onNotify?.('Attendance session closed successfully.', 'success');
+      showNotification('Attendance session closed successfully.', 'success');
       // Reload sessions with enrichment
       const sessionsData = await api.listAttendanceSessions().catch(() => []);
       const sessionsList = Array.isArray(sessionsData) ? sessionsData : [];
@@ -292,19 +360,90 @@ const AttendanceSessions = ({ role, onNotify }) => {
       setSessions(enrichedSessions);
     } catch (err) {
       console.error('Failed to close session:', err);
-      onNotify?.(err.message || 'Failed to close attendance session.', 'error');
+      showNotification(err.message || 'Failed to close attendance session.', 'error');
     }
   };
 
   // Employee Shifts handlers
+  // Count shifts per employee per day (returns max shifts across all days)
+  const getEmployeeShiftCount = (employeeId) => {
+    const employeeShiftAssignments = employeeShifts.filter(assignment => {
+      const empId = typeof assignment.employee === 'object' && assignment.employee !== null
+        ? assignment.employee.id
+        : assignment.employee;
+      return String(empId) === String(employeeId);
+    });
+    
+    // Count shifts for each day and return the maximum
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    let maxShiftsPerDay = 0;
+    
+    days.forEach(day => {
+      const shiftsOnDay = employeeShiftAssignments.filter(a => a.shift && a.shift[day]);
+      if (shiftsOnDay.length > maxShiftsPerDay) {
+        maxShiftsPerDay = shiftsOnDay.length;
+      }
+    });
+    
+    return maxShiftsPerDay;
+  };
+
   const handleAssignEmployeeShift = async () => {
     if (!employeeShiftForm.employee || !employeeShiftForm.shift) {
-      onNotify?.('Please select both employee and shift.', 'warning');
+      showNotification('Please select both employee and shift.', 'warning');
       return;
     }
+    
+    // Check if shift is already assigned to employee
+    const isAlreadyAssigned = employeeShifts.some(assignment => {
+      const empId = typeof assignment.employee === 'object' && assignment.employee !== null
+        ? assignment.employee.id
+        : assignment.employee;
+      const shiftId = typeof assignment.shift === 'object' && assignment.shift !== null
+        ? assignment.shift.id
+        : assignment.shift;
+      return String(empId) === String(employeeShiftForm.employee) && 
+             String(shiftId) === String(employeeShiftForm.shift);
+    });
+    
+    if (isAlreadyAssigned) {
+      showNotification('This shift is already assigned to this employee.', 'warning');
+      return;
+    }
+    
+    // Check if employee already has 2 shifts on any day
+    const currentShiftCount = getEmployeeShiftCount(employeeShiftForm.employee);
+    if (currentShiftCount >= 2) {
+      showNotification('Employee already has reached maximum of 2 shifts per day. Cannot assign more shifts.', 'error');
+      return;
+    }
+    
+    // Get the shift being assigned to check its days
+    const selectedShift = shifts.find(s => String(s.id) === String(employeeShiftForm.shift));
+    if (selectedShift) {
+      const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+      const daysWithNewShift = days.filter(day => selectedShift[day]);
+      
+      // Check if adding this shift would exceed limit on any day
+      for (const day of daysWithNewShift) {
+        const existingShiftsOnDay = employeeShifts.filter(assignment => {
+          const empId = typeof assignment.employee === 'object' && assignment.employee !== null
+            ? assignment.employee.id
+            : assignment.employee;
+          return String(empId) === String(employeeShiftForm.employee) && 
+                 assignment.shift && assignment.shift[day];
+        });
+        
+        if (existingShiftsOnDay.length >= 2) {
+          showNotification(`Cannot assign shift. Employee already has 2 shifts on ${day.charAt(0).toUpperCase() + day.slice(1)}. Maximum is 2 shifts per day.`, 'error');
+          return;
+        }
+      }
+    }
+    
     try {
       await api.assignEmployeeShift(employeeShiftForm.employee, employeeShiftForm.shift);
-      onNotify?.('Shift assigned to employee successfully.', 'success');
+      showNotification('Shift assigned to employee successfully.', 'success');
       setEmployeeShiftDialogOpen(false);
       setEmployeeShiftForm({ employee: '', shift: '' });
       setEmployeeSearch('');
@@ -312,8 +451,31 @@ const AttendanceSessions = ({ role, onNotify }) => {
       const data = await api.listEmployeeShifts();
       setEmployeeShifts(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error('Failed to assign shift:', err);
-      onNotify?.(err.message || 'Failed to assign shift to employee.', 'error');
+      // Extract error message from various possible formats
+      let errorMsg = 'Failed to assign shift to employee.';
+      
+      if (err?.response?.data) {
+        const data = err.response.data;
+        if (typeof data === 'string') {
+          errorMsg = data;
+        } else if (data?.detail) {
+          errorMsg = data.detail;
+        } else if (data?.message) {
+          errorMsg = data.message;
+        } else if (data?.error) {
+          errorMsg = data.error;
+        } else if (typeof data === 'object' && data !== null) {
+          const values = Object.values(data).flat();
+          if (values.length > 0) {
+            errorMsg = values.join(', ');
+          }
+        }
+      } else if (err?.message) {
+        errorMsg = err.message;
+      }
+      
+      console.warn('Shift assignment failed:', errorMsg);
+      showNotification(errorMsg, 'error');
     }
   };
 
@@ -322,13 +484,13 @@ const AttendanceSessions = ({ role, onNotify }) => {
     if (!confirmed) return;
     try {
       await api.removeEmployeeShift(assignmentId);
-      onNotify?.('Shift assignment removed successfully.', 'success');
+      showNotification('Shift assignment removed successfully.', 'success');
       // Reload employee shifts
       const data = await api.listEmployeeShifts();
       setEmployeeShifts(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to remove shift assignment:', err);
-      onNotify?.(err.message || 'Failed to remove shift assignment.', 'error');
+      showNotification(err.message || 'Failed to remove shift assignment.', 'error');
     }
   };
 
@@ -439,16 +601,22 @@ const AttendanceSessions = ({ role, onNotify }) => {
             <DialogContent dividers>
               <FormControl fullWidth sx={{ mt: 2 }}>
                 <InputLabel>Select Shift</InputLabel>
-                <Select
+                  <Select
                   value={selectedShiftForSession}
                   label="Select Shift"
                   onChange={(e) => setSelectedShiftForSession(e.target.value)}
                 >
-                  {shifts.map((shift) => (
-                    <MenuItem key={shift.id} value={shift.id}>
-                      {shift.name} ({shift.start_time} - {shift.end_time})
+                  {availableShiftsForSession.length > 0 ? (
+                    availableShiftsForSession.map((shift) => (
+                      <MenuItem key={shift.id} value={shift.id}>
+                        {shift.name} ({shift.start_time} - {shift.end_time})
+                      </MenuItem>
+                    ))
+                  ) : (
+                    <MenuItem disabled value="">
+                      No shifts available at current time
                     </MenuItem>
-                  ))}
+                  )}
                 </Select>
               </FormControl>
             </DialogContent>
@@ -612,6 +780,53 @@ const AttendanceSessions = ({ role, onNotify }) => {
                   ))}
                 </Select>
               </FormControl>
+              {/* Warning message if employee has 2 shifts */}
+              {employeeShiftForm.employee && (() => {
+                const currentShiftCount = getEmployeeShiftCount(employeeShiftForm.employee);
+                const selectedShift = shifts.find(s => String(s.id) === String(employeeShiftForm.shift));
+                
+                if (currentShiftCount >= 2) {
+                  return (
+                    <Alert severity="error" sx={{ mt: 2 }}>
+                      This employee already has 2 shifts on some days. Maximum allowed is 2 shifts per employee per day.
+                    </Alert>
+                  );
+                }
+                
+                // Check if adding selected shift would exceed limit
+                if (selectedShift) {
+                  const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+                  const daysWithNewShift = days.filter(day => selectedShift[day]);
+                  
+                  for (const day of daysWithNewShift) {
+                    const existingShiftsOnDay = employeeShifts.filter(assignment => {
+                      const empId = typeof assignment.employee === 'object' && assignment.employee !== null
+                        ? assignment.employee.id
+                        : assignment.employee;
+                      return String(empId) === String(employeeShiftForm.employee) && 
+                             assignment.shift && assignment.shift[day];
+                    });
+                    
+                    if (existingShiftsOnDay.length >= 2) {
+                      return (
+                        <Alert severity="error" sx={{ mt: 2 }}>
+                          Cannot assign this shift. Employee already has 2 shifts on {day}. Maximum allowed is 2 shifts per day.
+                        </Alert>
+                      );
+                    }
+                    
+                    if (existingShiftsOnDay.length === 1) {
+                      return (
+                        <Alert severity="warning" sx={{ mt: 2 }}>
+                          Note: Employee already has 1 shift on {day}. This will be their second shift on that day.
+                        </Alert>
+                      );
+                    }
+                  }
+                }
+                
+                return null;
+              })()}
             </DialogContent>
             <DialogActions>
               <Button
@@ -623,9 +838,68 @@ const AttendanceSessions = ({ role, onNotify }) => {
               >
                 Cancel
               </Button>
-              <Button onClick={handleAssignEmployeeShift} variant="contained">
-                Assign
-              </Button>
+              <Tooltip 
+                title={(() => {
+                  if (!employeeShiftForm.employee || !employeeShiftForm.shift) return 'Please select both employee and shift';
+                  const currentShiftCount = getEmployeeShiftCount(employeeShiftForm.employee);
+                  if (currentShiftCount >= 2) return 'Employee already has maximum of 2 shifts per day';
+                  const selectedShift = shifts.find(s => String(s.id) === String(employeeShiftForm.shift));
+                  if (selectedShift) {
+                    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+                    const daysWithNewShift = days.filter(day => selectedShift[day]);
+                    for (const day of daysWithNewShift) {
+                      const existingShiftsOnDay = employeeShifts.filter(assignment => {
+                        const empId = typeof assignment.employee === 'object' && assignment.employee !== null
+                          ? assignment.employee.id
+                          : assignment.employee;
+                        return String(empId) === String(employeeShiftForm.employee) && 
+                               assignment.shift && assignment.shift[day];
+                      });
+                      if (existingShiftsOnDay.length >= 2) return `Employee already has 2 shifts on ${day}`;
+                    }
+                  }
+                  return '';
+                })()}
+                arrow
+              >
+                <span>
+                  <Button 
+                    onClick={handleAssignEmployeeShift} 
+                    variant="contained"
+                    disabled={(() => {
+                      // Basic validation
+                      if (!employeeShiftForm.employee || !employeeShiftForm.shift) return true;
+                      
+                      // Check if employee has reached max shifts
+                      const currentShiftCount = getEmployeeShiftCount(employeeShiftForm.employee);
+                      if (currentShiftCount >= 2) return true;
+                      
+                      // Check if adding selected shift would exceed limit on any day
+                      const selectedShift = shifts.find(s => String(s.id) === String(employeeShiftForm.shift));
+                      if (selectedShift) {
+                        const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+                        const daysWithNewShift = days.filter(day => selectedShift[day]);
+                        
+                        for (const day of daysWithNewShift) {
+                          const existingShiftsOnDay = employeeShifts.filter(assignment => {
+                            const empId = typeof assignment.employee === 'object' && assignment.employee !== null
+                              ? assignment.employee.id
+                              : assignment.employee;
+                            return String(empId) === String(employeeShiftForm.employee) && 
+                                   assignment.shift && assignment.shift[day];
+                          });
+                          
+                          if (existingShiftsOnDay.length >= 2) return true;
+                        }
+                      }
+                      
+                      return false;
+                    })()}
+                  >
+                    Assign
+                  </Button>
+                </span>
+              </Tooltip>
             </DialogActions>
           </Dialog>
         </Box>

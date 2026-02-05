@@ -369,7 +369,8 @@ const HRDashboard = ({ onNotify }) => {
       session.shift?.name?.toLowerCase().includes(searchSession.toLowerCase());
     
     const matchesStatus = filterSessionStatus === 'ALL' ||
-      session.status === filterSessionStatus;
+      (filterSessionStatus === 'COMPLETED' && !session.is_active) ||
+      (filterSessionStatus === 'IN_PROGRESS' && session.is_active);
     
     const matchesDate = !filterSessionDate ||
       session.date === filterSessionDate;
@@ -741,10 +742,8 @@ const HRDashboard = ({ onNotify }) => {
                       label="Status"
                     >
                       <MenuItem value="ALL">All Status</MenuItem>
-                      <MenuItem value="SCHEDULED">Scheduled</MenuItem>
                       <MenuItem value="IN_PROGRESS">In Progress</MenuItem>
                       <MenuItem value="COMPLETED">Completed</MenuItem>
-                      <MenuItem value="CANCELLED">Cancelled</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
@@ -787,13 +786,13 @@ const HRDashboard = ({ onNotify }) => {
                       </ListItemAvatar>
                       <ListItemText
                         primary={session.shift?.name || 'Unknown Shift'}
-                        secondary={`${session.date || 'No date'} • ${session.start_time || 'No time'}`}
+                        secondary={`${session.date || 'No date'} • ${session.started_at ? new Date(session.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'No time'}`}
                         primaryTypographyProps={{ fontWeight: 'medium' }}
                       />
                       <Chip 
                         size="small" 
-                        label={session.status || 'UNKNOWN'} 
-                        color={getStatusColor(session.status)} 
+                        label={session.is_active ? 'IN PROGRESS' : 'COMPLETED'} 
+                        color={session.is_active ? 'info' : 'success'} 
                       />
                     </ListItem>
                   ))}

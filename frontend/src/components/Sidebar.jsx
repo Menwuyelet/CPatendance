@@ -118,7 +118,8 @@ const Sidebar = memo(({
   }, [location.pathname]);
 
   const isActive = (path) => {
-    return location.pathname === path || location.pathname.startsWith(path + '/');
+    // Exact match or exact match with trailing slash
+    return location.pathname === path || location.pathname === path + '/';
   };
 
   // Calculate sidebar width based on device and state

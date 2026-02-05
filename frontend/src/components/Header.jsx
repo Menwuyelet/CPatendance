@@ -31,9 +31,15 @@ const Header = memo(({ user, onLogout }) => {
   const [now, setNow] = useState(new Date());
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
+  
+  // Dark mode default to true (dark mode as default)
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
-    return saved ? JSON.parse(saved) : false;
+    if (saved) {
+      return JSON.parse(saved);
+    }
+    // Default to dark mode
+    return true;
   });
 
   // Apply dark mode class to body
@@ -75,6 +81,11 @@ const Header = memo(({ user, onLogout }) => {
     user?.name?.[0]?.toUpperCase() || user?.role?.[0] || '?'
   , [user?.name, user?.role]);
 
+  // Text color based on theme
+  const textColor = darkMode ? '#ffffff' : '#1a1a1a';
+  const bgColor = darkMode ? '#0a0a0a' : '#ffffff';
+  const secondaryTextColor = darkMode ? '#a0a0a0' : '#666666';
+
   return (
     <Box sx={{ 
       display: 'flex', 
@@ -87,7 +98,9 @@ const Header = memo(({ user, onLogout }) => {
         sx={{ 
           flexGrow: 1, 
           fontWeight: 'bold',
-          background: 'linear-gradient(45deg, #000000 30%, #cc0000 90%)',
+          background: darkMode 
+            ? 'linear-gradient(45deg, #ffffff 30%, #cc0000 90%)'
+            : 'linear-gradient(45deg, #000000 30%, #cc0000 90%)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
           backgroundClip: 'text',
@@ -101,7 +114,7 @@ const Header = memo(({ user, onLogout }) => {
         mr: 3, 
         minWidth: 140, 
         textAlign: 'right',
-        color: 'text.primary',
+        color: textColor,
         fontWeight: 500,
       }}>
         {dateLabel}
@@ -109,20 +122,26 @@ const Header = memo(({ user, onLogout }) => {
           fontSize: '1rem', 
           paddingLeft: 10, 
           fontWeight: 'bold',
-          color: 'inherit',
+          color: textColor,
         }}>{timeLabel}</span>
       </Typography>
 
       <Typography variant="body2" sx={{ 
         mr: 3,
-        color: 'text.primary',
+        color: textColor,
         fontWeight: 500,
       }}>
         Role: <strong>{user?.role || 'Unknown'}</strong>
       </Typography>
 
       {/* Notification Bell */}
-      <IconButton onClick={handleBellClick} sx={{ mr: 1 }}>
+      <IconButton 
+        onClick={handleBellClick} 
+        sx={{ 
+          mr: 1,
+          color: textColor,
+        }}
+      >
         <Badge badgeContent={unreadCount} color="error">
           <Notifications />
         </Badge>
@@ -156,11 +175,19 @@ const Header = memo(({ user, onLogout }) => {
         onClose={handleClose}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-        PaperProps={{ sx: { width: 380, maxHeight: 500, mt: 1 } }}
+        PaperProps={{ 
+          sx: { 
+            width: 380, 
+            maxHeight: 500, 
+            mt: 1,
+            bgcolor: bgColor,
+            color: textColor,
+          } 
+        }}
       >
         <Box sx={{ p: 2 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-            <Typography variant="h6" fontWeight="bold">
+            <Typography variant="h6" fontWeight="bold" sx={{ color: textColor }}>
               Notifications
             </Typography>
             {unreadCount > 0 && (
@@ -169,10 +196,10 @@ const Header = memo(({ user, onLogout }) => {
               </Button>
             )}
           </Box>
-          <Divider sx={{ mb: 2 }} />
+          <Divider sx={{ borderColor: darkMode ? '#2a2a2a' : '#e0e0e0' }} />
 
           {notifications.length === 0 ? (
-            <Typography sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>
+            <Typography sx={{ p: 3, textAlign: 'center', color: secondaryTextColor }}>
               No notifications yet
             </Typography>
           ) : (
@@ -181,7 +208,7 @@ const Header = memo(({ user, onLogout }) => {
                 <ListItem
                   key={notif.id}
                   sx={{
-                    bgcolor: notif.read ? 'transparent' : 'action.hover',
+                    bgcolor: notif.read ? 'transparent' : darkMode ? 'rgba(102, 126, 234, 0.1)' : 'action.hover',
                     borderRadius: 2,
                     mb: 1,
                   }}
@@ -192,8 +219,12 @@ const Header = memo(({ user, onLogout }) => {
                     primaryTypographyProps={{
                       fontWeight: notif.read ? 'normal' : 'bold',
                       variant: 'body2',
+                      sx: { color: textColor },
                     }}
-                    secondaryTypographyProps={{ variant: 'caption' }}
+                    secondaryTypographyProps={{ 
+                      variant: 'caption',
+                      sx: { color: secondaryTextColor },
+                    }}
                   />
                   {!notif.read && (
                     <ListItemSecondaryAction>

@@ -1,8 +1,9 @@
 // src/pages/ManagerDashboard.jsx
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useContext } from 'react';
 import { Link, Routes, Route, useLocation } from 'react-router-dom';
 import { format, subDays } from 'date-fns';
 import { api } from '../services/api.service.js';
+import { ThemeContext } from '../index.jsx';
 import Reports from './Reports.jsx';
 import Biometrics from './Biometrics.jsx';
 import Settings from './Settings.jsx';
@@ -611,7 +612,7 @@ const TeamOverviewPage = ({ onNotify }) => {
       name.includes(searchLower) ||
       email.includes(searchLower) ||
       department.includes(searchLower);
-    const matchesDept = deptFilter === 'all' || member.department === deptFilter;
+    const matchesDept = deptFilter === 'all' || department === deptFilter.toLowerCase();
     return matchesSearch && matchesDept;
   });
 
@@ -762,6 +763,18 @@ const TeamOverviewPage = ({ onNotify }) => {
 // ====================== MAIN COMPONENT ======================
 const ManagerDashboard = ({ onNotify }) => {
   const location = useLocation();
+  const { mode } = useContext(ThemeContext);
+
+  // Apply theme class to body
+  useEffect(() => {
+    if (mode === 'dark') {
+      document.body.classList.add('dark-mode');
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.body.classList.remove('dark-mode');
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  }, [mode]);
   
   return (
     <Routes>

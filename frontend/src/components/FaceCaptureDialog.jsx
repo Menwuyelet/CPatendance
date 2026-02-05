@@ -101,15 +101,17 @@ export default function FaceCaptureDialog({ open, onClose, onCaptured }) {
 
       const detection = await faceapi.detectSingleFace(
         videoRef.current,
-        new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.5 })
+        new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.3 })
       ).withFaceLandmarks();
 
       if (detection) {
         const { box } = detection.detection;
         
-        // Logical bounds for a 640x480 stream inside a 280x280 circle
-        const isCentered = box.x > 80 && (box.x + box.width) < 560;
-        const isRightSize = box.width > 150 && box.width < 350;
+        // Detection bounds for a 640x480 stream - more lenient for mobile devices
+        const minWidth = 80;
+        const maxWidth = 450;
+        const isCentered = box.x > 50 && (box.x + box.width) < 590;
+        const isRightSize = box.width >= minWidth && box.width <= maxWidth;
 
         if (isCentered && isRightSize) {
           if (!isFaceValid) {
@@ -120,19 +122,23 @@ export default function FaceCaptureDialog({ open, onClose, onCaptured }) {
         } else {
           setIsFaceValid(false);
           resetCountdown();
-          setStatus(isRightSize ? 'Center your face' : 'Move closer');
+          if (!isRightSize) {
+            setStatus(box.width < minWidth ? 'Move closer' : 'Too close, step back');
+          } else {
+            setStatus('Center your face');
+          }
         }
       } else {
         setIsFaceValid(false);
         resetCountdown();
-        setStatus('Scanning for face...');
+        setStatus('Looking for face...');
       }
-    }, 200);
+    }, 300);
   };
 
   const startCountdown = () => {
     if (countdownInterval.current) return;
-    let count = 3;
+    let count = 2;
     setCountdown(count);
     
     countdownInterval.current = setInterval(() => {
@@ -143,7 +149,7 @@ export default function FaceCaptureDialog({ open, onClose, onCaptured }) {
       } else {
         setCountdown(count);
       }
-    }, 800);
+    }, 600);
   };
 
   const resetCountdown = () => {
