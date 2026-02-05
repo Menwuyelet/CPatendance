@@ -1,72 +1,90 @@
+# Build settings – single [build] section
 [build]
-  command = "npm run build"
-  publish = "dist"
-  base = "/frontend"
+  base    = "frontend"              # correct: run build from /frontend folder
+  command = "npm run build"         # or "yarn build" if using Yarn
+  publish = "dist"                  # Vite default output folder
 
+# Environment variables for build
 [build.environment]
   NODE_VERSION = "20"
-  NPM_FLAGS = "--prefer-offline"
+  NPM_FLAGS    = "--prefer-offline"
 
+# SPA client-side routing fallback (rewrite all to index.html)
 [[redirects]]
-  from = "/*"
-  to = "/index.html"
+  from   = "/*"
+  to     = "/index.html"
   status = 200
-  conditions = {Role = ["admin", "hr", "manager", "employee"]}
+  force  = true                     # force rewrite even if file exists
 
-[headers]
+# Multiple header rules – use [[headers]] array syntax (double brackets)
+# Each rule is separate – no duplicates allowed
+
+[[headers]]
   for = "/assets/*"
   [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
+    Cache-Control          = "public, max-age=31536000, immutable"
     X-Content-Type-Options = "nosniff"
-    X-Frame-Options = "DENY"
+    X-Frame-Options        = "DENY"
 
-[headers]
+[[headers]]
   for = "/*"
   [headers.values]
-    X-Content-Type-Options = "nosniff"
-    X-Frame-Options = "DENY"
-    X-XSS-Protection = "1; mode=block"
-    Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    X-Content-Type-Options  = "nosniff"
+    X-Frame-Options         = "DENY"
+    X-XSS-Protection        = "1; mode=block"
+    Referrer-Policy         = "strict-origin-when-cross-origin"
+    Permissions-Policy      = "camera=(), microphone=(), geolocation=()"
 
-[headers]
+[[headers]]
   for = "/index.html"
   [headers.values]
-    Cache-Control = "no-cache, no-store, must-revalidate"
+    Cache-Control          = "no-cache, no-store, must-revalidate"
     Service-Worker-Allowed = "/"
 
-[[rewrites]]
-  from = "/api/*"
-  to = "http://127.0.0.1:8000/api/:splat"
-  status = 200
+# Proxy rewrites to external backend – REPLACE with your REAL deployed backend URL
+# Netlify DOES NOT allow proxy to localhost/127.0.0.1 in production (it will fail)
+# Use status 200 + force=true for transparent proxy/rewrite
+# Use :splat to keep the full path after the prefix
 
-[[rewrites]]
-  from = "/accounts/*"
-  to = "http://127.0.0.1:8000/accounts/:splat"
+[[redirects]]
+  from   = "/api/*"
+  to     = "https://your-real-backend-domain.com/api/:splat"   # ← CHANGE THIS
   status = 200
+  force  = true
 
-[[rewrites]]
-  from = "/attendance/*"
-  to = "http://127.0.0.1:8000/attendance/:splat"
+[[redirects]]
+  from   = "/accounts/*"
+  to     = "https://your-real-backend-domain.com/accounts/:splat"
   status = 200
+  force  = true
 
-[[rewrites]]
-  from = "/employees/*"
-  to = "http://127.0.0.1:8000/employees/:splat"
+[[redirects]]
+  from   = "/attendance/*"
+  to     = "https://your-real-backend-domain.com/attendance/:splat"
   status = 200
+  force  = true
 
-[[rewrites]]
-  from = "/biometrics/*"
-  to = "http://127.0.0.1:8000/biometrics/:splat"
+[[redirects]]
+  from   = "/employees/*"
+  to     = "https://your-real-backend-domain.com/employees/:splat"
   status = 200
+  force  = true
 
+[[redirects]]
+  from   = "/biometrics/*"
+  to     = "https://your-real-backend-domain.com/biometrics/:splat"
+  status = 200
+  force  = true
+
+# Optional: Functions settings (if you use Netlify Functions)
 [functions]
-  node_bundler = "esbuild"
-  included_files = ["dist/**/*"]
+  node_bundler        = "esbuild"
+  included_files      = ["dist/**/*"]
   external_node_modules = ["@tensorflow/tfjs", "mediapipe"]
 
+# Environment overrides per context
 [context.production.environment]
-  VITE_API_URL = "https://your-backend-api.com"
+  VITE_API_URL = "https://your-real-backend-domain.com"
 
 [context.deploy-preview.environment]
-  VITE_API_URL = "https://your-staging-backend-api.com"
+  VITE_API_URL = "https://your-staging-backend-domain.com"   # or local for previews if needed
