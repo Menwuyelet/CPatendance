@@ -1,4 +1,3 @@
-// src/pages/AttendanceSessions.jsx
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNotifications } from '../context/NotificationContext';
 import {
@@ -64,7 +63,7 @@ const enrichSessions = async (sessionsList) => {
     const usersList = Array.isArray(usersData) ? usersData : usersData?.results || [];
     const employeesList = Array.isArray(employeesData) ? employeesData : employeesData?.results || [];
 
-    console.log('Enriching sessions - Users:', usersList.length, 'Employees:', employeesList.length, 'Shifts:', shiftsList.length);
+    // console.log('Enriching sessions - Users:', usersList.length, 'Employees:', employeesList.length, 'Shifts:', shiftsList.length);
 
     // Create lookup maps for faster access
     const shiftsMap = new Map(shiftsList.map(s => [String(s.id), s]));
@@ -175,7 +174,7 @@ const AttendanceSessions = ({ role, onNotify: propsNotify }) => {
       }
     };
     loadShifts();
-  }, [canManageSessions]);
+  }, []);
 
   // Load attendance sessions
   useEffect(() => {
@@ -207,7 +206,7 @@ const AttendanceSessions = ({ role, onNotify: propsNotify }) => {
     };
 
     loadSessions();
-  }, [canManageSessions]);
+  }, []);
 
   // Load employee shifts
   useEffect(() => {
@@ -247,8 +246,8 @@ const AttendanceSessions = ({ role, onNotify: propsNotify }) => {
           ? shiftsData
           : shiftsData?.results || shiftsData?.data || [];
 
-        console.log('Loaded employees:', employeesList.length, employeesList);
-        console.log('Loaded employee shifts:', employeeShiftsList.length);
+        // console.log('Loaded employees:', employeesList.length, employeesList);
+        // console.log('Loaded employee shifts:', employeeShiftsList.length);
 
         setEmployees(employeesList);
         setEmployeeShifts(employeeShiftsList);
@@ -337,6 +336,22 @@ const AttendanceSessions = ({ role, onNotify: propsNotify }) => {
     const selectedShift = shifts.find(s => String(s.id) === String(selectedShiftForSession));
     if (!selectedShift) {
       showNotification('Selected shift not found.', 'error');
+      return;
+    }
+
+    // Check for if selected session is already active
+    const isAlreadyActive = sessions.some(session => 
+      String(session.shift?.id) === String(selectedShiftForSession) && session.is_active
+    );
+    if (isAlreadyActive) {
+      showNotification('Selected session is already active.', 'warning');
+      return;
+    }
+
+    // check if there is an active session for any shift
+    const isAnySessionActive = sessions.some(session => session.is_active);
+    if (isAnySessionActive) {
+      showNotification('There is already an active attendance session. Please close it before starting a new one.', 'warning');
       return;
     }
     
