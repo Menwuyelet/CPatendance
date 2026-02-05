@@ -215,31 +215,16 @@ from cryptography.fernet import Fernet
 BIOMETRIC_SECRET_KEY = "-iXAOkcJoFyq58EXoeskOOfltPP6qrm_4vCnTbc_o-c="
 
 LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "structured": {
-            "format": "%(asctime)s %(levelname)s %(name)s %(message)s",
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
         },
     },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "level": "WARNING",
-            "formatter": "structured",
-        },
-        "file": {
-            "class": "logging.handlers.RotatingFileHandler",
-            "filename": BASE_DIR / "logs/backend.log",
-            "maxBytes": 10_000_000,
-            "backupCount": 10,
-            "formatter": "structured",
-            "level": "INFO",
-        },
-    },
-    "root": {
-        "handlers": ["console", "file"],
-        "level": "INFO",
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
     },
 }
 
