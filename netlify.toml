@@ -1,71 +1,85 @@
+# Build configuration
 [build]
-  command = "cd frontend && npm run build"
-  publish = "frontend/dist"
+  base    = "frontend"              # Sets working directory to frontend
+  command = "npm run build"         # Build the frontend
+  publish = "dist"                  # Vite builds to dist inside frontend
 
+# Optional: Set Node version and npm flags
 [build.environment]
   NODE_VERSION = "20"
+  NPM_FLAGS    = "--prefer-offline"
 
-[headers]
+# Security & caching headers – multiple rules as separate [[headers]] blocks
+[[headers]]
   for = "/assets/*"
   [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
+    Cache-Control          = "public, max-age=31536000, immutable"
     X-Content-Type-Options = "nosniff"
-    X-Frame-Options = "DENY"
+    X-Frame-Options        = "DENY"
 
-[headers]
+[[headers]]
   for = "/*"
   [headers.values]
-    X-Content-Type-Options = "nosniff"
-    X-Frame-Options = "DENY"
-    X-XSS-Protection = "1; mode=block"
-    Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    X-Content-Type-Options  = "nosniff"
+    X-Frame-Options         = "DENY"
+    X-XSS-Protection        = "1; mode=block"
+    Referrer-Policy         = "strict-origin-when-cross-origin"
+    Permissions-Policy      = "camera=(), microphone=(), geolocation=()"
 
-[headers]
+[[headers]]
   for = "/index.html"
   [headers.values]
-    Cache-Control = "no-cache, no-store, must-revalidate"
+    Cache-Control          = "no-cache, no-store, must-revalidate"
     Service-Worker-Allowed = "/"
 
-# API redirects - these must come BEFORE the catch-all redirect
+# Proxy/rewrite to your deployed backend (REPLACE THE URL!)
+# Netlify requires a real external URL – localhost won't work in production
 [[redirects]]
-  from = "/api/*"
-  to = "https://your-backend-api.com/api/:splat"
+  from   = "/api/*"
+  to     = "https://your-real-backend-url.com/api/:splat"   # ← Change this
   status = 200
+  force  = true
 
 [[redirects]]
-  from = "/accounts/*"
-  to = "https://your-backend-api.com/accounts/:splat"
+  from   = "/accounts/*"
+  to     = "https://your-real-backend-url.com/accounts/:splat"
   status = 200
+  force  = true
 
 [[redirects]]
-  from = "/attendance/*"
-  to = "https://your-backend-api.com/attendance/:splat"
+  from   = "/attendance/*"
+  to     = "https://your-real-backend-url.com/attendance/:splat"
   status = 200
+  force  = true
 
 [[redirects]]
-  from = "/employees/*"
-  to = "https://your-backend-api.com/employees/:splat"
+  from   = "/employees/*"
+  to     = "https://your-real-backend-url.com/employees/:splat"
   status = 200
+  force  = true
 
 [[redirects]]
-  from = "/biometrics/*"
-  to = "https://your-backend-api.com/biometrics/:splat"
+  from   = "/biometrics/*"
+  to     = "https://your-real-backend-url.com/biometrics/:splat"
   status = 200
+  force  = true
 
-# Catch-all redirect for SPA routing (must come last)
+# SPA routing: rewrite all paths to index.html for client-side routing
+# This must come AFTER the API redirects
 [[redirects]]
-  from = "/*"
-  to = "/index.html"
+  from   = "/*"
+  to     = "/index.html"
   status = 200
 
+# Optional functions config (if you use Netlify Functions)
 [functions]
-  node_bundler = "esbuild"
-  included_files = ["frontend/dist/**/*"]
+  node_bundler          = "esbuild"
+  included_files        = ["dist/**/*"]
   external_node_modules = ["@tensorflow/tfjs", "mediapipe"]
 
+# Env vars for production & previews
 [context.production.environment]
-  VITE_API_URL = "https://your-backend-api.com"
+  VITE_API_URL = "https://your-real-backend-url.com"
 
 [context.deploy-preview.environment]
-  VITE_API_URL = "https://your-staging-backend-api.com"
+  VITE_API_URL = "https://your-real-backend-url.com"   # optional
