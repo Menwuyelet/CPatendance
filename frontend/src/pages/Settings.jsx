@@ -1,6 +1,7 @@
 // src/pages/Settings.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { api } from '../services/api.service.js';
+import { ThemeContext } from '../index.jsx';
 import {
   Box,
   Typography,
@@ -79,22 +80,21 @@ const DashboardLayout = ({ children, title, breadcrumbs = [], actions }) => (
 );
 
 const Settings = ({ role, onNotify }) => {
+  // Use ThemeContext for consistent theme management
+  const { mode, toggleTheme } = useContext(ThemeContext);
+  const isDarkMode = mode === 'dark';
+  
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState('');
   const [departments, setDepartments] = useState([]);
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem('themeMode');
-    return saved || 'light';
-  });
   
   // Theme options
   const themes = [
-    { id: 'light', name: 'Light', icon: <Brightness7 />, bg: '#ffffff', text: '#1a202c' },
-    { id: 'dark', name: 'Dark', icon: <Brightness4 />, bg: '#1a202c', text: '#ffffff' },
-    { id: 'sepia', name: 'Sepia', icon: <WbSunny />, bg: '#f4ecd8', text: '#5c4b37' },
+    { id: 'light', name: 'Light', icon: <Brightness7 /> },
+    { id: 'dark', name: 'Dark', icon: <Brightness4 /> },
   ];
   
   // Notification preferences state
@@ -120,11 +120,14 @@ const Settings = ({ role, onNotify }) => {
 
   // Apply theme class to body and data-theme attribute
   useEffect(() => {
-    document.body.classList.remove('light-mode', 'dark-mode', 'sepia-mode');
-    document.body.classList.add(`${darkMode}-mode`);
-    document.documentElement.setAttribute('data-theme', darkMode);
-    localStorage.setItem('themeMode', darkMode);
-  }, [darkMode]);
+    if (mode === 'dark') {
+      document.body.classList.add('dark-mode');
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.body.classList.remove('dark-mode');
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  }, [mode]);
 
   // Password change state
   const [passwordForm, setPasswordForm] = useState({
@@ -153,12 +156,16 @@ const Settings = ({ role, onNotify }) => {
   }, []);
 
   const loadDepartments = async () => {
+    // Only HR, Admin, and Manager roles need departments
+    if (!['HR', 'Admin', 'Manager'].includes(role)) {
+      return;
+    }
     try {
       const res = await api.get('/employees/departments/').catch(() => ({ results: [] }));
       const list = Array.isArray(res) ? res : res?.results || [];
       setDepartments(list);
     } catch {
-      // Silently handle permission errors - user may not have department access
+      // Silently handle permission errors
     }
   };
 
@@ -363,7 +370,7 @@ const Settings = ({ role, onNotify }) => {
               </Stack>
 
               <Stack spacing={2}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'grey.50', borderRadius: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <Email />
                     <Box>
@@ -378,7 +385,7 @@ const Settings = ({ role, onNotify }) => {
                   />
                 </Box>
 
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'grey.50', borderRadius: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <Timer />
                     <Box>
@@ -393,7 +400,7 @@ const Settings = ({ role, onNotify }) => {
                   />
                 </Box>
 
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'grey.50', borderRadius: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <History />
                     <Box>
@@ -447,7 +454,7 @@ const Settings = ({ role, onNotify }) => {
               {showSessions && (
                 <Stack spacing={2}>
                   {activeSessions.map(session => (
-                    <Box key={session.id} sx={{ p: 2, bgcolor: session.current ? 'primary.light' : 'grey.50', borderRadius: 2 }}>
+                    <Box key={session.id} sx={{ p: 2, bgcolor: session.current ? 'primary.light' : (isDarkMode ? 'rgba(255,255,255,0.05)' : 'grey.50'), borderRadius: 2 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <Box>
                           <Typography fontWeight="medium">{session.device}</Typography>
@@ -555,7 +562,7 @@ const Settings = ({ role, onNotify }) => {
               {showActivityLog && (
                 <Stack spacing={1}>
                   {activityLog.map(activity => (
-                    <Box key={activity.id} sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 1.5, bgcolor: 'grey.50', borderRadius: 1 }}>
+                    <Box key={activity.id} sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 1.5, bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'grey.50', borderRadius: 1 }}>
                       <Box sx={{ flex: 1 }}>
                         <Typography fontWeight="medium">{activity.action}</Typography>
                         <Typography variant="body2" color="text.secondary">{activity.device}</Typography>
@@ -580,8 +587,8 @@ const Settings = ({ role, onNotify }) => {
           <Card sx={{ height: '100%', boxShadow: 2, borderRadius: 2 }}>
             <CardContent>
               <Stack direction="row" alignItems="center" spacing={2} mb={2}>
-                <Avatar sx={{ bgcolor: darkMode === 'dark' ? 'grey.700' : 'primary.main', width: 48, height: 48 }}>
-                  {darkMode === 'dark' ? <Brightness4 /> : <Brightness7 />}
+                <Avatar sx={{ bgcolor: isDarkMode ? 'grey.700' : 'primary.main', width: 48, height: 48 }}>
+                  {isDarkMode ? <Brightness4 /> : <Brightness7 />}
                 </Avatar>
                 <Box>
                   <Typography variant="h6" fontWeight="600">Appearance</Typography>
@@ -590,33 +597,34 @@ const Settings = ({ role, onNotify }) => {
               </Stack>
 
               <Box sx={{ display: 'flex', gap: 1 }}>
-                {themes.map((theme) => (
-                  <Button
-                    key={theme.id}
-                    variant={darkMode === theme.id ? 'contained' : 'outlined'}
-                    onClick={() => setDarkMode(theme.id)}
-                    startIcon={theme.icon}
-                    sx={{ 
-                      flex: 1,
-                      py: 1.5,
-                      borderRadius: 2,
-                    }}
-                  >
-                    {theme.name}
-                  </Button>
-                ))}
+                <Button
+                  variant={!isDarkMode ? 'contained' : 'outlined'}
+                  onClick={() => isDarkMode && toggleTheme()}
+                  startIcon={<Brightness7 />}
+                  sx={{ flex: 1, py: 1.5, borderRadius: 2 }}
+                >
+                  Light
+                </Button>
+                <Button
+                  variant={isDarkMode ? 'contained' : 'outlined'}
+                  onClick={() => !isDarkMode && toggleTheme()}
+                  startIcon={<Brightness4 />}
+                  sx={{ flex: 1, py: 1.5, borderRadius: 2 }}
+                >
+                  Dark
+                </Button>
               </Box>
 
-              <Box sx={{ mt: 2, p: 1.5, bgcolor: 'grey.50', borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box sx={{ mt: 2, p: 1.5, bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'grey.50', borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Typography variant="body2" color="text.secondary">
-                  Active: {themes.find(t => t.id === darkMode)?.name}
+                  Active: {isDarkMode ? 'Dark Mode 🌙' : 'Light Mode ☀️'}
                 </Typography>
                 <Chip 
-                  label={darkMode === 'dark' ? '🌙 Dark' : darkMode === 'sepia' ? '☕ Sepia' : '☀️ Light'}
+                  label={isDarkMode ? '🌙 Dark' : '☀️ Light'}
                   size="small"
                   sx={{ 
-                    bgcolor: darkMode === 'dark' ? 'grey.700' : 'primary.light',
-                    color: darkMode === 'dark' ? '#fff' : 'primary.main',
+                    bgcolor: isDarkMode ? 'grey.700' : 'primary.light',
+                    color: isDarkMode ? '#fff' : 'primary.main',
                     fontWeight: 600,
                   }}
                 />
@@ -887,7 +895,7 @@ const Settings = ({ role, onNotify }) => {
 
               <Grid container spacing={3}>
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+                  <Box sx={{ p: 2, bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'grey.50', borderRadius: 2 }}>
                     <Typography variant="body2" color="text.secondary" gutterBottom>Current Role</Typography>
                     <Chip 
                       label={role} 
@@ -897,7 +905,7 @@ const Settings = ({ role, onNotify }) => {
                   </Box>
                 </Grid>
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+                  <Box sx={{ p: 2, bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'grey.50', borderRadius: 2 }}>
                     <Typography variant="body2" color="text.secondary" gutterBottom>Access Level</Typography>
                     <Typography variant="body1" fontWeight="medium">
                       {role === 'Admin' ? 'Full administrative access' :

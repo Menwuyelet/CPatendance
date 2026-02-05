@@ -56,8 +56,11 @@ import { api } from '../services/api.service.js';
 import { DashboardPage, DashboardStatCard } from '../components/dashboard';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 
-const HRDashboard = ({ onNotify }) => {
+const HRDashboard = ({ role, onNotify }) => {
   const navigate = useNavigate();
+  const isManager = role === 'Manager';
+  const isHR = role === 'HR';
+  const isAdmin = role === 'Admin';
 
   // Real data states
   const [stats, setStats] = useState({
@@ -75,6 +78,7 @@ const HRDashboard = ({ onNotify }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [currentUserEmployee, setCurrentUserEmployee] = useState(null);
 
   // Clock-in states
   const [activeSession, setActiveSession] = useState(null);
@@ -94,6 +98,27 @@ const HRDashboard = ({ onNotify }) => {
       setFilterDate(format(new Date(), 'yyyy-MM-dd'));
     }
   }, [filterDate]);
+
+  // Load current user's employee data for manager department filtering
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      if (isManager) {
+        try {
+          const emp = await api.getMyEmployee();
+          if (emp) {
+            setCurrentUserEmployee(emp);
+            // Automatically set department filter to manager's department
+            if (emp.department?.id) {
+              setFilterDepartment(String(emp.department.id));
+            }
+          }
+        } catch (err) {
+          console.error('Failed to load current user employee:', err);
+        }
+      }
+    };
+    loadCurrentUser();
+  }, [isManager]);
 
   // Session states
   const [sessions, setSessions] = useState([]);
@@ -178,21 +203,38 @@ const HRDashboard = ({ onNotify }) => {
       const shiftsData = Array.isArray(shiftsRes) ? shiftsRes : shiftsRes?.results || [];
       const employeeShiftsData = Array.isArray(employeeShiftsRes) ? employeeShiftsRes : employeeShiftsRes?.results || [];
 
-      setEmployees(employeesData);
-      setAttendanceRecords(attendanceData);
-      setDepartments(departmentsList);
-      setSessions(Array.isArray(sessionsRes) ? sessionsRes : []);
+      // Filter data by manager's department
+      const managerDeptId = currentUserEmployee?.department?.id;
+      const filteredByDept = isManager && managerDeptId
+        ? employeesData.filter(emp => String(emp.department?.id) === String(managerDeptId))
+        : employeesData;
+
+      // Filter attendance by department for managers
+      const filteredAttendance = isManager && managerDeptId
+        ? attendanceData.filter(r => {
+            const emp = employeesData.find(e => String(e.id) === String(r.employee?.id || r.employee));
+            return emp && String(emp.department?.id) === String(managerDeptId);
+          })
+        : attendanceData;
+      setAttendanceRecords(filteredAttendance);
+
+      // Filter departments for managers (only show their department)
+      const filteredDepartments = isManager && managerDeptId
+        ? departmentsList.filter(d => String(d.id) === String(managerDeptId))
+        : departmentsList;
+      setDepartments(filteredDepartments);
+      setEmployees(filteredByDept);
 
       // Detect excess shifts
       const excessShifts = detectExcessShifts(employeeShiftsData, shiftsData);
       setExcessShiftEmployees(excessShifts);
 
-      // Calculate statistics
-      const totalEmployees = employeesData.length;
-      const activeEmployees = employeesData.filter((emp) => emp.is_active !== false).length;
+      // Calculate statistics based on filtered employees
+      const totalEmployees = filteredByDept.length;
+      const activeEmployees = filteredByDept.filter((emp) => emp.is_active !== false).length;
 
       const todayStr = new Date().toISOString().slice(0, 10);
-      const todayRecords = attendanceData.filter((r) => r.date === todayStr);
+      const todayRecords = filteredAttendance.filter((r) => r.date === todayStr);
       const activeToday = todayRecords.filter((r) => {
         const status = (r.status || '').toUpperCase();
         return status === 'PRESENT' || status === 'LATE';
@@ -252,7 +294,7 @@ const HRDashboard = ({ onNotify }) => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [onNotify, detectExcessShifts]);
+  }, [onNotify, detectExcessShifts, isManager, currentUserEmployee]);
 
   // Notify when excess shifts are detected
   useEffect(() => {
@@ -347,8 +389,10 @@ const HRDashboard = ({ onNotify }) => {
       emp.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       emp.employee_code?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesDept = filterDepartment === 'ALL' ||
-      String(emp.department?.id || '') === String(filterDepartment);
+    // Managers can only see employees in their department
+    const matchesDept = isManager 
+      ? (emp.department?.id === currentUserEmployee?.department?.id)
+      : (filterDepartment === 'ALL' || String(emp.department?.id || '') === String(filterDepartment));
 
     return matchesSearch && matchesDept;
   }).map((emp) => {
@@ -369,7 +413,8 @@ const HRDashboard = ({ onNotify }) => {
       session.shift?.name?.toLowerCase().includes(searchSession.toLowerCase());
     
     const matchesStatus = filterSessionStatus === 'ALL' ||
-      session.status === filterSessionStatus;
+      (filterSessionStatus === 'COMPLETED' && !session.is_active) ||
+      (filterSessionStatus === 'IN_PROGRESS' && session.is_active);
     
     const matchesDate = !filterSessionDate ||
       session.date === filterSessionDate;
@@ -741,10 +786,8 @@ const HRDashboard = ({ onNotify }) => {
                       label="Status"
                     >
                       <MenuItem value="ALL">All Status</MenuItem>
-                      <MenuItem value="SCHEDULED">Scheduled</MenuItem>
                       <MenuItem value="IN_PROGRESS">In Progress</MenuItem>
                       <MenuItem value="COMPLETED">Completed</MenuItem>
-                      <MenuItem value="CANCELLED">Cancelled</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
@@ -787,13 +830,13 @@ const HRDashboard = ({ onNotify }) => {
                       </ListItemAvatar>
                       <ListItemText
                         primary={session.shift?.name || 'Unknown Shift'}
-                        secondary={`${session.date || 'No date'} • ${session.start_time || 'No time'}`}
+                        secondary={`${session.date || 'No date'} • ${session.started_at ? new Date(session.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'No time'}`}
                         primaryTypographyProps={{ fontWeight: 'medium' }}
                       />
                       <Chip 
                         size="small" 
-                        label={session.status || 'UNKNOWN'} 
-                        color={getStatusColor(session.status)} 
+                        label={session.is_active ? 'IN PROGRESS' : 'COMPLETED'} 
+                        color={session.is_active ? 'info' : 'success'} 
                       />
                     </ListItem>
                   ))}
@@ -880,3 +923,4 @@ const FaceCaptureDialog = ({ open, title, onClose, onCaptured }) => {
 };
 
 export default HRDashboard;
+

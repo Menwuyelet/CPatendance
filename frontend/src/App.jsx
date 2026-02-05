@@ -178,6 +178,7 @@ return (
           {/* MANAGER */}
           {user.role === 'Manager' && (
             <>
+              <Route path="/manager" element={<Navigate to="/manager/dashboard" replace />} />
               <Route path="/manager/*" element={<ManagerDashboard onNotify={notify} />} />
               <Route path="/attendance" element={<AttendanceOverview role="Manager" onNotify={notify} />} />
               <Route path="/attendance/shifts" element={<Shifts role="Manager" onNotify={notify} />} />
@@ -194,6 +195,7 @@ return (
               <Route path="/attendance" element={<AttendanceOverview role="Employee" onNotify={notify} />} />
               <Route path="/settings" element={<Settings onNotify={notify} />} />
               <Route path="/biometrics" element={<Biometrics onNotify={notify} role="Employee" />} />
+              <Route path="/reports" element={<Reports onNotify={notify} />} />
             </>
           )}
         </Route>

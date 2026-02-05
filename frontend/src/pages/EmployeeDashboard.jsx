@@ -9,9 +9,14 @@ import {
   Alert,
   CircularProgress,
 } from '@mui/material';
-import { useState, useEffect } from 'react';
+import {
+  useState,
+  useEffect,
+  useContext,
+} from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api.service.js';
+import { ThemeContext } from '../index.jsx';
 import {
   AccessTime,
   CheckCircle,
@@ -31,6 +36,18 @@ const EmployeeDashboard = ({ onNotify }) => {
   const [currentTime, setCurrentTime] = useState(null);
 
   const navigate = useNavigate();
+  const { mode } = useContext(ThemeContext);
+
+  // Apply theme class to body
+  useEffect(() => {
+    if (mode === 'dark') {
+      document.body.classList.add('dark-mode');
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.body.classList.remove('dark-mode');
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  }, [mode]);
 
   useEffect(() => {
     // Initialize time on client-side only to avoid hydration mismatch
@@ -325,16 +342,6 @@ const EmployeeDashboard = ({ onNotify }) => {
                 className="action-button"
               >
                 Attendance
-              </Button>
-
-              <Button
-                fullWidth
-                variant="outlined"
-                startIcon={<Schedule />}
-                onClick={() => navigate('/leaves')}
-                className="action-button"
-              >
-                Leave Requests
               </Button>
 
               <Button

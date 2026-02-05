@@ -24,7 +24,7 @@ import {
 } from '@mui/icons-material';
 import { IconButton, useMediaQuery, Box, Drawer, Typography } from '@mui/material';
 
-// Fixed layout constants (px/rem) - DO NOT use percentages
+// Fixed layout constants (px/rem) - Did NOT use percentages
 const LAYOUT = {
   SIDEBAR_WIDTH: 260,           // px - expanded sidebar
   SIDEBAR_COLLAPSED_WIDTH: 80,  // px - collapsed sidebar (tablet)
@@ -118,18 +118,20 @@ const Sidebar = memo(({
   }, [location.pathname]);
 
   const isActive = (path) => {
-    return location.pathname === path || location.pathname.startsWith(path + '/');
+    // Exact match or exact match with trailing slash
+    return location.pathname === path || location.pathname === path + '/';
   };
 
   // Calculate sidebar width based on device and state
   const getSidebarWidth = () => {
     if (isMobile) return LAYOUT.SIDEBAR_MOBILE_WIDTH;
     if (isTablet && isCollapsed) return LAYOUT.SIDEBAR_COLLAPSED_WIDTH;
+    if (isDesktop && isCollapsed) return LAYOUT.SIDEBAR_COLLAPSED_WIDTH;
     return LAYOUT.SIDEBAR_WIDTH; // Desktop or tablet expanded
   };
 
   const sidebarWidth = getSidebarWidth();
-  const showCollapseToggle = isTablet; // Only show collapse button on tablet
+  const showCollapseToggle = isTablet ; // Only show collapse button on tablet and desktop
   const showMobileMenu = isMobile; // Only show menu button on mobile
 
   // Determine if sidebar content should show text labels
@@ -285,7 +287,7 @@ const Sidebar = memo(({
           transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           display: 'flex',
           flexDirection: 'column',
-          zIndex: 1200,
+          zIndex: 10000,
           overflowX: 'hidden',
           borderRight: `${LAYOUT.CONTENT_GAP}px solid var(--border-subtle)`,
         }}>

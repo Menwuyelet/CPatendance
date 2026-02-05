@@ -1,5 +1,6 @@
 // src/pages/Shifts.jsx
 import React, { useEffect, useState, useMemo } from 'react';
+import { useNotifications } from '../context/NotificationContext';
 import {
   Box,
   Card,
@@ -58,14 +59,30 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { api } from '../services/api.service.js';
 import { format, parse } from 'date-fns';
 
-const Shifts = ({ role, onNotify }) => {
+const Shifts = ({ role, onNotify: propsNotify }) => {
   const isManager = role === 'Manager';
   const isHR = role === 'HR';
   const isAdmin = role === 'Admin';
 
+  // Use notifications hook, fallback to props
+  const notifyContext = useNotifications();
+  
+  // Helper function to show notifications
+  const showNotification = (message, severity = 'info') => {
+    if (propsNotify && typeof propsNotify === 'function') {
+      propsNotify(message, severity);
+    } else if (propsNotify && typeof propsNotify.addNotification === 'function') {
+      propsNotify.addNotification(message, severity);
+    } else if (notifyContext && typeof notifyContext.addNotification === 'function') {
+      notifyContext.addNotification(message, severity);
+    } else {
+      console.warn('Notification:', message);
+    }
+  };
+
   // Permissions
   const canViewShifts = isAdmin || isHR || isManager;
-  const canManageShifts = isHR;
+  const canManageShifts = isHR || isManager;
   const canManageEmployeeShifts = isHR || isManager;
 
   const [shifts, setShifts] = useState([]);
@@ -244,7 +261,7 @@ const Shifts = ({ role, onNotify }) => {
         setShifts([]);
         setShiftError('Unable to load shifts.');
         if (err.response?.status !== 403) {
-          onNotify?.('Failed to fetch shifts from server.', 'error');
+          showNotification('Failed to fetch shifts from server.', 'error');
         }
       } finally {
         setShiftsLoading(false);
@@ -252,7 +269,7 @@ const Shifts = ({ role, onNotify }) => {
     };
 
     loadShifts();
-  }, [canViewShifts, onNotify, timeFormat]);
+  }, [canViewShifts, timeFormat]);
 
   // Load employee shifts and employees
   useEffect(() => {
@@ -291,14 +308,14 @@ const Shifts = ({ role, onNotify }) => {
         setEmployeeShifts([]);
         setEmployees([]);
         setEmployeeShiftsError('Unable to load employee shifts.');
-        onNotify?.('Failed to fetch employee shifts.', 'error');
+        showNotification('Failed to fetch employee shifts.', 'error');
       } finally {
         setEmployeeShiftsLoading(false);
       }
     };
 
     loadEmployeeShifts();
-  }, [canManageEmployeeShifts, onNotify]);
+  }, [canManageEmployeeShifts]);
 
   // Filter employees based on search
   const filteredEmployees = useMemo(() => {
@@ -540,7 +557,7 @@ const Shifts = ({ role, onNotify }) => {
     setAmpmMode(newFormat === '12');
     // Store preference in localStorage
     localStorage.setItem('timeFormat', newFormat);
-    onNotify?.(`Time format changed to ${newFormat}-hour format`, 'info');
+    showNotification(`Time format changed to ${newFormat}-hour format`, 'info');
   };
 
   const handleSubmitShift = async () => {
@@ -549,13 +566,13 @@ const Shifts = ({ role, onNotify }) => {
     // Validate time
     if (!shiftForm.start_time || !shiftForm.end_time) {
       setShiftError('Please select both start and end times');
-      onNotify?.('Please select both start and end times', 'warning');
+      showNotification('Please select both start and end times', 'warning');
       return;
     }
 
     if (shiftForm.start_time >= shiftForm.end_time) {
       setShiftError('End time must be after start time');
-      onNotify?.('End time must be after start time', 'warning');
+      showNotification('End time must be after start time', 'warning');
       return;
     }
 
@@ -578,10 +595,10 @@ const Shifts = ({ role, onNotify }) => {
       let result;
       if (editingShift && editingShift.id) {
         result = await api.put(`/attendance/shifts/${editingShift.id}/`, payload);
-        onNotify?.('Shift updated successfully.', 'success');
+        showNotification('Shift updated successfully.', 'success');
       } else {
         result = await api.post('/attendance/shifts/', payload);
-        onNotify?.('Shift created successfully.', 'success');
+        showNotification('Shift created successfully.', 'success');
       }
 
       // Add date objects and formatted display times to the result for local state
@@ -609,7 +626,7 @@ const Shifts = ({ role, onNotify }) => {
       console.error('Failed to save shift:', err);
       const message = err?.message || 'Failed to save shift.';
       setShiftError(message);
-      onNotify?.(message, 'error');
+      showNotification(message, 'error');
     }
   };
 
@@ -620,23 +637,94 @@ const Shifts = ({ role, onNotify }) => {
     try {
       await api.delete(`/attendance/shifts/${shiftId}/`);
       setShifts((prev) => prev.filter((s) => s.id !== shiftId));
-      onNotify?.('Shift deleted successfully.', 'success');
+      showNotification('Shift deleted successfully.', 'success');
     } catch (err) {
       console.error('Failed to delete shift:', err);
       setShiftError('Failed to delete shift.');
-      onNotify?.('Failed to delete shift.', 'error');
+      showNotification('Failed to delete shift.', 'error');
     }
   };
 
   // Employee Shift Assignment handlers
+  // Count shifts per employee per day (returns max shifts across all days)
+  const getEmployeeShiftCount = (employeeId) => {
+    const employeeShiftAssignments = employeeShifts.filter(assignment => {
+      const empId = typeof assignment.employee === 'object' && assignment.employee !== null
+        ? assignment.employee.id
+        : assignment.employee;
+      return String(empId) === String(employeeId);
+    });
+    
+    // Count shifts for each day and return the maximum
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    let maxShiftsPerDay = 0;
+    
+    days.forEach(day => {
+      const shiftsOnDay = employeeShiftAssignments.filter(a => a.shift && a.shift[day]);
+      if (shiftsOnDay.length > maxShiftsPerDay) {
+        maxShiftsPerDay = shiftsOnDay.length;
+      }
+    });
+    
+    return maxShiftsPerDay;
+  };
+
   const handleAssignEmployeeShift = async () => {
     if (!employeeShiftForm.employee || !employeeShiftForm.shift) {
-      onNotify?.('Please select both employee and shift.', 'warning');
+      showNotification('Please select both employee and shift.', 'warning');
       return;
     }
+    
+    // Check if shift is already assigned to employee
+    const isAlreadyAssigned = employeeShifts.some(assignment => {
+      const empId = typeof assignment.employee === 'object' && assignment.employee !== null
+        ? assignment.employee.id
+        : assignment.employee;
+      const shiftId = typeof assignment.shift === 'object' && assignment.shift !== null
+        ? assignment.shift.id
+        : assignment.shift;
+      return String(empId) === String(employeeShiftForm.employee) && 
+             String(shiftId) === String(employeeShiftForm.shift);
+    });
+    
+    if (isAlreadyAssigned) {
+      showNotification('This shift is already assigned to this employee.', 'warning');
+      return;
+    }
+    
+    // Check if employee already has 2 shifts on any day
+    const currentShiftCount = getEmployeeShiftCount(employeeShiftForm.employee);
+    if (currentShiftCount >= 2) {
+      showNotification('Employee already has maximum of 2 shifts per day. Cannot assign more shifts.', 'error');
+      return;
+    }
+    
+    // Get the shift being assigned to check its days
+    const selectedShift = shifts.find(s => String(s.id) === String(employeeShiftForm.shift));
+    if (selectedShift) {
+      const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+      const daysWithNewShift = days.filter(day => selectedShift[day]);
+      
+      // Check if adding this shift would exceed limit on any day
+      for (const day of daysWithNewShift) {
+        const existingShiftsOnDay = employeeShifts.filter(assignment => {
+          const empId = typeof assignment.employee === 'object' && assignment.employee !== null
+            ? assignment.employee.id
+            : assignment.employee;
+          return String(empId) === String(employeeShiftForm.employee) && 
+                 assignment.shift && assignment.shift[day];
+        });
+        
+        if (existingShiftsOnDay.length >= 2) {
+          showNotification(`Cannot assign shift: Employee already has 2 shifts on ${day.charAt(0).toUpperCase() + day.slice(1)}. Maximum is 2 shifts per day.`, 'error');
+          return;
+        }
+      }
+    }
+    
     try {
       await api.assignEmployeeShift(employeeShiftForm.employee, employeeShiftForm.shift);
-      onNotify?.('Shift assigned to employee successfully.', 'success');
+      showNotification('Shift assigned to employee successfully.', 'success');
       setEmployeeShiftDialogOpen(false);
       setEmployeeShiftForm({ employee: '', shift: '' });
       setEmployeeSearch('');
@@ -644,8 +732,36 @@ const Shifts = ({ role, onNotify }) => {
       const data = await api.listEmployeeShifts();
       setEmployeeShifts(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error('Failed to assign shift:', err);
-      onNotify?.(err.message || 'Failed to assign shift to employee.', 'error');
+      // Extract error message
+      let errorMsg = 'Failed to assign shift to employee.';
+      
+      try {
+        if (err?.message) {
+          errorMsg = err.message;
+        }
+        
+        if (err?.response?.data) {
+          const data = err.response.data;
+          if (typeof data === 'string') {
+            errorMsg = data;
+          } else if (data?.detail) {
+            errorMsg = data.detail;
+          } else if (data?.message) {
+            errorMsg = data.message;
+          } else if (typeof data === 'object' && data !== null) {
+            const values = Object.values(data);
+            if (values.length > 0) {
+              errorMsg = values.flat().join(', ');
+            }
+          }
+        }
+      } catch {
+        // Ignore extraction errors
+      }
+      
+      // Log warning (not spam)
+      console.warn('Shift assignment failed:', errorMsg);
+      showNotification(errorMsg, 'error');
     }
   };
 
@@ -654,13 +770,13 @@ const Shifts = ({ role, onNotify }) => {
     if (!confirmed) return;
     try {
       await api.removeEmployeeShift(assignmentId);
-      onNotify?.('Shift assignment removed successfully.', 'success');
+      showNotification('Shift assignment removed successfully.', 'success');
       // Reload employee shifts
       const data = await api.listEmployeeShifts();
       setEmployeeShifts(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to remove shift assignment:', err);
-      onNotify?.(err.message || 'Failed to remove shift assignment.', 'error');
+      showNotification(err.message || 'Failed to remove shift assignment.', 'error');
     }
   };
 
@@ -1369,43 +1485,13 @@ const Shifts = ({ role, onNotify }) => {
           open={employeeShiftDialogOpen}
           onClose={() => {
             setEmployeeShiftDialogOpen(false);
-            setEmployeeSearch('');
             setEmployeeShiftForm({ employee: '', shift: '' });
           }}
           fullWidth
           maxWidth="sm"
         >
-          <DialogTitle>
-            <Stack direction="row" alignItems="center" spacing={1}>
-              <span>Assign Shift to Employee</span>
-              <Chip 
-                label={`${timeFormat}-hour`} 
-                size="small" 
-                color="info"
-                variant="outlined"
-                sx={{ ml: 2 }}
-              />
-            </Stack>
-          </DialogTitle>
+          <DialogTitle>Assign Shift to Employee</DialogTitle>
           <DialogContent dividers>
-            <TextField
-              fullWidth
-              sx={{ mt: 2 }}
-              label="Search Employee"
-              placeholder="Search by email, name, or employee code..."
-              value={employeeSearch}
-              onChange={(e) => setEmployeeSearch(e.target.value)}
-              InputProps={{
-                startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
-                endAdornment: employeeSearch && (
-                  <InputAdornment position="end">
-                    <IconButton size="small" onClick={() => setEmployeeSearch('')}>
-                      <Clear />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-            />
             <FormControl fullWidth sx={{ mt: 2 }}>
               <InputLabel>Select Employee</InputLabel>
               <Select
@@ -1421,16 +1507,11 @@ const Shifts = ({ role, onNotify }) => {
                 ) : (
                   filteredEmployees.map((emp) => (
                     <MenuItem key={emp.id} value={emp.id}>
-                      {emp.full_name || emp.employee_code || 'Unknown'} ({emp.user?.email || 'No email'})
+                      {emp.full_name || emp.employee_code || 'Unknown'}
                     </MenuItem>
                   ))
                 )}
               </Select>
-              {filteredEmployees.length === 0 && !employeeShiftsLoading && (
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, ml: 1.75 }}>
-                  No employees available. Make sure employees are created and assigned to your department.
-                </Typography>
-              )}
             </FormControl>
             <FormControl fullWidth sx={{ mt: 2 }}>
               <InputLabel>Select Shift</InputLabel>
@@ -1441,39 +1522,14 @@ const Shifts = ({ role, onNotify }) => {
               >
                 {shifts.map((shift) => (
                   <MenuItem key={shift.id} value={shift.id}>
-                    <Stack>
-                      <Typography>{shift.name}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {shift.start_time_display || shift.start_time} - {shift.end_time_display || shift.end_time}
-                        {timeFormat === '12' && (
-                          <span> • 24h: {shift.start_time} - {shift.end_time}</span>
-                        )}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {(() => {
-                          const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-                            .filter(d => shift[d])
-                            .map(d => d.charAt(0).toUpperCase() + d.slice(1, 3))
-                            .join(', ');
-                          return days;
-                        })()}
-                      </Typography>
-                    </Stack>
+                    {shift.name} ({shift.start_time} - {shift.end_time})
                   </MenuItem>
                 ))}
               </Select>
             </FormControl>
           </DialogContent>
           <DialogActions>
-            <Button
-              onClick={() => {
-                setEmployeeShiftDialogOpen(false);
-                setEmployeeSearch('');
-                setEmployeeShiftForm({ employee: '', shift: '' });
-              }}
-            >
-              Cancel
-            </Button>
+            <Button onClick={() => setEmployeeShiftDialogOpen(false)}>Cancel</Button>
             <Button 
               onClick={handleAssignEmployeeShift} 
               variant="contained"
