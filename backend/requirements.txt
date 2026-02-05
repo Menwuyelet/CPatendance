@@ -1,15 +1,18 @@
-# Core Backend
+# --- Django Core & Security ---
 Django>=5.0
 djangorestframework
 djangorestframework-simplejwt
 django-cors-headers
+drf-spectacular==0.29.0
 gunicorn
 whitenoise[brotli]
 dj-database-url
 psycopg2-binary
 cryptography
+python-dotenv
 
-# The "Golden Chain" for InsightFace
+# --- AI & Biometrics (The "Golden Chain") ---
+# Pinned versions to ensure InsightFace + ONNX + Numpy work together
 numpy>=1.24.4,<2.0.0
 insightface==0.7.3
 onnxruntime
@@ -19,8 +22,7 @@ scipy
 scikit-learn
 scikit-image
 
-# Helpers
-python-dotenv
+# --- Additional Helpers from your list ---
 requests
 tqdm
 matplotlib
