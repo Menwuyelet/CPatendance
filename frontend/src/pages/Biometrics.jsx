@@ -266,7 +266,7 @@ const Biometrics = ({ role }) => {
                               <strong>{apiResponse.title}</strong>
                             </AlertTitle>
                             <Typography variant="caption" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
-                              {apiResponse.message}
+                              {/* {apiResponse.message} */}
                             </Typography>
                           </Alert>
                         </Box>

@@ -127,8 +127,8 @@ export default function FaceCaptureDialog({ open, onClose, onCaptured, mode = 'A
 
     if (mode === 'ENROLL') {
       if (!aligned) setStatus(!isClose ? 'Move Closer' : 'Center Face');
-      else if (!blinked) setStatus('NOW: Blink your eyes');
-      else if (!moved) setStatus('NOW: Turn head slightly');
+      // else if (!blinked) setStatus('NOW: Blink your eyes');
+      // else if (!moved) setStatus('NOW: Turn head slightly');
       else startCaptureSequence();
     } else {
       if (aligned) startCaptureSequence();
