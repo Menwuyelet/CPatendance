@@ -28,13 +28,13 @@ class UserViewSet(viewsets.ModelViewSet):
     based on the requesting user's role; creation and mutation endpoints
     are restricted to administrators by `get_permissions`.
     """
-    queryset = User.objects.all()
+    queryset = User.objects.select_related('employee').prefetch_related('roles').all()
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated, IsHRManagerOrAdmin]
 
     def get_queryset(self):
         """Return the set of users visible to the requesting user."""
-        return get_users_for_user(self.request.user)
+        return get_users_for_user(self.request.user).select_related('employee').prefetch_related('roles')
 
     def get_serializer_class(self):
         """Return an appropriate serializer class based on the action.

@@ -39,6 +39,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data['user'] = {
             'id': str(user.id),
             'email': user.email,
+            'full_name': user.employee.full_name if hasattr(user, 'employee') else '',
+            'employee_id': str(user.employee.id) if hasattr(user, 'employee') else None,
             'roles': [role.name for role in user.roles.all()],
         }
         
@@ -57,13 +59,15 @@ class UserSerializer(serializers.ModelSerializer):
     """Serializer for `User` model used for read operations.
 
     Exposes basic user properties and nested `roles` for client consumption.
+    Includes `full_name` from the related Employee model.
     """
     roles = RoleSerializer(many=True, read_only=True)
+    full_name = serializers.CharField(source='employee.full_name', read_only=True)
 
     class Meta:
         """Serializer `Meta`: maps model and output fields for `UserSerializer`."""
         model = User
-        fields = ['id', 'email', 'is_active', 'is_staff', 'roles', 'created_at', 'updated_at']
+        fields = ['id', 'email', 'full_name', 'is_active', 'is_staff', 'roles', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 

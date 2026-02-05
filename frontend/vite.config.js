@@ -20,38 +20,48 @@ export default defineConfig(({ mode }) => {
                       env.VITE_BACKEND_URL ||
                       'http://127.0.0.1:8000';
 
+  const isProduction = mode === 'production';
+
   return {
-    plugins: [react()],
+    plugins: [
+      react({
+        fastRefresh: true,
+        include: '**/*.jsx',
+      }),
+    ],
 
     server: {
       port: 5174,
-      host: true,           // allow access from local network / mobile testing
-      https: httpsConfig,   // use HTTPS only if certificates exist
+      host: true,
+      https: httpsConfig,
 
       proxy: {
         '/api': {
           target: proxyTarget,
           changeOrigin: true,
           secure: false,
-          configure: (proxy) => {
-            proxy.on('error', (err, req) => {
-              console.error(
-                `[vite proxy] Error proxying ${req.method} ${req.url} → ${proxyTarget}`,
-                err?.code || err.message
-              );
-            });
-
-            proxy.on('proxyReq', (proxyReq, req) => {
-              console.log(
-                `[vite proxy] ${req.method} ${req.url} → ${proxyTarget}${req.url}`
-              );
-            });
-          },
+        },
+        '/accounts': {
+          target: proxyTarget,
+          changeOrigin: true,
+          secure: false,
+        },
+        '/attendance': {
+          target: proxyTarget,
+          changeOrigin: true,
+          secure: false,
+        },
+        '/employees': {
+          target: proxyTarget,
+          changeOrigin: true,
+          secure: false,
+        },
+        '/biometrics': {
+          target: proxyTarget,
+          changeOrigin: true,
+          secure: false,
         },
       },
-
-      // Uncomment if you want to disable the red error overlay in browser
-      // hmr: { overlay: false },
     },
 
     optimizeDeps: {
@@ -61,9 +71,11 @@ export default defineConfig(({ mode }) => {
         '@mui/x-date-pickers',
         '@emotion/react',
         '@emotion/styled',
-        'dayjs',                    // if using AdapterDayjs
+        'dayjs',
         '@remix-run/router',
         'react-router-dom',
+        'react',
+        'react-dom',
       ],
       exclude: [
         'moment',
@@ -76,7 +88,22 @@ export default defineConfig(({ mode }) => {
     },
 
     build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+            'vendor-mui': ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],
+            'vendor-router': ['@remix-run/router'],
+          },
+          entryFileNames: 'assets/[name]-[hash].js',
+          chunkFileNames: 'assets/[name]-[hash].js',
+          assetFileNames: 'assets/[name]-[hash].[ext]',
+        },
+      },
+      minify: 'esbuild',
+      cssCodeSplit: true,
       chunkSizeWarningLimit: 1000,
+      sourcemap: isProduction ? false : 'inline',
     },
   };
 });

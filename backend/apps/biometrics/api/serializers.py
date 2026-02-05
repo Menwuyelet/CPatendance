@@ -43,8 +43,9 @@ class BiometricProfileSerializer(serializers.ModelSerializer):
 
     def get_employee_name(self, obj):
         """Return employee full name if available, fall back to email or str(obj.employee)."""
-        emp_profile = getattr(obj.employee, 'employee', None)
-        if emp_profile and getattr(emp_profile, 'full_name', None):
-            return emp_profile.full_name
-        return getattr(obj.employee, 'email', str(obj.employee))
+        if obj.employee and getattr(obj.employee, 'full_name', None):
+            return obj.employee.full_name
+        if obj.employee:
+            return getattr(obj.employee, 'email', str(obj.employee))
+        return str(obj.employee)
 

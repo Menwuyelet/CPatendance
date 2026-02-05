@@ -18,6 +18,7 @@ from attendance.models import AttendanceSession, Shift
 from attendance.services.attendance_session_service import AttendanceSessionService
 from attendance.services.process_session_service import process_attendance_session
 from django.utils import timezone
+from django.core.exceptions import ValidationError
 from attendance.services.shift_service import ShiftService
 from attendance.services.employee_shift_service import EmployeeShiftService
 from attendance.permissions.employee_shift_permission import CanManageEmployeeShift
@@ -45,6 +46,27 @@ class AttendanceSessionCreateViewSet(ViewSet):
         session identifier on success.
         """
         shift = get_object_or_404(Shift, id=request.data.get("shift_id"))
+        
+        # Validate that session can only be started within shift hours
+        now = timezone.now()
+        current_time = now.time()
+        current_date = now.date()
+        
+        # Check if shift applies today
+        if not shift.applies_today(current_date):
+            day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+            today_name = day_names[now.weekday()]
+            return Response(
+                {"detail": f"Cannot start session: This shift is not scheduled for {today_name}."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if current time is within shift hours
+        if not (shift.start_time <= current_time <= shift.end_time):
+            return Response(
+                {"detail": f"Cannot start session: Current time is outside shift hours ({shift.start_time} - {shift.end_time})."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         session = AttendanceSession.objects.create(
             shift=shift,
@@ -57,7 +79,7 @@ class AttendanceSessionCreateViewSet(ViewSet):
                 "session_id": session.id,
                 "detail": "Attendance session started",
             },
-            status=status.HTTP_201_CREATED,
+            status=status.HTTP_201_CREATED
         )
 
     def destroy(self, request, pk=None):
@@ -159,7 +181,7 @@ class AttendanceSessionViewSet(ViewSet):
         if not (request.user.is_admin() or request.user.is_hr()):
             return Response(
                 {"detail": "Not allowed to modify attendance sessions"},
-                status=status.HTTP_403_FORBIDDEN,
+                status=status.HTTP_403_FORFORBIDDEN,
             )
 
         serializer = AttendanceSessionSerializer(
@@ -386,10 +408,10 @@ class ShiftViewSet(ViewSet):
         """Return permission instances for the current action.
 
         For mutating shift endpoints (create/update/destroy) restrict access
-        to authenticated HR users.
+        to authenticated HR or Manager users.
         """
         if self.action in ["create", "update", "partial_update", "destroy"]:
-            self.permission_classes = [IsAuthenticated, IsHR]
+            self.permission_classes = [IsAuthenticated, IsHRorManager | IsAdmin]
         return super().get_permissions()
 
     def list(self, request):
@@ -476,11 +498,14 @@ class EmployeeShiftViewSet(ViewSet):
         Considers HR role and department manager relationship.
         """
         # HR
-        if getattr(user, "role", None) == "HR":
+        if user.is_hr():
             return True
 
-        # Manager of department
-        if getattr(user, "role", None) == "MANAGER":
-            return employee.department and employee.department.manager_id == user.id
+        # Manager: can manage employees only in their department
+        if user.is_department_manager():
+            return (
+                hasattr(user, "employee")
+                and employee.department_id == user.employee.department_id
+            )
 
         return False

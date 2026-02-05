@@ -1,0 +1,72 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+  base = "/frontend"
+
+[build.environment]
+  NODE_VERSION = "20"
+  NPM_FLAGS = "--prefer-offline"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  conditions = {Role = ["admin", "hr", "manager", "employee"]}
+
+[[headers]]
+  for = "/assets/*"
+  [headers]
+    Cache-Control = "public, max-age=31536000, immutable"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+
+[[headers]]
+  for = "/*"
+  [headers]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+[[headers]]
+  for = "/index.html"
+  [headers]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Service-Worker-Allowed = "/"
+
+[[rewrites]]
+  from = "/api/*"
+  to = "http://127.0.0.1:8000/api/:splat"
+  status = 200
+
+[[rewrites]]
+  from = "/accounts/*"
+  to = "http://127.0.0.1:8000/accounts/:splat"
+  status = 200
+
+[[rewrites]]
+  from = "/attendance/*"
+  to = "http://127.0.0.1:8000/attendance/:splat"
+  status = 200
+
+[[rewrites]]
+  from = "/employees/*"
+  to = "http://127.0.0.1:8000/employees/:splat"
+  status = 200
+
+[[rewrites]]
+  from = "/biometrics/*"
+  to = "http://127.0.0.1:8000/biometrics/:splat"
+  status = 200
+
+[functions]
+  node_bundler = "esbuild"
+  included_files = ["dist/**/*"]
+  external_node_modules = ["@tensorflow/tfjs", "mediapipe"]
+
+[context.production.environment]
+  VITE_API_URL = "https://your-backend-api.com"
+
+[context.deploy-preview.environment]
+  VITE_API_URL = "https://your-staging-backend-api.com"

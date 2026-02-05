@@ -13,6 +13,6 @@ class BiometricPolicy:
     @staticmethod
     def can_manage_profile(user, profile):
         """Return True when `user` is allowed to manage the given biometric profile."""
-        if user.is_admin() or user.is_hr():
+        if user.is_admin() or user.is_hr() or user.is_department_manager():
             return True
         return False

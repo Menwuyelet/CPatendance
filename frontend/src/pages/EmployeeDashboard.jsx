@@ -8,6 +8,7 @@ import {
   Stack,
   Alert,
   CircularProgress,
+  Divider,
 } from '@mui/material';
 import {
   useState,
@@ -34,6 +35,8 @@ const EmployeeDashboard = ({ onNotify }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [currentTime, setCurrentTime] = useState(null);
+  const [activeSession, setActiveSession] = useState(null);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
 
   const navigate = useNavigate();
   const { mode } = useContext(ThemeContext);
@@ -87,6 +90,29 @@ const EmployeeDashboard = ({ onNotify }) => {
       }
 
       setAttendanceToday(todayAttendance);
+
+      // Fetch sessions (both active and recent)
+      setSessionsLoading(true);
+      try {
+        const sessionsData = await api.listAttendanceSessions().catch(() => []);
+        const sessionsList = api.extractArray(sessionsData);
+        
+        // Find active session first
+        const active = sessionsList.find((s) => s.is_active) || null;
+        
+        // If no active session, show the most recent one
+        const recent = sessionsList.length > 0 ? sessionsList[0] : null;
+        
+        setActiveSession(active || recent);
+        console.log('Active session:', active);
+        console.log('Recent session:', recent);
+        console.log('Total sessions:', sessionsList.length);
+      } catch (err) {
+        console.error('Failed to fetch sessions:', err);
+        setActiveSession(null);
+      } finally {
+        setSessionsLoading(false);
+      }
     } catch (err) {
       console.error(err);
       setError('Failed to load dashboard data.');
@@ -178,6 +204,70 @@ const EmployeeDashboard = ({ onNotify }) => {
 
       {/* Cards Container */}
       <Box className="dashboard-grid dashboard-grid-3">
+        {/* ---------------- Active Session Card ---------------- */}
+        <Card className="dashboard-card card-hover" sx={{ borderColor: activeSession ? 'success.main' : 'grey.300', borderWidth: activeSession ? 2 : 1 }}>
+          <CardContent className="dashboard-card-content">
+            <Box className="card-header">
+              <Box className="card-icon" sx={{ bgcolor: activeSession ? 'success.light' : 'grey.200' }}>
+                <EventNote sx={{ color: activeSession ? 'success.dark' : 'grey.500' }} />
+              </Box>
+              <Typography className="card-title">
+                Active Session
+              </Typography>
+            </Box>
+
+            {sessionsLoading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                <CircularProgress size={24} />
+              </Box>
+            ) : activeSession ? (
+              <>
+                <Chip
+                  icon={<CheckCircle />}
+                  label={activeSession.is_active ? 'Session Active' : 'Recent Session'}
+                  color={activeSession.is_active ? 'success' : 'default'}
+                  size="small"
+                  sx={{ mt: 2, mb: 1 }}
+                />
+                <Typography className="card-date">
+                  Shift: {activeSession.shift?.name || 'Unknown'}
+                </Typography>
+                <Typography className="card-date">
+                  Started: {activeSession.started_at ? new Date(activeSession.started_at).toLocaleString() : '-'}
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 1, opacity: 0.7 }}>
+                  Started by: {activeSession.started_by?.full_name || activeSession.started_by?.email || 'Unknown'}
+                </Typography>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  onClick={() => navigate('/attendance')}
+                  className="action-button"
+                  sx={{ mt: 2 }}
+                >
+                  View Attendance
+                </Button>
+              </>
+            ) : (
+              <>
+                <Chip
+                  label="No Sessions"
+                  color="default"
+                  size="small"
+                  sx={{ mt: 2, mb: 1 }}
+                />
+                <Typography className="card-date">
+                  No attendance sessions found
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 1, opacity: 0.7 }}>
+                  Sessions will appear here when created
+                </Typography>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
         {/* ---------------- Attendance Card ---------------- */}
         <Card className="dashboard-card card-hover">
           <CardContent className="dashboard-card-content">

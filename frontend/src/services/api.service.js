@@ -1,6 +1,52 @@
 // src/services/api.service.js
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
+// ============ CACHE FOR GET REQUESTS ============
+// Simple in-memory cache with TTL (time-to-live)
+const apiCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Get cached response if still valid
+ */
+function getCached(path, params) {
+  const key = `${path}?${JSON.stringify(params || {})}`;
+  const cached = apiCache.get(key);
+  
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
+  
+  if (cached) {
+    apiCache.delete(key);
+  }
+  
+  return null;
+}
+
+/**
+ * Set cached response
+ */
+function setCache(path, params, data) {
+  const key = `${path}?${JSON.stringify(params || {})}`;
+  apiCache.set(key, { data, timestamp: Date.now() });
+  
+  // Limit cache size
+  if (apiCache.size > 100) {
+    const firstKey = apiCache.keys().next().value;
+    apiCache.delete(firstKey);
+  }
+}
+
+/**
+ * Clear cache
+ */
+function clearCache() {
+  apiCache.clear();
+}
+
+// Token management variables are defined below
+
 // # Uncomment the following lines for HTTPS in production
 // const ensureHttps = (url) => {
 //   if (url.startsWith('/')) return url;  // Proxy path - don't modify
@@ -219,8 +265,33 @@ async function requestForm(path, formData, options = {}) {
 }
 
 export const api = {
+  // ============ CACHE METHODS ============
+  clearCache,
+  
   // ============ BASIC HTTP METHODS ============
-  get: (path, options) => request(path, { ...options, method: 'GET' }),
+  get: (path, options = {}) => {
+    const cacheKey = options.cacheKey || null;
+    const forceRefresh = options.forceRefresh || false;
+    
+    // Check cache for GET requests
+    if (!forceRefresh && cacheKey) {
+      const cached = getCached(path, options.params);
+      if (cached) return Promise.resolve(cached);
+    }
+    
+    const promise = request(path, { ...options, method: 'GET' });
+    
+    // Cache successful GET responses
+    if (cacheKey && !forceRefresh) {
+      promise.then(data => {
+        if (data !== null && data !== undefined) {
+          setCache(path, options.params, data);
+        }
+      }).catch(() => {});
+    }
+    
+    return promise;
+  },
   
   post: (path, body, options) =>
     request(path, { ...options, method: 'POST', body: JSON.stringify(body) }),

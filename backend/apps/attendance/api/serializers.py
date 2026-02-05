@@ -28,8 +28,23 @@ class AttendanceCheckInSerializer(serializers.Serializer):
         return attrs
 
 
+class NestedShiftSerializer(serializers.ModelSerializer):
+    """Nested serializer for shift within session responses."""
+    class Meta:
+        model = Shift
+        fields = [
+            "id",
+            "name",
+            "start_time",
+            "end_time",
+        ]
+
+
 class AttendanceSessionSerializer(serializers.ModelSerializer):
     """Model serializer representing an attendance session."""
+    shift = NestedShiftSerializer(read_only=True)
+    date = serializers.SerializerMethodField()
+    
     class Meta:
         model = AttendanceSession
         fields = (
@@ -39,12 +54,19 @@ class AttendanceSessionSerializer(serializers.ModelSerializer):
             "started_at",
             "is_active",
             "ended_at",
+            "date",
         )
         read_only_fields = (
             "started_by",
             "started_at",
-            "ednded_at",
+            "ended_at",
+            "date",
         )
+    
+    def get_date(self, obj):
+        """Return the date of the session (date of started_at)."""
+        return obj.started_at.date() if obj.started_at else None
+
 
 class AttendanceCheckOutSerializer(serializers.Serializer):
     """Serializer for attendance check-out requests."""
@@ -68,6 +90,7 @@ class EmployeeShiftSerializer(serializers.ModelSerializer):
             "employee",
             "shift",
         ]
+
 
 class ShiftSerializer(serializers.ModelSerializer):
     """Serializer describing a `Shift` (schedule pattern)."""

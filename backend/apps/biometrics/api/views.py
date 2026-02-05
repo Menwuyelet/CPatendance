@@ -89,14 +89,13 @@ class BiometricProfileViewSet(ViewSet):
         """
         List biometric profiles (metadata only).
         """
-        qs = BiometricProfile.objects.select_related("employee")
+        qs = BiometricProfile.objects.select_related('employee', 'employee__user').all()
         
-        if request.user.is_admin() or request.user.is_hr():
+        if request.user.is_admin() or request.user.is_hr() or request.user.is_department_manager():
             """
-            Admin and HR can see all the users biometric data.
+            Admin, HR, and Manager can see all the users biometric data.
             """
             pass
-        
         
         elif request.user.is_employee():
             """
@@ -112,8 +111,8 @@ class BiometricProfileViewSet(ViewSet):
     
         else:
             """
-            Managers can not see biometric profiles.
-            """ 
+            Return empty list for other cases.
+            """
             qs = qs.none()
         
         return Response(
