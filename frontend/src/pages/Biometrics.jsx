@@ -3,26 +3,20 @@ import {
   Box, Grid, Card, CardContent, Typography, Stack, Chip, Button,
   Paper, Avatar, Tab, Tabs, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Alert, AlertTitle,
-  TextField, InputAdornment, IconButton, Switch, CircularProgress
+  TextField, InputAdornment, CircularProgress, useTheme, useMediaQuery
 } from '@mui/material';
 import {
   Fingerprint, CameraAlt, Timer, PersonAdd, ListAlt,
-  Search, DeleteForever, Shield, Refresh, InfoOutlined,
-  Menu as MenuIcon
+  Search, ErrorOutline, CheckCircleOutline, Block
 } from '@mui/icons-material';
 import { api } from '../services/api.service.js';
 import FaceCaptureDialog from '../components/FaceCaptureDialog';
 
 const Biometrics = ({ role }) => {
-  const isAdmin = role === 'Admin';
-  const isManager = role === 'Manager';
-  const isHR = role === 'HR';
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const showAttendanceCapture = isHR || isManager;
-  const showProfileList = isHR || isAdmin;
-  const showEnrollment = true;
-
-  const [activeTab, setActiveTab] = useState(showAttendanceCapture ? 0 : 1);
+  const [activeTab, setActiveTab] = useState(role === 'HR' || role === 'Manager' ? 0 : 1);
   const [currentSession, setCurrentSession] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [captureDialogOpen, setCaptureDialogOpen] = useState(false);
@@ -37,44 +31,76 @@ const Biometrics = ({ role }) => {
 
   const loadData = useCallback(async () => {
     try {
-      if (showAttendanceCapture) {
-        const res = await api.get('/attendance/attendance-manage-sessions/');
-        const active = (res?.results || res || []).find(s => s.is_active);
-        if (active) setCurrentSession(active);
-      }
-      if (showProfileList) {
-        const res = await api.get('/biometrics/profiles/');
-        setProfiles(res?.results || res || []);
-      }
-    } catch (err) { console.error(err); }
-  }, [showAttendanceCapture, showProfileList]);
+      const sessRes = await api.get('/attendance/attendance-manage-sessions/');
+      const active = (sessRes?.results || sessRes || []).find(s => s.is_active);
+      if (active) setCurrentSession(active);
+      
+      const profRes = await api.get('/biometrics/profiles/');
+      setProfiles(profRes?.results || profRes || []);
+    } catch (err) { console.error("Data load error:", err); }
+  }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const handleBackendResponse = (key, rawMessage) => {
-    const statusConfig = {
-      'STOP_SUCCESS': { sev: 'success', title: 'STOP_SUCCESS', msg: 'Verification successful! Entry recorded.' },
-      'STOP_DUPLICATE': { sev: 'warning', title: 'STOP_DUPLICATE', msg: 'You have already checked in for this session.' },
-      'SESSION_DUPLICATE_ENTRY': { sev: 'warning', title: 'STOP_DUPLICATE', msg: 'A record already exists for this ID.' },
-      'TRY_AGAIN': { sev: 'error', title: 'TRY_AGAIN', msg: 'No matching employee found. Please ensure you are enrolled.' },
-      'NO_ACTIVE_SESSION': { sev: 'error', title: 'NO_ACTIVE_SESSION', msg: rawMessage || 'There is no active session currently.' },
-      'NO_FACE_DETECTED': { sev: 'error', title: 'NO_FACE_DETECTED', msg: 'We could not detect a clear face. Please try again.' },
-    };
+  /**
+   * HTTP STATUS BASED HANDLER
+   * This is the brain of the response system.
+   */
+  const handleResponseByStatus = (status, data) => {
+    const msg = data?.message || data?.detail || "";
+    const key = data?.status || data?.result || "";
 
-    const config = statusConfig[key] || {
-      sev: key?.toLowerCase().includes('success') ? 'success' : 'error',
-      title: key || 'SERVER RESPONSE',
-      msg: rawMessage || 'An unexpected status was returned from the server.'
-    };
+    let config = { sev: 'info', title: 'Response', msg: 'Processing...' };
+
+    // --- 1. SUCCESS CODES ---
+    if (status === 201 || (status === 200 && key.includes('SUCCESS'))) {
+      config = {
+        sev: 'success',
+        title: activeTab === 1 ? 'Registration Successful' : 'Attendance Marked',
+        msg: 'The operation was completed successfully.'
+      };
+    }
+
+    // --- 2. LOGIC ERRORS (400 Bad Request) ---
+    else if (status === 400) {
+      // Analyze the backend message or key to be specific
+      if (key.includes('DUPLICATE') || msg.toLowerCase().includes('already')) {
+        config = { sev: 'warning', title: 'Already Processed', msg: 'Your attendance for this session is already recorded.' };
+      } 
+      else if (key.includes('ABORTED') || msg.toLowerCase().includes('embedding')) {
+        config = { sev: 'error', title: 'Shift Error', msg: 'This shift is not configured for biometrics. Please contact HR.' };
+      } 
+      else if (key.includes('NO_FACE') || key.includes('BIOMETRIC_MATCH_ABORTED') || msg.toLowerCase().includes('SESSION_EMBEDDING_PROCESS_STARTED') || msg.toLowerCase().includes('face')) {
+        config = { sev: 'error', title: 'Scan Failed', msg: 'No face was found. You may be not registered. Please check your credentials and try again.' };
+      } 
+      else if (key.includes('SESSION') || msg.toLowerCase().includes('active')) {
+        config = { sev: 'error', title: 'Session Closed', msg: 'There is no active attendance session available for this shift.' };
+      }
+      else {
+        // Default 400: Likely a mismatch or unauthorized person for this shift
+        config = { sev: 'error', title: 'Access Denied', msg: 'Verification failed. You may not be assigned to this specific session.' };
+      }
+    }
+
+    // --- 3. AUTH ERRORS ---
+    else if (status === 401 || status === 403) {
+      config = { sev: 'error', title: 'Not Authorized', msg: 'You do not have the required permissions. Please log in again.' };
+    }
+
+    // --- 4. SERVER ERRORS ---
+    else {
+      config = { sev: 'error', title: 'System Error', msg: 'The biometric server is temporarily unavailable. Please try again later.' };
+    }
 
     setApiResponse({ show: true, severity: config.sev, title: config.title, message: config.msg });
 
-    if (activeTab === 0 && (key === 'STOP_SUCCESS' || key.includes('DUPLICATE'))) {
+    // Auto-reset UI for success/duplicates
+    if (config.sev === 'success' || config.sev === 'warning') {
       setTimeout(() => {
         setImagePreview(null);
         setApiResponse({ show: false });
         loadData();
-      }, 4000);
+      }, 5000);
     }
   };
 
@@ -87,21 +113,20 @@ const Biometrics = ({ role }) => {
 
     const formData = new FormData();
     formData.append('image', finalFile);
-
-    const endpoint = activeTab === 0
-      ? '/attendance/attendance-check-in/'
-      : '/biometrics/face/enroll/';
-
     if (activeTab === 0 && currentSession?.id) {
       formData.append('session_id', currentSession.id);
     }
 
+    const endpoint = activeTab === 0 ? '/attendance/attendance-check-in/' : '/biometrics/face/enroll/';
+
     try {
       const res = await api.postForm(endpoint, formData);
-      handleBackendResponse(res?.status || res?.result || 'STOP_SUCCESS', res?.message);
+      // api.service should return the full response including status
+      handleResponseByStatus(201, res); 
     } catch (err) {
-      const errorData = err?.response?.data;
-      handleBackendResponse(errorData?.status || errorData?.result || errorData?.detail, errorData?.detail);
+      const statusCode = err?.response?.status || 500;
+      const errorData = err?.response?.data || {};
+      handleResponseByStatus(statusCode, errorData);
     } finally { setSubmitting(false); }
   }, [imageFile, activeTab, currentSession, loadData]);
 
@@ -112,195 +137,66 @@ const Biometrics = ({ role }) => {
     if (activeTab === 0) handleSubmit(file);
   };
 
-  const filteredProfiles = useMemo(() => {
-    return profiles.filter(p =>
-      p.employee_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.employee && String(p.employee).toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-  }, [profiles, searchTerm]);
-
   return (
-    <Box sx={{
-      p: { xs: 2, sm: 3, md: 4 },
-      maxWidth: '1400px',
-      mx: 'auto',
-      width: '100%'
-    }}>
-      {/* Header Section */}
-      <Box sx={{
-        display: 'flex',
-        flexDirection: { xs: 'column', sm: 'row' },
-        justifyContent: 'space-between',
-        alignItems: { xs: 'flex-start', sm: 'center' },
-        gap: 2,
-        mb: 3
-      }}>
+    <Box sx={{ p: { xs: 1, sm: 4 }, maxWidth: '1200px', mx: 'auto' }}>
+      
+      {/* Header with Responsive Logic */}
+      <Stack direction={isMobile ? "column" : "row"} justifyContent="space-between" alignItems={isMobile ? "flex-start" : "center"} spacing={2} sx={{ mb: 4 }}>
         <Box>
-          <Typography variant="h4" fontWeight="900" sx={{ fontSize: { xs: '1.75rem', sm: '2rem', md: '2.5rem' } }}>
-            BIOMETRIC PORTAL
-          </Typography>
-          <Typography variant="body2" sx={{ mt: 0.5 }}>
-            Current User Role: <strong>{role}</strong>
-          </Typography>
+          <Typography variant={isMobile ? "h5" : "h4"} fontWeight="900">BIOMETRIC PORTAL</Typography>
+          <Typography variant="caption" color="text.secondary">FIRMWARE V2.0 - SECURE ACCESS</Typography>
         </Box>
         {activeTab === 0 && currentSession && (
-          <Chip
-            label={`Active Session: ${currentSession.id}`}
-            color="success"
-            icon={<Timer />}
-            variant="outlined"
-            sx={{ mt: { xs: 1, sm: 0 } }}
-          />
+          <Chip label={`ACTIVE: ${currentSession.id}`} color="success" icon={<Timer />} variant="outlined" />
         )}
-      </Box>
+      </Stack>
 
-      {/* Tabs */}
-      <Tabs
-        value={activeTab}
-        onChange={(_, v) => {
-          setActiveTab(v);
-          setApiResponse({ show: false });
-          setImagePreview(null);
-        }}
-        sx={{
-          mb: 4,
-          borderBottom: 1,
-          borderColor: 'divider',
-          '& .MuiTab-root': {
-            minWidth: { xs: 'auto', sm: 120 },
-            px: { xs: 1, sm: 2 },
-            fontSize: { xs: '0.75rem', sm: '0.875rem' }
-          }
-        }}
+      <Tabs 
+        value={activeTab} 
+        onChange={(_, v) => { setActiveTab(v); setApiResponse({ show: false }); setImagePreview(null); }} 
+        variant={isMobile ? "scrollable" : "standard"}
+        sx={{ mb: 4, borderBottom: 1, borderColor: 'divider' }}
       >
-        {showAttendanceCapture && <Tab label="ATTENDANCE" icon={<Fingerprint />} iconPosition="start" value={0} />}
-        {showEnrollment && <Tab label="ENROLL FACE" icon={<PersonAdd />} iconPosition="start" value={1} />}
-        {showProfileList && <Tab label="MANAGE PROFILES" icon={<ListAlt />} iconPosition="start" value={2} />}
+        <Tab label="ATTENDANCE" icon={<Fingerprint />} iconPosition="start" value={0} />
+        <Tab label="ENROLLMENT" icon={<PersonAdd />} iconPosition="start" value={1} />
+        <Tab label="PROFILES" icon={<ListAlt />} iconPosition="start" value={2} />
       </Tabs>
 
-      {/* Attendance & Enrollment Cards */}
       {(activeTab === 0 || activeTab === 1) && (
         <Grid container justifyContent="center">
-          <Grid item xs={12} sm={10} md={8} lg={6}>
-            <Card sx={{
-              borderRadius: { xs: 2, sm: 3, md: 4 },
-              boxShadow: "0 8px 32px rgba(0,0,0,0.1)",
-              overflow: 'hidden'
-            }}>
-              <CardContent sx={{
-                p: { xs: 2, sm: 3, md: 4 },
-                textAlign: 'center'
-              }}>
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  justifyContent="center"
-                  alignItems="center"
-                  sx={{ mb: 3, flexWrap: 'wrap', gap: 1 }}
-                >
-                  <Shield fontSize="small" sx={{ color: 'primary.main' }} />
-                  <Typography variant="caption" sx={{ fontWeight: 'bold', letterSpacing: 1 }}>
-                    {activeTab === 1 ? "ENROLLMENT MODE: LIVENESS CHECKS ACTIVE" : "ATTENDANCE MODE: RAPID MATCHING"}
-                  </Typography>
-                </Stack>
-
+          <Grid item xs={12} md={8} lg={6}>
+            <Card sx={{ borderRadius: 4, boxShadow: "0 12px 40px rgba(0,0,0,0.1)" }}>
+              <CardContent sx={{ p: { xs: 2, sm: 4 }, textAlign: 'center' }}>
                 {!imagePreview ? (
-                  <Box sx={{ py: { xs: 3, sm: 5, md: 6 } }}>
-                    <Avatar sx={{
-                      width: { xs: 60, sm: 80, md: 100 },
-                      height: { xs: 60, sm: 80, md: 100 },
-                      mx: 'auto',
-                      mb: 2,
-                      bgcolor: 'primary.light'
-                    }}>
-                      <CameraAlt sx={{ fontSize: { xs: 30, sm: 40, md: 50 }, color: 'primary.main' }} />
+                  <Box sx={{ py: 6 }}>
+                    <Avatar sx={{ width: 80, height: 80, mx: 'auto', mb: 2, bgcolor: 'primary.light' }}>
+                      <CameraAlt sx={{ fontSize: 40, color: 'primary.main' }} />
                     </Avatar>
-                    <Typography
-                      variant="h6"
-                      fontWeight="bold"
-                      sx={{ fontSize: { xs: '1rem', sm: '1.25rem' }, mb: 2 }}
-                    >
-                      Ready to Scan
-                    </Typography>
-                    <Button
-                      variant="contained"
-                      size={activeTab === 1 ? "large" : "medium"}
-                      onClick={() => setCaptureDialogOpen(true)}
-                      startIcon={<CameraAlt />}
-                      sx={{
-                        px: { xs: 3, sm: 4 },
-                        py: { xs: 1, sm: 1.5 },
-                        fontSize: { xs: '0.875rem', sm: '1rem' }
-                      }}
-                    >
-                      Open Secure Camera
-                    </Button>
+                    <Typography variant="h6" fontWeight="bold">Ready for Scan</Typography>
+                    <Button variant="contained" fullWidth={isMobile} size="large" onClick={() => setCaptureDialogOpen(true)} sx={{ mt: 3, borderRadius: 2 }}>Open Camera</Button>
                   </Box>
                 ) : (
-                  <Stack spacing={2} alignItems="center">
-                    <Box sx={{
-                      position: 'relative',
-                      width: '100%',
-                      maxWidth: { xs: 320, sm: 400, md: 480 },
-                      borderRadius: { xs: 2, sm: 3 },
-                      overflow: 'hidden',
-                      border: '4px solid',
-                      borderColor: apiResponse.show ? (apiResponse.severity === 'success' ? 'success.main' : 'error.main') : 'divider'
+                  <Stack spacing={3}>
+                    <Box sx={{ 
+                      position: 'relative', borderRadius: 3, overflow: 'hidden', border: '6px solid', 
+                      borderColor: apiResponse.show 
+                        ? (apiResponse.severity === 'success' ? '#4caf50' : apiResponse.severity === 'warning' ? '#ff9800' : '#f44336') 
+                        : '#eee' 
                     }}>
-                      <Box
-                        component="img"
-                        src={imagePreview}
-                        sx={{ width: '100%', display: 'block', aspectRatio: '4/3' }}
-                      />
+                      <img src={imagePreview} alt="Preview" style={{ width: '100%', display: 'block' }} />
                       {apiResponse.show && (
-                        <Box sx={{
-                          position: 'absolute',
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          p: { xs: 1.5, sm: 2 },
-                          bgcolor: 'rgba(255,255,255,0.95)'
-                        }}>
+                        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: 2, bgcolor: 'rgba(255,255,255,0.98)' }}>
                           <Alert severity={apiResponse.severity} variant="filled">
-                            <AlertTitle sx={{ fontSize: { xs: '0.8rem', sm: '0.9rem' } }}>
-                              <strong>{apiResponse.title}</strong>
-                            </AlertTitle>
-                            <Typography variant="caption" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
-                              {apiResponse.message}
-                            </Typography>
+                            <AlertTitle sx={{ textAlign: 'left' }}><strong>{apiResponse.title}</strong></AlertTitle>
+                            <Typography variant="body2" sx={{ textAlign: 'left' }}>{apiResponse.message}</Typography>
                           </Alert>
                         </Box>
                       )}
                     </Box>
-                    <Stack
-                      direction={{ xs: 'column', sm: 'row' }}
-                      spacing={2}
-                      sx={{ width: '100%', maxWidth: { xs: 320, sm: 400, md: 480 } }}
-                    >
-                      <Button
-                        fullWidth
-                        variant="outlined"
-                        startIcon={<Refresh />}
-                        onClick={() => { setImagePreview(null); setApiResponse({ show: false }); }}
-                        disabled={submitting}
-                        sx={{ py: { xs: 1, sm: 1.5 } }}
-                      >
-                        Re-scan
-                      </Button>
+                    <Stack direction={isMobile ? "column" : "row"} spacing={2}>
+                      <Button fullWidth variant="outlined" size="large" onClick={() => { setImagePreview(null); setApiResponse({ show: false }); }}>Back</Button>
                       {activeTab === 1 && !apiResponse.show && (
-                        <Button
-                          fullWidth
-                          variant="contained"
-                          onClick={() => handleSubmit()}
-                          disabled={submitting}
-                          sx={{ py: { xs: 1, sm: 1.5 } }}
-                        >
-                          {submitting ? (
-                            <CircularProgress size={24} color="inherit" />
-                          ) : (
-                            "Submit Enrollment"
-                          )}
-                        </Button>
+                        <Button fullWidth variant="contained" size="large" onClick={() => handleSubmit()}>{submitting ? <CircularProgress size={24} color="inherit" /> : "Complete Enrollment"}</Button>
                       )}
                     </Stack>
                   </Stack>
@@ -311,88 +207,31 @@ const Biometrics = ({ role }) => {
         </Grid>
       )}
 
-      {/* Profile List */}
-      {activeTab === 2 && showProfileList && (
-        <Card sx={{ overflow: 'hidden' }}>
-          <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-            <Typography variant="h6" fontWeight="bold" sx={{ mb: 2, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-              Enrolled Biometric Profiles
-            </Typography>
-
-            {/* Search Bar */}
-            <TextField
-              fullWidth
-              size="small"
-              placeholder="Search by name or ID..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Search color="action" />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ mb: 3, maxWidth: 400 }}
-            />
-
-            {/* Responsive Table */}
-            <TableContainer
-              component={Paper}
-              variant="outlined"
-              sx={{ maxHeight: { xs: 400, sm: 500 } }}
-            >
-              <Table stickyHeader size="small">
-                <TableHead sx={{ bgcolor: 'grey.50' }}>
+      {/* Profiles Tab remains the same but with responsive table sizing */}
+      {activeTab === 2 && (
+        <Card sx={{ borderRadius: 3 }}>
+          <CardContent>
+            <TextField fullWidth size="small" placeholder="Search employees..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} sx={{ mb: 3, maxWidth: 300 }} InputProps={{ startAdornment: (<InputAdornment position="start"><Search /></InputAdornment>) }} />
+            <TableContainer component={Paper} variant="outlined">
+              <Table size={isMobile ? "small" : "medium"}>
+                <TableHead sx={{ bgcolor: '#f5f5f5' }}>
                   <TableRow>
-                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}><strong>ID</strong></TableCell>
-                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}><strong>Full Name</strong></TableCell>
-                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}><strong>Biometric</strong></TableCell>
-                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}><strong>Enrolled</strong></TableCell>
-                    <TableCell align="center" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}><strong>Status</strong></TableCell>
+                    <TableCell><strong>ID</strong></TableCell>
+                    <TableCell>Full Name</TableCell>
+                    <TableCell>Biometric</TableCell>
+                    <TableCell>Status</TableCell>
+
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredProfiles.map((p) => (
-                    <TableRow key={p.id} hover sx={{ height: { xs: 48, sm: 56 } }}>
-                      <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
-                        {p.employee_id || p.id}
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 500, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
-                        {p.employee_name || 'System User'}
-                      </TableCell>
-                      <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
-                        <Chip
-                          label={p.biometric_type}
-                          size="small"
-                          color="primary"
-                          variant="outlined"
-                          sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}
-                        />
-                      </TableCell>
-                      <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
-                        {p.created_at ? new Date(p.created_at).toLocaleDateString() : 'N/A'}
-                      </TableCell>
-                      <TableCell align="center">
-                        <Chip
-                          label="Active"
-                          size="small"
-                          color="success"
-                          variant="outlined"
-                          sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}
-                        />
-                      </TableCell>
+                  {profiles.filter(p => p.employee?.toLowerCase().includes(searchTerm.toLowerCase())).map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell>{p.id}</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>{p.employee_name}</TableCell>
+                      <TableCell><Chip label={p.biometric_type} size="small" /></TableCell>
+                      <TableCell><Chip label="Active" size="small" color="success" /></TableCell>
                     </TableRow>
                   ))}
-                  {filteredProfiles.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                        <Typography color="text.secondary" variant="body2">
-                          No profiles found.
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                  )}
                 </TableBody>
               </Table>
             </TableContainer>
@@ -400,12 +239,7 @@ const Biometrics = ({ role }) => {
         </Card>
       )}
 
-      <FaceCaptureDialog
-        open={captureDialogOpen}
-        onClose={() => setCaptureDialogOpen(false)}
-        onCaptured={onCaptured}
-        mode={activeTab === 1 ? 'ENROLL' : 'ATTENDANCE'}
-      />
+      <FaceCaptureDialog open={captureDialogOpen} onClose={() => setCaptureDialogOpen(false)} onCaptured={onCaptured} mode={activeTab === 1 ? 'ENROLL' : 'ATTENDANCE'} />
     </Box>
   );
 };
