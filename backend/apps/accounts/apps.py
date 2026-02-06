@@ -12,4 +12,4 @@ class AccountsConfig(AppConfig):
     the default primary key field type and the application label.
     """
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'accounts'
+    name = 'apps.accounts'

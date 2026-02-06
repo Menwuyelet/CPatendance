@@ -12,4 +12,4 @@ class BiometricsConfig(AppConfig):
     used by Django at startup.
     """
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'biometrics'
+    name = 'apps.biometrics'

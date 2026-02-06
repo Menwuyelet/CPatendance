@@ -12,4 +12,4 @@ class AttendanceConfig(AppConfig):
     default primary key behavior.
     """
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'attendance'
+    name = 'apps.attendance'

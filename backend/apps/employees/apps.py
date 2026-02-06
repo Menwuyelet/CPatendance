@@ -12,4 +12,4 @@ class EmployeesConfig(AppConfig):
     auto field for primary keys.
     """
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'employees'
+    name = 'apps.employees'
