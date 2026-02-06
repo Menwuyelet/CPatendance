@@ -33,14 +33,25 @@ SECRET_KEY = "django-insecure-!a!tp1qlsw$th46=(6c4o96p=2ck=oyd%r&r8hgvbp^-7ku&*6
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = [
+    ".onrender.com",
+    "localhost",
+    "127.0.0.1",
+]
 
-# HTTPS settings - use Gunicorn with certificates for production
-# For development: SSL redirect disabled (Django runserver doesn't support HTTPS)
-SECURE_SSL_REDIRECT = False  # Use Gunicorn + certificates for HTTPS in production
-SESSION_COOKIE_SECURE = False  # Set True in production with HTTPS
-CSRF_COOKIE_SECURE = False  # Set True in production with HTTPS
-CSRF_TRUSTED_ORIGINS = ['http://127.0.0.1:5174', 'http://localhost:5174', 'https://10.240.41.144:5174']
+# CORS settings
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+    "https://amnsystemcp.netlify.app",
+]
+
+# CSRF trusted origins for production
+CSRF_TRUSTED_ORIGINS = [
+    "http://127.0.0.1:5174",
+    "http://localhost:5174",
+    "https://amnsystemcp.netlify.app",
+]
 
 
 X_FRAME_OPTIONS = "DENY"
@@ -74,6 +85,8 @@ AUTH_USER_MODEL = "accounts.User"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -106,12 +119,21 @@ WSGI_APPLICATION = "config.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+# Use PostgreSQL on Render, SQLite for local development
+import dj_database_url
+
+db_config = dj_database_url.config(conn_max_age=600, ssl_require=True)
+if db_config:
+    DATABASES = {
+        "default": db_config
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 
 # Password validation
@@ -148,7 +170,9 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
