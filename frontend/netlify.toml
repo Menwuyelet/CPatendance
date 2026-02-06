@@ -41,38 +41,34 @@
     Cache-Control          = "no-cache, no-store, must-revalidate"
     Service-Worker-Allowed = "/"
 
-# Proxy rewrites to external backend – REPLACE with your REAL deployed backend URL
-# Netlify DOES NOT allow proxy to localhost/127.0.0.1 in production (it will fail)
-# Use status 200 + force=true for transparent proxy/rewrite
-# Use :splat to keep the full path after the prefix
-
+# Proxy rewrites to external backend
 [[redirects]]
   from   = "/api/*"
-  to     = "https://your-real-backend-domain.com/api/:splat"   # ← CHANGE THIS
+  to     = "https://amnsystembackend.onrender.com/api/:splat"
   status = 200
   force  = true
 
 [[redirects]]
   from   = "/accounts/*"
-  to     = "https://your-real-backend-domain.com/accounts/:splat"
+  to     = "https://amnsystembackend.onrender.com/accounts/:splat"
   status = 200
   force  = true
 
 [[redirects]]
   from   = "/attendance/*"
-  to     = "https://your-real-backend-domain.com/attendance/:splat"
+  to     = "https://amnsystembackend.onrender.com/attendance/:splat"
   status = 200
   force  = true
 
 [[redirects]]
   from   = "/employees/*"
-  to     = "https://your-real-backend-domain.com/employees/:splat"
+  to     = "https://amnsystembackend.onrender.com/employees/:splat"
   status = 200
   force  = true
 
 [[redirects]]
   from   = "/biometrics/*"
-  to     = "https://your-real-backend-domain.com/biometrics/:splat"
+  to     = "https://amnsystembackend.onrender.com/biometrics/:splat"
   status = 200
   force  = true
 
@@ -84,7 +80,7 @@
 
 # Environment overrides per context
 [context.production.environment]
-  VITE_API_URL = "https://your-real-backend-domain.com"
+  VITE_API_URL = "https://amnsystembackend.onrender.com"
 
 [context.deploy-preview.environment]
-  VITE_API_URL = "https://your-staging-backend-domain.com"   # or local for previews if needed
+  VITE_API_URL = "https://amnsystembackend.onrender.com"
