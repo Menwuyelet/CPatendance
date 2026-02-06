@@ -11,11 +11,17 @@ from biometrics.models import BiometricProfile
 from biometrics.services.enrollment_service import BiometricEnrollmentService
 from accounts.policies.biometric import BiometricPolicy
 from .permissions import CanEnrollFace
-from biometrics.services.face_engine import FaceEngine
 from biometrics.api.serializers import (
         BiometricEnrollmentSerializer,
         BiometricProfileSerializer
 )
+
+# Try to import FaceEngine, but make it optional
+try:
+    from biometrics.services.face_engine import FaceEngine, INSIGHTFACE_AVAILABLE
+except ImportError:
+    FaceEngine = None
+    INSIGHTFACE_AVAILABLE = False
 
 class FaceEnrollmentViewSet(ViewSet):
     """Endpoint for enrolling or updating employee face templates.
@@ -52,6 +58,12 @@ class FaceEnrollmentViewSet(ViewSet):
         image = request.FILES.get("image")
         if not image:
             return Response({"detail": "Image required"}, status=400)
+        
+        if not INSIGHTFACE_AVAILABLE or FaceEngine is None:
+            return Response(
+                {"detail": "Biometric features are disabled - insightface not available"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
         
         """
         This extracts the embedding of the image from the image sent from the client using external 

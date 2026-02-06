@@ -10,10 +10,17 @@ os.environ["ORT_LOGGING_LEVEL"] = "4"
 os.environ["GLOG_minloglevel"] = "3"
 import cv2
 import numpy as np
-from insightface.app import FaceAnalysis
 from config.logging import get_logger
 
 logger = get_logger(__name__)
+
+# Try to import insightface, but make it optional
+try:
+    from insightface.app import FaceAnalysis
+    INSIGHTFACE_AVAILABLE = True
+except ImportError:
+    INSIGHTFACE_AVAILABLE = False
+    logger.warning("insightface not available - biometric features will be disabled")
 
 
 class FaceEngine:
@@ -23,10 +30,23 @@ class FaceEngine:
     provides helpers to convert image bytes to numeric embeddings.
     """
 
-    logger.info("FACE_ENGINE_INIT_STARTED")
-    _app = FaceAnalysis(name="buffalo_l")
-    _app.prepare(ctx_id=0, det_size=(320, 320))
-    logger.info("FACE_ENGINE_INIT_SUCCESS")
+    _app = None
+    _initialized = False
+
+    @classmethod
+    def _ensure_initialized(cls):
+        """Lazily initialize the FaceAnalysis app on first use."""
+        if not INSIGHTFACE_AVAILABLE:
+            raise RuntimeError("insightface is not installed. Biometric features are disabled.")
+        
+        if cls._initialized:
+            return
+        
+        logger.info("FACE_ENGINE_INIT_STARTED")
+        cls._app = FaceAnalysis(name="buffalo_l")
+        cls._app.prepare(ctx_id=0, det_size=(320, 320))
+        cls._initialized = True
+        logger.info("FACE_ENGINE_INIT_SUCCESS")
 
     @classmethod
     def image_to_embedding(cls, image_bytes):
@@ -39,6 +59,11 @@ class FaceEngine:
         - numpy.ndarray or None: embedding vector for the first detected face,
           or None when no face is detected.
         """
+        if not INSIGHTFACE_AVAILABLE:
+            logger.error("Cannot extract embedding - insightface not available")
+            return None
+
+        cls._ensure_initialized()
 
         logger.info(
             "FACE_EMBEDDING_EXTRACTION_STARTED | image_size=%s",

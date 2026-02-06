@@ -28,9 +28,9 @@ cryptography>=42.0.0
 # Database URL parsing
 dj-database-url>=2.1.0
 
-# Biometrics (optional)
+# Biometrics (optional) - insightface requires onnxruntime
 insightface>=0.7.3
-onnxruntime>=1.18.0
+onnxruntime>=1.18.0,<2.0.0
 
 # Production server
 gunicorn>=21.2.0

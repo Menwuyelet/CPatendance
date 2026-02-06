@@ -7,10 +7,18 @@ from django.utils import timezone
 from attendance.models import AttendanceSessionEntry
 from biometrics.services.matching_service import BiometricMatchingService
 from attendance.services.attendance_service import AttendanceAbsenceService
-from biometrics.services.face_engine import FaceEngine
 from config.logging import get_logger
 
 logger = get_logger(__name__)
+
+# Try to import FaceEngine, but make it optional
+try:
+    from biometrics.services.face_engine import FaceEngine
+    FACE_ENGINE_AVAILABLE = True
+except ImportError:
+    FACE_ENGINE_AVAILABLE = False
+    FaceEngine = None
+    logger.warning("FaceEngine not available - biometric attendance features will be disabled")
 
 
 class AttendanceSessionService:
@@ -85,6 +93,10 @@ class AttendanceSessionService:
             "SESSION_IMAGE_RECEIVED | session_id=%s",
             self.session.id,
         )
+
+        if not FACE_ENGINE_AVAILABLE or FaceEngine is None:
+            logger.error("SESSION_BIOMETRIC_DISABLED | session_id=%s", self.session.id)
+            return "BIOMETRIC_DISABLED"
 
         embedding = FaceEngine.image_to_embedding(image_bytes)
 
