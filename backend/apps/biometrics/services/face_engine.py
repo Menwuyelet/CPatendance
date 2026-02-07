@@ -6,6 +6,9 @@ from the provided raw image.
 
 import os
 
+# Set non-interactive matplotlib backend before any matplotlib import
+# This prevents slow loading of matplotlib at startup
+os.environ["MPLBACKEND"] = "Agg"
 os.environ["ORT_LOGGING_LEVEL"] = "4"
 os.environ["GLOG_minloglevel"] = "3"
 import cv2
@@ -13,14 +16,6 @@ import numpy as np
 from config.logging import get_logger
 
 logger = get_logger(__name__)
-
-# Try to import insightface, but make it optional
-try:
-    from insightface.app import FaceAnalysis
-    INSIGHTFACE_AVAILABLE = True
-except ImportError:
-    INSIGHTFACE_AVAILABLE = False
-    logger.warning("insightface not available - biometric features will be disabled")
 
 
 class FaceEngine:
@@ -36,12 +31,12 @@ class FaceEngine:
     @classmethod
     def _ensure_initialized(cls):
         """Lazily initialize the FaceAnalysis app on first use."""
-        if not INSIGHTFACE_AVAILABLE:
-            raise RuntimeError("insightface is not installed. Biometric features are disabled.")
-        
         if cls._initialized:
             return
-        
+
+        # Defer insightface import to avoid matplotlib loading at startup
+        from insightface.app import FaceAnalysis
+
         logger.info("FACE_ENGINE_INIT_STARTED")
         cls._app = FaceAnalysis(name="buffalo_l")
         cls._app.prepare(ctx_id=0, det_size=(320, 320))
@@ -59,10 +54,6 @@ class FaceEngine:
         - numpy.ndarray or None: embedding vector for the first detected face,
           or None when no face is detected.
         """
-        if not INSIGHTFACE_AVAILABLE:
-            logger.error("Cannot extract embedding - insightface not available")
-            return None
-
         cls._ensure_initialized()
 
         logger.info(

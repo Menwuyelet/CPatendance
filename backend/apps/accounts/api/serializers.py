@@ -15,7 +15,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     augments the validated token response with a minimal `user` object
     containing `id`, `email` and `roles`.
     """
-    username_field = 'email'
     
     def validate(self, attrs):
         """Validate credentials and return token data with user info.

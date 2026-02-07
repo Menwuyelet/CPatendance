@@ -1,84 +1,82 @@
-# Build configuration
-[build]
-  base    = "frontend"              # Sets working directory to frontend
-  command = "npm run build"         # Build the frontend
-  publish = "dist"                  # Vite builds to dist inside frontend
+# Netlify Deployment Configuration for CPatendance Frontend
+# This file is located at the root of the project
 
-# Optional: Set Node version and npm flags
+[build]
+  base = "frontend"
+  command = "npm install && npm run build"
+  publish = "frontend/dist"
+
 [build.environment]
   NODE_VERSION = "20"
-  NPM_FLAGS    = "--prefer-offline"
 
-# Security & caching headers – multiple rules as separate [[headers]] blocks
+# SPA fallback - all routes serve index.html for client-side routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  force = true
+
+# API proxy rewrites to backend (optional - can also use environment variables)
+[[redirects]]
+  from = "/api/*"
+  to = "https://amnsystembackend.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/accounts/*"
+  to = "https://amnsystembackend.onrender.com/accounts/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/attendance/*"
+  to = "https://amnsystembackend.onrender.com/attendance/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/employees/*"
+  to = "https://amnsystembackend.onrender.com/employees/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/biometrics/*"
+  to = "https://amnsystembackend.onrender.com/biometrics/:splat"
+  status = 200
+  force = true
+
+# Security headers
 [[headers]]
   for = "/assets/*"
   [headers.values]
-    Cache-Control          = "public, max-age=31536000, immutable"
+    Cache-Control = "public, max-age=31536000, immutable"
     X-Content-Type-Options = "nosniff"
-    X-Frame-Options        = "DENY"
+    X-Frame-Options = "DENY"
 
 [[headers]]
   for = "/*"
   [headers.values]
-    X-Content-Type-Options  = "nosniff"
-    X-Frame-Options         = "DENY"
-    X-XSS-Protection        = "1; mode=block"
-    Referrer-Policy         = "strict-origin-when-cross-origin"
-    Permissions-Policy      = "camera=(), microphone=(), geolocation=()"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
 
 [[headers]]
   for = "/index.html"
   [headers.values]
-    Cache-Control          = "no-cache, no-store, must-revalidate"
-    Service-Worker-Allowed = "/"
+    Cache-Control = "no-cache, no-store, must-revalidate"
 
-# Proxy/rewrite to deployed backend
-[[redirects]]
-  from   = "/api/*"
-  to     = "https://amnsystembackend.onrender.com/api/:splat"
-  status = 200
-  force  = true
-
-[[redirects]]
-  from   = "/accounts/*"
-  to     = "https://amnsystembackend.onrender.com/accounts/:splat"
-  status = 200
-  force  = true
-
-[[redirects]]
-  from   = "/attendance/*"
-  to     = "https://amnsystembackend.onrender.com/attendance/:splat"
-  status = 200
-  force  = true
-
-[[redirects]]
-  from   = "/employees/*"
-  to     = "https://amnsystembackend.onrender.com/employees/:splat"
-  status = 200
-  force  = true
-
-[[redirects]]
-  from   = "/biometrics/*"
-  to     = "https://amnsystembackend.onrender.com/biometrics/:splat"
-  status = 200
-  force  = true
-
-# SPA routing: rewrite all paths to index.html for client-side routing
-# This must come AFTER the API redirects
-[[redirects]]
-  from   = "/*"
-  to     = "/index.html"
-  status = 200
-
-# Optional functions config (if you use Netlify Functions)
-[functions]
-  node_bundler          = "esbuild"
-  included_files        = ["dist/**/*"]
-  external_node_modules = ["@tensorflow/tfjs", "mediapipe"]
-
-# Env vars for production & previews
+# Production environment variables
 [context.production.environment]
-  VITE_API_URL = "https://amnsystembackend.onrender.com"
+  VITE_API_BASE_URL = "https://amnsystembackend.onrender.com"
 
+# Deploy preview environment variables
 [context.deploy-preview.environment]
-  VITE_API_URL = "https://amnsystembackend.onrender.com"
+  VITE_API_BASE_URL = "https://amnsystembackend.onrender.com"
+
+# Branch deploy environment variables
+[context.branch-deploy.environment]
+  VITE_API_BASE_URL = "https://amnsystembackend.onrender.com"
