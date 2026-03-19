@@ -7,7 +7,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework import serializers
 from django.db import transaction
 from accounts.models import User
@@ -225,11 +225,6 @@ class UserViewSet(viewsets.ModelViewSet):
 
         return Response({"message": "User deleted successfully."}, status=200)
 
-    @action(
-        detail=False,
-        methods=["get"],
-        permission_classes=[IsAuthenticated, IsManagerOrAdmin],
-    )
     def list(self, request, *args, **kwargs):
         """Override list to provide a custom response format."""
 
