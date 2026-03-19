@@ -6,16 +6,9 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('employees', '0003_remove_department_employees_d_company_c377c2_idx_and_more'),
+        ("employees", "0003_remove_department_employees_d_company_c377c2_idx_and_more"),
     ]
 
-    operations = [
-        migrations.RemoveIndex(
-            model_name='department',
-            name='employees_d_company_c377c2_idx',
-        ),
-        migrations.RemoveIndex(
-            model_name='employee',
-            name='employees_e_company_9ab43a_idx',
-        ),
-    ]
+    # Indexes are already gone by this point in the migration graph.
+    # Keep this migration as a no-op to avoid backend-specific "index does not exist" errors.
+    operations = []
