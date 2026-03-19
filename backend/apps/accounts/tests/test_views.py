@@ -1,26 +1,26 @@
 """
-Module: backend/apps/accounts/api/tests/test_views.py
-
-API tests for the accounts views.
+API tests for accounts views.
 """
 
-from django.urls import reverse
+from unittest.mock import patch
+
+import numpy as np
 from django.contrib.auth import get_user_model
-
-from rest_framework.test import APITestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.urls import reverse
 from rest_framework import status
+from rest_framework.test import APITestCase
 
-from accounts.models import Role
 from accounts.constants import Roles
+from accounts.models import Role
+from employees.models import Department, Employee
 
 
 User = get_user_model()
 
 
 class CustomTokenObtainPairViewTestCase(APITestCase):
-    """
-    Tests for CustomTokenObtainPairView.
-    """
+    """Tests for CustomTokenObtainPairView."""
 
     def setUp(self):
         self.user = User.objects.create_user(
@@ -29,13 +29,9 @@ class CustomTokenObtainPairViewTestCase(APITestCase):
             phone_number="+1555555555",
             password="password123",
         )
-
         self.url = reverse("token_obtain_pair")
 
     def test_login_success(self):
-        """
-        Valid credentials should return tokens and user info.
-        """
         response = self.client.post(
             self.url, {"employee_code": "EMP-LOGIN", "password": "password123"}
         )
@@ -46,9 +42,6 @@ class CustomTokenObtainPairViewTestCase(APITestCase):
         self.assertIn("user", response.data)
 
     def test_login_failure(self):
-        """
-        Invalid credentials should return validation error.
-        """
         response = self.client.post(
             self.url, {"employee_code": "EMP-LOGIN", "password": "wrongpass"}
         )
@@ -57,50 +50,59 @@ class CustomTokenObtainPairViewTestCase(APITestCase):
 
 
 class UserViewSetTestCase(APITestCase):
-    """
-    Tests for UserViewSet.
-    """
+    """Tests for UserViewSet."""
 
-    def setUp(self):
-        # Roles
-        self.admin_role = Role.objects.create(name=Roles.ADMIN)
-        self.employee_role = Role.objects.create(name=Roles.EMPLOYEE)
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin_role = Role.objects.create(name=Roles.ADMIN)
+        cls.manager_role = Role.objects.create(name=Roles.MANAGER)
+        cls.employee_role = Role.objects.create(name=Roles.EMPLOYEE)
 
-        # Users
-        self.admin = User.objects.create_user(
+        cls.dept_a = Department.objects.create(name="Engineering", code="ENG01")
+        cls.dept_b = Department.objects.create(name="Finance", code="FIN01")
+
+        cls.admin = User.objects.create_user(
             employee_code="EMP-ADMIN",
             full_name="Admin User",
             phone_number="+1666666666",
             password="adminpass",
         )
-        self.admin.roles.add(self.admin_role)
+        cls.admin.roles.add(cls.admin_role)
 
-        self.employee = User.objects.create_user(
+        cls.manager = User.objects.create_user(
+            employee_code="EMP-MGR",
+            full_name="Manager User",
+            phone_number="+1666667777",
+            password="managerpass",
+        )
+        cls.manager.roles.add(cls.manager_role)
+        cls.manager_employee = Employee.objects.create(
+            user=cls.manager,
+            department=cls.dept_a,
+        )
+
+        cls.employee = User.objects.create_user(
             employee_code="EMP-EMP",
             full_name="Employee User",
             phone_number="+1777777777",
             password="employeepass",
         )
-        self.employee.roles.add(self.employee_role)
+        cls.employee.roles.add(cls.employee_role)
+        cls.employee_profile = Employee.objects.create(
+            user=cls.employee,
+            department=cls.dept_b,
+        )
 
+    def setUp(self):
         self.list_url = reverse("user-list")
         self.me_url = reverse("user-me")
 
-    # def test_unauthenticated_access_denied(self):
-    #     """
-    #     Unauthenticated users should not access user list.
-    #     """
-    #     response = self.client.get(self.list_url)
-
-    #     self.assertIn(
-    #         response.status_code,
-    #         [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
-    #     )
+    def _face_file(self):
+        return SimpleUploadedFile(
+            "face.jpg", b"fake_image_bytes", content_type="image/jpeg"
+        )
 
     def test_admin_can_list_users(self):
-        """
-        Admin users can list users.
-        """
         self.client.force_authenticate(user=self.admin)
 
         response = self.client.get(self.list_url)
@@ -108,10 +110,7 @@ class UserViewSetTestCase(APITestCase):
         self.assertIn("users", response.data)
         self.assertIsInstance(response.data["users"], list)
 
-    def test_non_admin_cannot_create_user(self):
-        """
-        Non-admin users should not be able to create users.
-        """
+    def test_employee_cannot_create_user(self):
         self.client.force_authenticate(user=self.employee)
 
         payload = {
@@ -123,27 +122,59 @@ class UserViewSetTestCase(APITestCase):
         response = self.client.post(self.list_url, payload)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_admin_can_create_user(self):
-        """
-        Admin users can create new users.
-        """
+    @patch("biometrics.services.face_engine.FaceEngine.image_to_embedding")
+    def test_admin_can_create_employee_user_with_face_image(self, mock_embedding):
+        mock_embedding.return_value = np.array([0.1, 0.2, 0.3], dtype=np.float32)
         self.client.force_authenticate(user=self.admin)
 
         payload = {
             "roles": [self.employee_role.id],
-            "full_name": "New User",
+            "full_name": "New Employee",
             "phone_number": "+1999999999",
+            "department": str(self.dept_b.id),
+            "face_image": self._face_file(),
         }
 
-        response = self.client.post(self.list_url, payload)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        response = self.client.post(self.list_url, payload, format="multipart")
 
-        self.assertEqual(User.objects.count(), 3)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(User.objects.count(), 4)
+
+    @patch("biometrics.services.face_engine.FaceEngine.image_to_embedding")
+    def test_manager_can_create_employee_only(self, mock_embedding):
+        mock_embedding.return_value = np.array([0.1, 0.2, 0.3], dtype=np.float32)
+        self.client.force_authenticate(user=self.manager)
+
+        payload = {
+            "roles": [self.employee_role.id],
+            "full_name": "Dept Employee",
+            "phone_number": "+1990000000",
+            "department": str(self.dept_b.id),
+            "face_image": self._face_file(),
+        }
+
+        response = self.client.post(self.list_url, payload, format="multipart")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        created_user = User.objects.get(id=response.data["id"])
+        created_employee = created_user.employee
+        self.assertEqual(
+            created_employee.department_id, self.manager.employee.department_id
+        )
+
+    def test_manager_cannot_create_manager_user(self):
+        self.client.force_authenticate(user=self.manager)
+
+        payload = {
+            "roles": [self.manager_role.id],
+            "full_name": "Illegal Manager",
+            "phone_number": "+1991111111",
+        }
+
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_admin_can_update_user(self):
-        """
-        Admin users can update user attributes.
-        """
         self.client.force_authenticate(user=self.admin)
 
         url = reverse("user-detail", args=[self.employee.id])
@@ -155,21 +186,15 @@ class UserViewSetTestCase(APITestCase):
         self.assertFalse(self.employee.is_active)
 
     def test_non_admin_cannot_update_user(self):
-        """
-        Non-admin users cannot update users.
-        """
         self.client.force_authenticate(user=self.employee)
 
-        url = reverse("user-detail", args=[self.employee.id])
+        url = reverse("user-detail", args=[self.manager.id])
 
         response = self.client.patch(url, {"is_active": False})
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_me_endpoint_returns_current_user(self):
-        """
-        Authenticated users can retrieve their own data.
-        """
         self.client.force_authenticate(user=self.employee)
 
         response = self.client.get(self.me_url)
