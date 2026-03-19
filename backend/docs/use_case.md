@@ -14,6 +14,10 @@ Only implemented behavior is documented.
   - `is_admin()`
   - `is_department_manager()`
 
+## Seed/Test Credentials
+
+- Admin: employee_code `HAC-1001`, password `plain-password`, roles: ADMIN (also staff + superuser).
+
 ## Accounts App
 
 ## 1. User Login
