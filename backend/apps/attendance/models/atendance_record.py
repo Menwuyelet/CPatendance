@@ -38,7 +38,7 @@ class AttendanceRecord(models.Model):
     check_in_time = models.DateTimeField(null=True, blank=True)
     check_out_time = models.DateTimeField(null=True, blank=True)
 
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="ABSENT")
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default="ABSENT")
 
     taken_by = models.ForeignKey(
         "accounts.User",
