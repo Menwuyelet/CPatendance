@@ -11,6 +11,7 @@ from attendance.api.views import (
     AttendanceSessionCreateViewSet,
     AttendanceRecordViewSet,
     EmployeeShiftViewSet,
+    EmployeeLeaveViewSet,
     ShiftViewSet,
 )
 
@@ -34,6 +35,7 @@ router.register(
 )
 router.register("shifts", ShiftViewSet, basename="shift")
 router.register("employee-shifts", EmployeeShiftViewSet, basename="employee-shift")
+router.register("employee-leaves", EmployeeLeaveViewSet, basename="employee-leave")
 
 
 urlpatterns = router.urls

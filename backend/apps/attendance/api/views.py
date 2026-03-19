@@ -13,10 +13,11 @@ from django.db.models import Q
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 from django.core.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.decorators import action
 from accounts.permissions import IsManagerOrAdmin
 from attendance.models import AttendanceRecord
-from attendance.models import AttendanceSession, Shift
+from attendance.models import AttendanceSession, Shift, EmployeeLeave
 from attendance.models.atendance_session import SessionPhase
 from attendance.services.attendance_session_service import AttendanceSessionService
 from attendance.services.process_session_service import process_attendance_session
@@ -31,6 +32,7 @@ from attendance.api.serializers import (
     AttendanceSessionSerializer,
     ShiftSerializer,
     EmployeeShiftSerializer,
+    EmployeeLeaveSerializer,
 )
 
 
@@ -605,3 +607,77 @@ class EmployeeShiftViewSet(ViewSet):
             return employee.department and employee.department.manager_id == user.id
 
         return False
+
+
+class EmployeeLeaveViewSet(ViewSet):
+    """CRUD for long-term leave windows.
+
+    Admin can manage all. Managers are limited to employees in their department.
+    """
+
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+    serializer_class = EmployeeLeaveSerializer
+
+    def _filter_queryset(self, request):
+        qs = EmployeeLeave.objects.select_related("employee", "employee__department")
+        if request.user.is_admin():
+            return qs
+
+        if request.user.is_department_manager():
+            employee = getattr(request.user, "employee", None)
+            if employee and employee.department_id:
+                return qs.filter(employee__department_id=employee.department_id)
+        return qs.none()
+
+    def _assert_can_manage(self, request, employee):
+        if request.user.is_admin():
+            return
+        if request.user.is_department_manager():
+            manager_emp = getattr(request.user, "employee", None)
+            if manager_emp and manager_emp.department_id and employee.department_id == manager_emp.department_id:
+                return
+        raise PermissionDenied("Not allowed to manage leave for this employee")
+
+    def list(self, request):
+        qs = self._filter_queryset(request)
+        serializer = EmployeeLeaveSerializer(qs, many=True)
+        return Response(serializer.data)
+
+    def retrieve(self, request, pk=None):
+        leave = get_object_or_404(self._filter_queryset(request), pk=pk)
+        serializer = EmployeeLeaveSerializer(leave)
+        return Response(serializer.data)
+
+    def create(self, request):
+        serializer = EmployeeLeaveSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        employee = serializer.validated_data["employee"]
+        self._assert_can_manage(request, employee)
+
+        leave = serializer.save(created_by=request.user)
+        return Response(EmployeeLeaveSerializer(leave).data, status=status.HTTP_201_CREATED)
+
+    def update(self, request, pk=None):
+        leave = get_object_or_404(EmployeeLeave, pk=pk)
+        self._assert_can_manage(request, leave.employee)
+
+        serializer = EmployeeLeaveSerializer(leave, data=request.data, partial=False)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def partial_update(self, request, pk=None):
+        leave = get_object_or_404(EmployeeLeave, pk=pk)
+        self._assert_can_manage(request, leave.employee)
+
+        serializer = EmployeeLeaveSerializer(leave, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def destroy(self, request, pk=None):
+        leave = get_object_or_404(EmployeeLeave, pk=pk)
+        self._assert_can_manage(request, leave.employee)
+        leave.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

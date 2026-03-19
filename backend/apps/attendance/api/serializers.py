@@ -8,6 +8,7 @@ from attendance.models import AttendanceRecord
 from attendance.models import AttendanceSession
 from attendance.models import EmployeeShift
 from attendance.models import Shift
+from attendance.models import EmployeeLeave
 
 
 class AttendanceSessionSerializer(serializers.ModelSerializer):
@@ -94,3 +95,27 @@ class ShiftSerializer(serializers.ModelSerializer):
             "saturday",
             "sunday",
         ]
+
+
+class EmployeeLeaveSerializer(serializers.ModelSerializer):
+    """Serializer for long-term leave windows."""
+
+    class Meta:
+        model = EmployeeLeave
+        fields = [
+            "id",
+            "employee",
+            "start_date",
+            "end_date",
+            "reason",
+            "created_by",
+            "created_at",
+        ]
+        read_only_fields = ["id", "created_by", "created_at"]
+
+    def validate(self, attrs):
+        start = attrs.get("start_date")
+        end = attrs.get("end_date")
+        if start and end and end < start:
+            raise serializers.ValidationError("end_date cannot be before start_date")
+        return attrs
