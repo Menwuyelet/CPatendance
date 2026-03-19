@@ -5,21 +5,28 @@ This file contains the service for the user management actions.
 
 from accounts.models import User
 from employees.models import Employee
-from accounts.policies.common import BasePolicy
 from config.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-def create_user(email, password, roles=None, employee_data=None):
+def create_user(
+    employee_code, full_name, phone_number, password, roles=None, employee_data=None
+):
     """
-    Creates a new user with the given email, password, and roles.
+    Creates a new user with the given employee_code, password, and roles.
     If employee_data is provided, creates an associated Employee.
     """
 
-    logger.info("CREATE_USER_STARTED | email=%s", email)
+    logger.info("CREATE_USER_STARTED | employee_code=%s", employee_code)
 
-    user = User.objects.create_user(email=email, password=password)
+    user = User.objects.create_user(
+        employee_code=employee_code,
+        full_name=full_name,
+        phone_number=phone_number,
+        password=password,
+    )
+
     if roles:
         logger.debug(
             "CREATE_USER_ASSIGN_ROLES | user_id=%s roles=%s",
@@ -36,8 +43,6 @@ def create_user(email, password, roles=None, employee_data=None):
         )
         Employee.objects.create(
             user=user,
-            full_name=employee_data["full_name"],
-            employee_code=employee_data["employee_code"],
             department=employee_data.get("department"),
         )
         logger.info(
@@ -89,37 +94,57 @@ def update_user(user, **kwargs):
 def get_users_for_user(request_user):
     """
     Returns queryset of users that the request_user can view.
-    HR can view all, managers their department, employees only self.
+    Admins can view all and managers their department.
     """
     logger.info(
         "GET_USERS_FOR_USER_STARTED | requester_id=%s",
         request_user.id,
     )
 
-    if BasePolicy.is_hr(request_user) or BasePolicy.is_admin(request_user):
+    if request_user.is_admin():
         logger.info(
             "GET_USERS_FOR_USER_SCOPE | requester_id=%s scope=ALL", request_user.id
         )
         return User.objects.all()
-    elif BasePolicy.is_manager(request_user):
-        if hasattr(request_user, "employee") and request_user.employee.department:
-            logger.info(
-                "GET_USERS_FOR_USER_SCOPE | requester_id=%s scope=DEPARTMENT department_id=%s",
-                request_user.id,
-                request_user.employee.department_id,
-            )
-            return User.objects.filter(
-                employee__department=request_user.employee.department
-            )
+
+    elif request_user.is_department_manager():
+
         logger.info(
-            "GET_USERS_FOR_USER_SCOPE | requester_id=%s scope=NONE",
+            "GET_USERS_FOR_USER_SCOPE | requester_id=%s scope=DEPARTMENT department_id=%s",
             request_user.id,
+            request_user.employee.department_id,
         )
-        return User.objects.none()
-    else:
-        logger.info(
-            "GET_USERS_FOR_USER_SCOPE | requester_id=%s scope=SELF",
-            request_user.id,
+        return User.objects.filter(
+            employee__department=request_user.employee.department
         )
 
-        return User.objects.filter(id=request_user.id)
+    else:
+        return None
+
+
+def generate_password():
+    """Generates a random password for new users."""
+    import string
+    import random
+
+    length = 12
+    characters = string.ascii_letters + string.digits + string.punctuation
+    password = "".join(random.choice(characters) for _ in range(length))
+    return password
+
+
+def generate_employee_code():
+    """
+    Generates a unique employee code for new users.
+
+    Uses the company initials and last created id as starting to insure uniqueness.
+    """
+
+    last_user = User.objects.order_by("-created_at").first()
+    if last_user:
+        next_id = last_user.employee_code[-4:]  # Get the last 4 characters
+        next_id = int(next_id) + 1
+    else:
+        next_id = 10001  # Starting employee code if no users exist
+
+    return f"HAC-{next_id:04d}"

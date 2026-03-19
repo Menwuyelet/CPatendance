@@ -33,13 +33,14 @@ class UserModelTestCase(TestCase):
             - Role instances used for role-based tests
         """
         self.user = User.objects.create_user(
-            email="testuser@example.com",
-            password="securepassword123"
+            employee_code="EMP-001",
+            full_name="Test User",
+            phone_number="+1234567890",
+            password="securepassword123",
         )
 
         # Set up possible role instances
         self.admin_role = Role.objects.create(name=Roles.ADMIN)
-        self.hr_role = Role.objects.create(name=Roles.HR)
         self.manager_role = Role.objects.create(name=Roles.MANAGER)
         self.employee_role = Role.objects.create(name=Roles.EMPLOYEE)
 
@@ -52,7 +53,9 @@ class UserModelTestCase(TestCase):
         Test that a user is created successfully with default values.
         """
         self.assertIsNotNone(self.user.id)
-        self.assertEqual(self.user.email, "testuser@example.com")
+        self.assertEqual(self.user.employee_code, "emp-001")
+        self.assertEqual(self.user.full_name, "Test User")
+        self.assertEqual(self.user.phone_number, "+1234567890")
         self.assertTrue(self.user.is_active)
         self.assertFalse(self.user.is_staff)
 
@@ -60,7 +63,7 @@ class UserModelTestCase(TestCase):
         """
         Test the __str__ representation method of the User model.
         """
-        self.assertEqual(str(self.user), "testuser@example.com")
+        self.assertEqual(str(self.user), "emp-001")
 
     # ------------------------------------------------------------------
     # Role Relationship Tests
@@ -96,7 +99,7 @@ class UserModelTestCase(TestCase):
         """
         Test has_role() returns False if the user does not have the role.
         """
-        self.assertFalse(self.user.has_role(Roles.HR))
+        self.assertFalse(self.user.has_role(Roles.MANAGER))
 
     # ------------------------------------------------------------------
     # Role Helper Method Tests
@@ -109,16 +112,7 @@ class UserModelTestCase(TestCase):
         self.user.roles.add(self.admin_role)
 
         self.assertTrue(self.user.is_admin())
-        self.assertFalse(self.user.is_hr())
-
-    def test_is_hr(self):
-        """
-        Test is_hr() returns True only when HR role is assigned.
-        """
-        self.user.roles.add(self.hr_role)
-
-        self.assertTrue(self.user.is_hr())
-        self.assertFalse(self.user.is_admin())
+        self.assertFalse(self.user.is_department_manager())
 
     def test_is_department_manager(self):
         """
@@ -144,8 +138,8 @@ class UserModelTestCase(TestCase):
         """
         Test that a user can have more than one role.
         """
-        self.user.roles.add(self.admin_role, self.hr_role)
+        self.user.roles.add(self.admin_role, self.manager_role)
 
         self.assertTrue(self.user.is_admin())
-        self.assertTrue(self.user.is_hr())
+        self.assertTrue(self.user.is_department_manager())
         self.assertFalse(self.user.is_employee())

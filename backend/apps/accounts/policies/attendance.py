@@ -5,6 +5,7 @@ This file contains the attendance policies used to handle autorization.
 
 from .common import BasePolicy
 
+
 class AttendancePolicy(BasePolicy):
     """Policies related to attendance operations.
 
@@ -15,33 +16,17 @@ class AttendancePolicy(BasePolicy):
     @classmethod
     def can_take_attendance(cls, user, employee):
         """
-        HR and Managers can take attendance
-        HR can take for anyone, Managers only for their department
+        Managers can take attendance for employees in their department.
         """
-        if cls.is_hr(user):
-            return True
 
-        if cls.is_manager(user) and cls.same_department(user, employee):
-            return True
-
-        return False
-
-    @classmethod
-    def can_self_check_in(cls, user):
-        """Return True when `user` is permitted to perform self check-in."""
-        return cls.is_worker(user) or cls.is_hr(user) or cls.is_manager(user)
+        return user.is_department_manager() and cls.same_department(user, employee)
 
     @classmethod
     def can_view_attendance(cls, user, employee):
         """
-        - HR: all employees
         - Manager: department
-        - Worker: self only
+        - Admin: all
         """
-        if cls.is_hr(user):
-            return True
-
-        if cls.is_manager(user):
-            return cls.same_department(user, employee)
-
-        return user.id == employee.id
+        return user.is_admin() or (
+            user.is_department_manager() and cls.same_department(user, employee)
+        )

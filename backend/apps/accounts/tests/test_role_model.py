@@ -74,8 +74,10 @@ class RoleModelTestCase(TestCase):
         via the ManyToMany relationship.
         """
         user = User.objects.create_user(
-            email="user@example.com",
-            password="strongpassword123"
+            employee_code="EMP-900",
+            full_name="Role Test User",
+            phone_number="+1111111111",
+            password="strongpassword123",
         )
 
         user.roles.add(self.role)

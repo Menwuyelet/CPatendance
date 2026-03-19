@@ -3,6 +3,7 @@
 This file contains the policies for the biometric profile management.
 """
 
+
 class BiometricPolicy:
     """Policies for biometric profile management.
 
@@ -13,6 +14,8 @@ class BiometricPolicy:
     @staticmethod
     def can_manage_profile(user, profile):
         """Return True when `user` is allowed to manage the given biometric profile."""
-        if user.is_admin() or user.is_hr():
-            return True
-        return False
+
+        return user.is_admin() or (
+            user.is_department_manager()
+            and user.employee.department_id == profile.employee.department_id
+        )

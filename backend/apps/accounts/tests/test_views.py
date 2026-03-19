@@ -24,37 +24,36 @@ class CustomTokenObtainPairViewTestCase(APITestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(
-            email="login@test.com",
-            password="password123"
+            employee_code="EMP-LOGIN",
+            full_name="Login User",
+            phone_number="+1555555555",
+            password="password123",
         )
 
-        self.url = reverse('token_obtain_pair')
+        self.url = reverse("token_obtain_pair")
 
     def test_login_success(self):
         """
         Valid credentials should return tokens and user info.
         """
-        response = self.client.post(self.url, {
-            'email': 'login@test.com',
-            'password': 'password123'
-        })
+        response = self.client.post(
+            self.url, {"employee_code": "EMP-LOGIN", "password": "password123"}
+        )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('access', response.data)
-        self.assertIn('refresh', response.data)
-        self.assertIn('user', response.data)
+        self.assertIn("access", response.data)
+        self.assertIn("refresh", response.data)
+        self.assertIn("user", response.data)
 
     def test_login_failure(self):
         """
         Invalid credentials should return validation error.
         """
-        response = self.client.post(self.url, {
-            'email': 'login@test.com',
-            'password': 'wrongpass'
-        })
+        response = self.client.post(
+            self.url, {"employee_code": "EMP-LOGIN", "password": "wrongpass"}
+        )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
 
 
 class UserViewSetTestCase(APITestCase):
@@ -69,19 +68,23 @@ class UserViewSetTestCase(APITestCase):
 
         # Users
         self.admin = User.objects.create_user(
-            email="admin@test.com",
-            password="adminpass"
+            employee_code="EMP-ADMIN",
+            full_name="Admin User",
+            phone_number="+1666666666",
+            password="adminpass",
         )
         self.admin.roles.add(self.admin_role)
 
         self.employee = User.objects.create_user(
-            email="employee@test.com",
-            password="employeepass"
+            employee_code="EMP-EMP",
+            full_name="Employee User",
+            phone_number="+1777777777",
+            password="employeepass",
         )
         self.employee.roles.add(self.employee_role)
 
-        self.list_url = reverse('user-list')
-        self.me_url = reverse('user-me')
+        self.list_url = reverse("user-list")
+        self.me_url = reverse("user-me")
 
     # def test_unauthenticated_access_denied(self):
     #     """
@@ -102,8 +105,8 @@ class UserViewSetTestCase(APITestCase):
 
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('results', response.data)
-        self.assertIsInstance(response.data['results'], list)
+        self.assertIn("users", response.data)
+        self.assertIsInstance(response.data["users"], list)
 
     def test_non_admin_cannot_create_user(self):
         """
@@ -112,16 +115,14 @@ class UserViewSetTestCase(APITestCase):
         self.client.force_authenticate(user=self.employee)
 
         payload = {
-            'email': 'new@test.com',
-            'password': 'password123',
-            'roles': [self.employee_role.id],
-            'full_name': 'Test User',
-            'employee_code': 'EMP001',
+            "roles": [self.employee_role.id],
+            "full_name": "Test User",
+            "phone_number": "+1888888888",
         }
 
         response = self.client.post(self.list_url, payload)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-    
+
     def test_admin_can_create_user(self):
         """
         Admin users can create new users.
@@ -129,31 +130,25 @@ class UserViewSetTestCase(APITestCase):
         self.client.force_authenticate(user=self.admin)
 
         payload = {
-            'email': 'new@test.com',
-            'password': 'password123',
-            'roles': [self.employee_role.id],
-            'full_name': 'New User',
-            'employee_code': 'EMP002',
+            "roles": [self.employee_role.id],
+            "full_name": "New User",
+            "phone_number": "+1999999999",
         }
 
         response = self.client.post(self.list_url, payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        self.assertTrue(
-            User.objects.filter(email='new@test.com').exists()
-        )
-    
+        self.assertEqual(User.objects.count(), 3)
+
     def test_admin_can_update_user(self):
         """
         Admin users can update user attributes.
         """
         self.client.force_authenticate(user=self.admin)
 
-        url = reverse('user-detail', args=[self.employee.id])
+        url = reverse("user-detail", args=[self.employee.id])
 
-        response = self.client.patch(url, {
-            'is_active': False
-        })
+        response = self.client.patch(url, {"is_active": False})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.employee.refresh_from_db()
@@ -165,14 +160,12 @@ class UserViewSetTestCase(APITestCase):
         """
         self.client.force_authenticate(user=self.employee)
 
-        url = reverse('user-detail', args=[self.employee.id])
+        url = reverse("user-detail", args=[self.employee.id])
 
-        response = self.client.patch(url, {
-            'is_active': False
-        })
+        response = self.client.patch(url, {"is_active": False})
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-    
+
     def test_me_endpoint_returns_current_user(self):
         """
         Authenticated users can retrieve their own data.
@@ -182,4 +175,4 @@ class UserViewSetTestCase(APITestCase):
         response = self.client.get(self.me_url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['email'], self.employee.email)
+        self.assertEqual(response.data["employee_code"], self.employee.employee_code)

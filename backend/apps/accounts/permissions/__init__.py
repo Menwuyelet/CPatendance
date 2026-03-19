@@ -3,8 +3,7 @@
 Auto-generated module docstring.
 """
 
-from .hr_or_manager import IsHRorManager, IsHRManagerOrAdmin
+from .admin_or_manager import IsManagerOrAdmin
 from .is_admin import IsAdmin
-from .is_hr import IsHR
 from .is_employee import IsEmployee
 from .is_manager import IsDepartmentManager

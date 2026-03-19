@@ -38,8 +38,8 @@ class RoleSerializerTestCase(TestCase):
         role = Role.objects.create(name=Roles.ADMIN)
         serializer = RoleSerializer(role)
 
-        self.assertEqual(serializer.data['name'], Roles.ADMIN)
-        self.assertIn('id', serializer.data)
+        self.assertEqual(serializer.data["name"], Roles.ADMIN)
+        self.assertIn("id", serializer.data)
 
 
 class UserSerializerTestCase(TestCase):
@@ -50,8 +50,10 @@ class UserSerializerTestCase(TestCase):
     def setUp(self):
         self.role = Role.objects.create(name=Roles.EMPLOYEE)
         self.user = User.objects.create_user(
-            email="user@test.com",
-            password="password123"
+            employee_code="EMP-100",
+            full_name="Serializer User",
+            phone_number="+1000000000",
+            password="password123",
         )
         self.user.roles.add(self.role)
 
@@ -62,27 +64,25 @@ class UserSerializerTestCase(TestCase):
         serializer = UserSerializer(self.user)
         data = serializer.data
 
-        self.assertEqual(data['email'], self.user.email)
-        self.assertTrue(data['is_active'])
-        self.assertEqual(len(data['roles']), 1)
-        self.assertEqual(data['roles'][0]['name'], Roles.EMPLOYEE)
+        self.assertEqual(data["employee_code"], self.user.employee_code)
+        self.assertEqual(data["full_name"], self.user.full_name)
+        self.assertEqual(data["phone_number"], self.user.phone_number)
+        self.assertTrue(data["is_active"])
+        self.assertEqual(len(data["roles"]), 1)
+        self.assertEqual(data["roles"][0]["name"], Roles.EMPLOYEE)
 
-    def test_user_serializer_read_only_fields(self):
+    def test_user_serializer_partial_update_full_name(self):
         """
-        Test that writable fields can be updated
-        and read-only fields are ignored.
+        Test that writable fields can be updated via UserSerializer.
         """
         serializer = UserSerializer(
-            instance=self.user,
-            data={'email': 'new@email.com'},
-            partial=True
+            instance=self.user, data={"full_name": "Updated Name"}, partial=True
         )
 
         self.assertTrue(serializer.is_valid())
         user = serializer.save()
 
-        # Email IS writable in UserSerializer
-        self.assertEqual(user.email, 'new@email.com')
+        self.assertEqual(user.full_name, "Updated Name")
 
 
 class UserCreateSerializerTestCase(APITestCase):
@@ -91,43 +91,45 @@ class UserCreateSerializerTestCase(APITestCase):
     """
 
     def setUp(self):
-        self.role = Role.objects.create(name=Roles.HR)
+        self.role = Role.objects.create(name=Roles.MANAGER)
 
-    def test_user_creation_serializer_creates_user(self):
+    def test_user_creation_serializer_validates_expected_fields(self):
         """
-        Test that UserCreateSerializer successfully creates a user
-        and assigns roles.
+        Test that UserCreateSerializer accepts manager/employee flow fields.
         """
         payload = {
-            'email': 'newuser@test.com',
-            'password': 'StrongPass123',
-            'roles': [self.role.id],
+            "full_name": "New User",
+            "phone_number": "+12223334444",
+            "roles": [self.role.id],
         }
 
         serializer = UserCreateSerializer(data=payload)
         self.assertTrue(serializer.is_valid(), serializer.errors)
 
-        user = serializer.save()
+    def test_user_create_serializer_requires_full_name(self):
+        """Test that full_name is required for create serializer."""
+        payload = {
+            "phone_number": "+12223334444",
+            "roles": [self.role.id],
+        }
 
-        self.assertEqual(user.email, payload['email'])
-        self.assertTrue(user.roles.filter(name=Roles.HR).exists())
+        serializer = UserCreateSerializer(data=payload)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("full_name", serializer.errors)
 
     def test_password_is_write_only(self):
         """
         Test that password is not exposed in serialized output.
         """
-        payload = {
-            'email': 'hiddenpass@test.com',
-            'password': 'Secret123',
-            'roles': [self.role.id],
-        }
-
-        serializer = UserCreateSerializer(data=payload)
-        serializer.is_valid()
-        user = serializer.save()
+        user = User.objects.create_user(
+            employee_code="EMP-101",
+            full_name="Hidden Password User",
+            phone_number="+1999999999",
+            password="Secret123",
+        )
 
         output = UserSerializer(user).data
-        self.assertNotIn('password', output)
+        self.assertNotIn("password", output)
 
 
 class UserUpdateSerializerTestCase(APITestCase):
@@ -140,8 +142,10 @@ class UserUpdateSerializerTestCase(APITestCase):
         self.role2 = Role.objects.create(name=Roles.MANAGER)
 
         self.user = User.objects.create_user(
-            email="update@test.com",
-            password="password123"
+            employee_code="EMP-102",
+            full_name="Update User",
+            phone_number="+1333333333",
+            password="password123",
         )
         self.user.roles.add(self.role1)
 
@@ -150,9 +154,7 @@ class UserUpdateSerializerTestCase(APITestCase):
         Test that UserUpdateSerializer updates roles correctly.
         """
         serializer = UserUpdateSerializer(
-            instance=self.user,
-            data={'roles': [self.role2.id]},
-            partial=True
+            instance=self.user, data={"roles": [self.role2.id]}, partial=True
         )
 
         self.assertTrue(serializer.is_valid(), serializer.errors)
@@ -161,22 +163,21 @@ class UserUpdateSerializerTestCase(APITestCase):
         self.assertTrue(self.user.roles.filter(name=Roles.MANAGER).exists())
         self.assertFalse(self.user.roles.filter(name=Roles.EMPLOYEE).exists())
 
-    def test_email_is_read_only(self):
+    def test_employee_code_is_read_only(self):
         """
-        Test that email cannot be updated via UserUpdateSerializer.
+        Test that employee_code cannot be updated via UserUpdateSerializer.
         """
-        original_email = self.user.email
+        original_employee_code = self.user.employee_code
 
         serializer = UserUpdateSerializer(
-            instance=self.user,
-            data={'email': 'hacker@test.com'},
-            partial=True
+            instance=self.user, data={"employee_code": "EMP-HACKED"}, partial=True
         )
 
         self.assertTrue(serializer.is_valid())
         serializer.save()
+        self.user.refresh_from_db()
 
-        self.assertEqual(self.user.email, original_email)
+        self.assertEqual(self.user.employee_code, original_employee_code)
 
 
 class CustomTokenObtainPairSerializerTestCase(APITestCase):
@@ -187,8 +188,10 @@ class CustomTokenObtainPairSerializerTestCase(APITestCase):
     def setUp(self):
         self.role = Role.objects.create(name=Roles.ADMIN)
         self.user = User.objects.create_user(
-            email="login@test.com",
-            password="password123"
+            employee_code="EMP-LOGIN",
+            full_name="Login User",
+            phone_number="+1444444444",
+            password="password123",
         )
         self.user.roles.add(self.role)
 
@@ -197,21 +200,18 @@ class CustomTokenObtainPairSerializerTestCase(APITestCase):
         Test that valid credentials return tokens and user info.
         """
         serializer = CustomTokenObtainPairSerializer(
-            data={
-                'email': 'login@test.com',
-                'password': 'password123'
-            }
+            data={"employee_code": "EMP-LOGIN", "password": "password123"}
         )
 
         self.assertTrue(serializer.is_valid(), serializer.errors)
         data = serializer.validated_data
 
-        self.assertIn('access', data)
-        self.assertIn('refresh', data)
-        self.assertIn('user', data)
+        self.assertIn("access", data)
+        self.assertIn("refresh", data)
+        self.assertIn("user", data)
 
-        self.assertEqual(data['user']['email'], self.user.email)
-        self.assertIn(Roles.ADMIN, data['user']['roles'])
+        self.assertEqual(data["user"]["employee_code"], self.user.employee_code)
+        self.assertIn(Roles.ADMIN, data["user"]["roles"])
 
     def test_token_serializer_invalid_credentials(self):
         """
@@ -219,10 +219,7 @@ class CustomTokenObtainPairSerializerTestCase(APITestCase):
         with a custom message.
         """
         serializer = CustomTokenObtainPairSerializer(
-            data={
-                'email': 'login@test.com',
-                'password': 'wrongpassword'
-            }
+            data={"employee_code": "EMP-LOGIN", "password": "wrongpassword"}
         )
 
         with self.assertRaises(ValidationError):
