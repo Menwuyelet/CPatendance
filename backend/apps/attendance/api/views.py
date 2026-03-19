@@ -3,7 +3,6 @@
 This file contains the views for the attendance app.
 """
 
-from accounts.permissions.is_hr import IsHR
 from datetime import timedelta
 from attendance.models.employee_shift import EmployeeShift
 from rest_framework.viewsets import ViewSet
@@ -14,9 +13,11 @@ from django.db.models import Q
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 from django.core.exceptions import ValidationError
-from accounts.permissions import IsAdmin, IsHRorManager
+from rest_framework.decorators import action
+from accounts.permissions import IsManagerOrAdmin
 from attendance.models import AttendanceRecord
 from attendance.models import AttendanceSession, Shift
+from attendance.models.atendance_session import SessionPhase
 from attendance.services.attendance_session_service import AttendanceSessionService
 from attendance.services.process_session_service import process_attendance_session
 from django.utils import timezone
@@ -30,16 +31,15 @@ from attendance.api.serializers import (
     AttendanceSessionSerializer,
     ShiftSerializer,
     EmployeeShiftSerializer,
-    AttendanceCheckInSerializer,
 )
 
 
 class AttendanceSessionCreateViewSet(ViewSet):
     """
-    HR / Manager starts attendance session
+    Manager / Admin starts attendance session
     """
 
-    permission_classes = [IsAuthenticated, IsHRorManager | IsAdmin]
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
 
     def create(self, request):
         """Start a new attendance session for a given shift.
@@ -98,7 +98,8 @@ class AttendanceSessionCreateViewSet(ViewSet):
 
         service = AttendanceSessionService(session)
 
-        raw_entries = service.close()
+        leave_codes = request.data.get("leave_employee_codes", [])
+        raw_entries = service.close(leave_codes)
 
         process_attendance_session(session, request.user)
 
@@ -109,6 +110,50 @@ class AttendanceSessionCreateViewSet(ViewSet):
                 "status": "closed",
             },
             status=status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated, IsManagerOrAdmin],
+    )
+    def sleep(self, request, pk=None):
+        """Put session to sleep and process check-in window (mark absences/leave)."""
+        session = get_object_or_404(AttendanceSession, id=pk)
+        if not session.is_active or session.phase != SessionPhase.CHECK_IN:
+            return Response(
+                {"detail": "Session not in check-in phase"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        leave_codes = request.data.get("leave_employee_codes", [])
+        service = AttendanceSessionService(session)
+        service.make_sleep(leave_codes)
+
+        return Response(
+            {"detail": "Session moved to checkout phase"}, status=status.HTTP_200_OK
+        )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated, IsManagerOrAdmin],
+        url_path="activate-checkout",
+    )
+    def activate_checkout(self, request, pk=None):
+        """Reactivate session for checkout captures."""
+        session = get_object_or_404(AttendanceSession, id=pk)
+        if session.phase != SessionPhase.CHECK_OUT:
+            return Response(
+                {"detail": "Session not ready for checkout"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        service = AttendanceSessionService(session)
+        service.activate_checkout()
+
+        return Response(
+            {"detail": "Session activated for checkout"}, status=status.HTTP_200_OK
         )
 
 
@@ -138,29 +183,14 @@ class AttendanceSessionViewSet(ViewSet):
         qs = AttendanceSession.objects.select_related("shift", "started_by").order_by(
             "-started_at"
         )
-        if request.user.is_admin() or request.user.is_hr():
-            """
-            Admin and HR can see all the attendance sessions.
-            """
+        if request.user.is_admin():
             pass
-
         elif request.user.is_department_manager():
-            """
-            Department manager can see sessions for shifts in their department.
-            NOTE: This requires the Shift model to have a `department` field.
-            Once the department field is added to Shift, uncomment the filter below.
-            """
-            # employee = getattr(request.user, "employee", None)
-            # if employee and employee.department_id:
-            #     # Show sessions for shifts in manager's department
-            #     qs = qs.filter(shift__department_id=employee.department_id).distinct()
-            # else:
-            #     qs = qs.none()
-
-            # TEMPORARY FIX: Show all active sessions for managers until department field is added
-            # This allows managers to see and manage sessions, but is less restrictive
-            qs = qs.filter(is_active=True)
-
+            employee = getattr(request.user, "employee", None)
+            if employee and employee.department_id:
+                qs = qs.filter(shift__department_id=employee.department_id).distinct()
+            else:
+                qs = qs.none()
         else:
             qs = qs.none()
 
@@ -188,8 +218,8 @@ class AttendanceSessionViewSet(ViewSet):
         session = get_object_or_404(AttendanceSession, id=pk)
         self._check_permission(request, session)
 
-        # Only HR / Admin can modify session state
-        if not (request.user.is_admin() or request.user.is_hr()):
+        # Admin or Manager can modify session state
+        if not (request.user.is_admin() or request.user.is_department_manager()):
             return Response(
                 {"detail": "Not allowed to modify attendance sessions"},
                 status=status.HTTP_403_FORBIDDEN,
@@ -216,11 +246,11 @@ class AttendanceSessionViewSet(ViewSet):
     def _check_permission(self, request, session):
         """Internal helper that raises when the `request.user` cannot access `session`.
 
-        - Admins and HR bypass checks.
+        - Admins bypass checks.
         - Department managers may access sessions for their department.
         - Otherwise raises `PermissionError`.
         """
-        if request.user.is_admin() or request.user.is_hr():
+        if request.user.is_admin():
             return
 
         if request.user.is_department_manager():
@@ -239,6 +269,7 @@ class AttendanceTakingViewSet(ViewSet):
     """
 
     parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
 
     def create(self, request):
         """Handle POST with image to perform a single facial check-in.
@@ -252,7 +283,9 @@ class AttendanceTakingViewSet(ViewSet):
             return Response({"detail": "Image required"}, status=400)
 
         session = (
-            AttendanceSession.objects.filter(is_active=True)
+            AttendanceSession.objects.filter(
+                is_active=True, phase=SessionPhase.CHECK_IN
+            )
             .order_by("-started_at")
             .first()
         )
@@ -296,6 +329,65 @@ class AttendanceTakingViewSet(ViewSet):
         )
 
 
+class AttendanceCheckoutViewSet(ViewSet):
+    """Checkout capture for an active session in checkout phase."""
+
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+
+    def create(self, request):
+        image = request.FILES.get("image")
+
+        if not image:
+            return Response({"detail": "Image required"}, status=400)
+
+        session = (
+            AttendanceSession.objects.filter(
+                is_active=True, phase=SessionPhase.CHECK_OUT
+            )
+            .order_by("-started_at")
+            .first()
+        )
+
+        if not session:
+            return Response(
+                {"detail": "No active attendance session for checkout"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        service = AttendanceSessionService(session)
+        result = service.check_in_next_worker(image.read())
+
+        if result == "NO_ACTIVE_SESSION":
+            return Response(
+                {"detail": "No active attendance session"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        elif result == "TRY_AGAIN":
+            return Response(
+                {"detail": "Face not clear. Please try again."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        elif result == "NO_FACE_DETECTED":
+            return Response(
+                {"detail": "No face detected"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        elif result == "STOP_DUPLICATE":
+            return Response(
+                {"detail": "Attendance already recorded"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {"detail": "Checkout recorded successfully"},
+            status=status.HTTP_201_CREATED,
+        )
+
+
 class AttendanceRecordViewSet(ViewSet):
     """
     AttendanceRecord operations:
@@ -321,7 +413,7 @@ class AttendanceRecordViewSet(ViewSet):
         """List attendance sessions visible to the requesting user."""
         qs = AttendanceRecord.objects.select_related("employee", "employee_shift")
 
-        if request.user.is_admin() or request.user.is_hr():
+        if request.user.is_admin():
             pass
         elif request.user.is_department_manager():
             if hasattr(request.user, "employee") and request.user.employee.department:
@@ -374,8 +466,8 @@ class AttendanceRecordViewSet(ViewSet):
         """Partially update an attendance session (e.g., mark closed)."""
         record = get_object_or_404(AttendanceRecord, id=pk)
 
-        # Only HR / Admin can manually modify attendance
-        if not (request.user.is_admin() or request.user.is_hr()):
+        # Only Admin or Manager can manually modify attendance
+        if not (request.user.is_admin() or request.user.is_department_manager()):
             return Response(
                 {"detail": "Not allowed to modify attendance records"},
                 status=status.HTTP_403_FORBIDDEN,
@@ -390,11 +482,10 @@ class AttendanceRecordViewSet(ViewSet):
     def _check_object_permission(self, request, record):
         """Ensure `request.user` may access the given `AttendanceRecord`.
 
-        Raises `PermissionError` when access is not permitted. Admins and HR
-        bypass checks; department managers and the record's employee may
-        access as appropriate.
+        Raises `PermissionError` when access is not permitted. Admins bypass checks;
+        department managers and the record's employee may access as appropriate.
         """
-        if request.user.is_admin() or request.user.is_hr():
+        if request.user.is_admin():
             return
 
         if request.user.is_department_manager():
@@ -416,23 +507,13 @@ class AttendanceRecordViewSet(ViewSet):
 class ShiftViewSet(ViewSet):
     """API operations for managing shifts (list, create, update, delete).
 
-    Provides CRUD endpoints used by HR/admins to maintain shift
+    Provides CRUD endpoints used by managers/admins to maintain shift
     definitions used across attendance sessions.
     """
 
     serializer_class = ShiftSerializer
 
-    permission_classes = [IsAuthenticated, IsHRorManager | IsAdmin]
-
-    def get_permissions(self):
-        """Return permission instances for the current action.
-
-        For mutating shift endpoints (create/update/destroy) restrict access
-        to authenticated HR users.
-        """
-        if self.action in ["create", "update", "partial_update", "destroy"]:
-            self.permission_classes = [IsAuthenticated, IsHR]
-        return super().get_permissions()
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
 
     def list(self, request):
         """Return all configured shifts serialized for clients."""
@@ -515,13 +596,11 @@ class EmployeeShiftViewSet(ViewSet):
     def _can_manage_employee(self, user, employee):
         """Return True when `user` is allowed to manage the given `employee`.
 
-        Considers HR role and department manager relationship.
+        Considers admin role and department manager relationship.
         """
-        # HR
-        if getattr(user, "role", None) == "HR":
+        if hasattr(user, "is_admin") and user.is_admin():
             return True
 
-        # Manager of department
         if getattr(user, "role", None) == "MANAGER":
             return employee.department and employee.department.manager_id == user.id
 

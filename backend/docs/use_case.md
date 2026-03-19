@@ -525,3 +525,82 @@ Example with face re-enrollment:
   "detail": "No face detected"
 }
 ```
+
+## Attendance App
+
+### 1. Start Session (Check-in phase)
+
+- **Goal:** Manager/Admin starts a single session per shift/day to capture check-ins. Session remains in `CHECK_IN` phase until put to sleep.
+- **Endpoint:** `POST /api/attendance-sessions/`
+- **Permission:** Authenticated + Manager/Admin
+- **Preconditions:**
+  - Shift applies to today.
+  - Current time is within shift window (start/end); overnight shifts are allowed when end < start.
+
+### 2. Capture Check-in (facial)
+
+- **Goal:** Record first recognition per employee for the check-in window.
+- **Endpoint:** `POST /api/attendance-check-in/` with `image` file.
+- **Permission:** Authenticated (typically kiosk/terminal); relies on presence of an active session.
+- **Behavior:**
+  - Uses latest active session.
+  - Stores `AttendanceSessionEntry.recognized_at` for matched employee; duplicate attempts return "already recorded".
+  - Returns friendly errors for no session, no face detected, or no match.
+
+### 3. Put Session to Sleep (transition to checkout window)
+
+- **Goal:** Stop check-ins, process check-in attendance, and prepare for checkout.
+- **Endpoint:** `POST /api/attendance-sessions/{session_id}/sleep/`
+- **Permission:** Authenticated + Manager/Admin
+- **Payload:** `{ "leave_employee_codes": ["EMP001", "EMP002"] }` (optional)
+- **Processing:**
+  - Marks session `is_active=false`, `phase=CHECK_OUT`, captures `check_in_processed_at`.
+  - Processes check-in attendance:
+    - Employees supplied via leave codes are marked `ON_LEAVE` for the session date.
+    - Employees in active long-term leave windows are marked `ON_LEAVE`.
+    - Employees with check-in entries get `check_in_time` and status `PRESENT` or `LATE` (15 min grace).
+    - All other shift employees are marked `ABSENT` with missing check-in.
+
+### 4. Activate Checkout Window
+
+- **Goal:** Re-open the same session to collect checkout faces.
+- **Endpoint:** `POST /api/attendance-sessions/{session_id}/activate-checkout/`
+- **Permission:** Authenticated + Manager/Admin
+- **Behavior:** sets `is_active=true`, keeps `phase=CHECK_OUT`.
+
+### 5. Capture Checkout (facial)
+
+- **Goal:** Record first checkout recognition per employee for the checkout window.
+- **Endpoint:** `POST /api/attendance-check-out/` with `image` file.
+- **Permission:** Authenticated + Manager/Admin
+- **Behavior:** Stores `AttendanceSessionEntry.checkout_recognized_at` for matched employee during checkout phase; duplicates are rejected.
+
+### 6. Close Session
+
+- **Goal:** Finish checkout window, finalize attendance, and lock the session.
+- **Endpoint:** `DELETE /api/attendance-sessions/{session_id}/`
+- **Permission:** Authenticated + Manager/Admin
+- **Payload:** `{ "leave_employee_codes": ["EMP001", "EMP002"] }` (optional)
+- **Behavior:**
+  - Marks session inactive and closed.
+  - Checkout processing applies:
+    - Per-session leave codes and long-term leave → status `ON_LEAVE`, clears times.
+    - Sets `check_out_time` from checkout captures when present.
+    - Computes final status via `evaluate_final_status`:
+      - `ON_LEAVE` if already set.
+      - Missing check-in or checkout → `ABSENT`.
+      - Checkout < shift end minus 15 minutes → `EARLY_LEAVE`.
+      - Check-in > shift start plus 15 minutes → `LATE`.
+      - Otherwise `PRESENT`.
+  - Session entries remain for audit; `AttendanceRecord` stores final status and times.
+
+### 7. Long-term Leave Windows
+
+- **Model:** `EmployeeLeave` (`employee`, `start_date`, `end_date`, `reason`, `created_by`).
+- **Usage:** During check-in or checkout processing, any date within the window sets `status=ON_LEAVE` and clears in/out times. After `end_date`, normal absence rules apply (becomes `ABSENT` if not present).
+- **API:** CRUD endpoints not yet exposed; manage via admin/seed until added.
+
+### 8. Per-session On-Leave Codes
+
+- **Input:** Manager/Admin can provide employee codes when putting the session to sleep or closing.
+- **Effect:** Those employees are treated as `ON_LEAVE` for the session date (both check-in/out cleared, status `ON_LEAVE`).

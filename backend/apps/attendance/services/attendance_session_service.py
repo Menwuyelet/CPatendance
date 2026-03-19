@@ -1,10 +1,11 @@
 """Module backend/apps/attendance/services/attendance_session_service.py
 
-This file contains the Attendacne sessions service class used to handle session acctivities.
+This file contains the Attendance sessions service class used to handle session acctivities.
 """
 
 from django.utils import timezone
 from attendance.models import AttendanceSessionEntry
+from attendance.models.atendance_session import SessionPhase
 from biometrics.services.matching_service import BiometricMatchingService
 from attendance.services.attendance_service import AttendanceAbsenceService
 from biometrics.services.face_engine import FaceEngine
@@ -28,7 +29,8 @@ class AttendanceSessionService:
         )
 
     def process_embedding(self, embedding):
-        """Process a single face embedding and record a session entry.
+        """
+        Process a single face embedding and record a session entry.
 
         Returns a status string indicating how the caller should proceed:
         - "NO_ACTIVE_SESSION" when session inactive or error
@@ -61,23 +63,51 @@ class AttendanceSessionService:
             defaults={"recognized_at": timezone.now()},
         )
 
-        if not created:
-            logger.warning(
-                "SESSION_DUPLICATE_ENTRY | session_id=%s | employee_id=%s",
+        if self.session.phase == SessionPhase.CHECK_IN:
+            if not created:
+                logger.warning(
+                    "SESSION_DUPLICATE_ENTRY | phase=CHECK_IN | session_id=%s | employee_id=%s",
+                    self.session.id,
+                    employee_id,
+                )
+                return "STOP_DUPLICATE"
+
+            logger.info(
+                "SESSION_ENTRY_CREATED | phase=CHECK_IN | session_id=%s | employee_id=%s",
                 self.session.id,
                 employee_id,
             )
-            return "STOP_DUPLICATE"
+            return "STOP_SUCCESS"
 
-        logger.info(
-            "SESSION_ENTRY_CREATED | session_id=%s | employee_id=%s",
+        if self.session.phase == SessionPhase.CHECK_OUT:
+            if entry.checkout_recognized_at:
+                logger.warning(
+                    "SESSION_DUPLICATE_ENTRY | phase=CHECK_OUT | session_id=%s | employee_id=%s",
+                    self.session.id,
+                    employee_id,
+                )
+                return "STOP_DUPLICATE"
+
+            entry.checkout_recognized_at = timezone.now()
+            entry.save(update_fields=["checkout_recognized_at"])
+
+            logger.info(
+                "SESSION_ENTRY_CREATED | phase=CHECK_OUT | session_id=%s | employee_id=%s",
+                self.session.id,
+                employee_id,
+            )
+            return "STOP_SUCCESS"
+
+        logger.warning(
+            "SESSION_PROCESS_DENIED | reason=invalid_phase | session_id=%s | phase=%s",
             self.session.id,
-            employee_id,
+            self.session.phase,
         )
-        return "STOP_SUCCESS"
+        return "NO_ACTIVE_SESSION"
 
     def check_in_next_worker(self, image_bytes):
-        """Convert an uploaded image to an embedding and process it.
+        """
+        Convert an uploaded image to an embedding and process it.
 
         Returns the same status strings as `process_embedding`.
         """
@@ -98,7 +128,19 @@ class AttendanceSessionService:
 
         return self.process_embedding(embedding)
 
-    def close(self):
+    def make_sleep(self, leave_employee_codes=None):
+        """
+        Mark the session as a 'sleep' session for checkout session and process check-in attendance.
+        """
+        leave_employee_codes = leave_employee_codes or []
+        self.session.make_sleep()
+        AttendanceAbsenceService.process_check_in(self.session, leave_employee_codes)
+
+    def activate_checkout(self):
+        """Wake the session for checkout window."""
+        self.session.activate_checkout()
+
+    def close(self, leave_employee_codes=None):
         """
         Close session and return raw session entries.
         Does NOT create AttendanceRecord.
@@ -115,16 +157,15 @@ class AttendanceSessionService:
             self.session.id,
         )
 
-        absent_count = AttendanceAbsenceService.mark_absent_for_session(self.session)
+        leave_employee_codes = leave_employee_codes or []
 
-        self.session.is_active = False
-        self.session.ended_at = timezone.now()
-        self.session.save(update_fields=["is_active", "ended_at"])
+        AttendanceAbsenceService.process_check_out(self.session, leave_employee_codes)
+
+        self.session.close()
 
         logger.info(
-            "SESSION_CLOSE_COMPLETED | session_id=%s | absent_count=%s",
+            "SESSION_CLOSE_COMPLETED | session_id=%s",
             self.session.id,
-            absent_count,
         )
 
         return list(

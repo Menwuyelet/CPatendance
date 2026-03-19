@@ -569,3 +569,183 @@ At least one of `image` or `is_active` must be provided.
 - `403` when policy check fails.
 - `400` when both `image` and `is_active` are missing.
 - `400` when face is not detected in provided image.
+
+## Attendance Endpoints
+
+### Status and Phases (applies to all attendance responses)
+- `AttendanceRecord.status` values: `PRESENT`, `LATE`, `ABSENT`, `ON_LEAVE`, `EARLY_LEAVE`.
+- Session phases: `CHECK_IN`, `CHECK_OUT`, `CLOSED` (one session per shift/day intended).
+
+### POST /api/attendance-sessions/
+
+**Purpose** Start a session for a shift (check-in phase).
+
+**Permission** Authenticated + Manager/Admin.
+
+**Request Body**
+```json
+{ "shift_id": 123 }
+```
+
+**Validation**
+- Shift must apply to today.
+- Current time must be inside shift window (overnight handled when end < start).
+
+**Success Response (201)**
+```json
+{ "session_id": 10, "detail": "Attendance session started" }
+```
+
+**Notes** Creates `phase=CHECK_IN`, `is_active=true`. Uniqueness per shift/day not enforced.
+
+### POST /api/attendance-sessions/{id}/sleep/
+
+**Purpose** Transition a session from check-in to checkout window and process check-in attendance.
+
+**Permission** Authenticated + Manager/Admin.
+
+**Request Body (optional)**
+```json
+{ "leave_employee_codes": ["EMP001", "EMP002"] }
+```
+
+**Response (200)** `{ "detail": "Session moved to checkout phase" }`
+
+### POST /api/attendance-sessions/{id}/activate-checkout/
+
+**Purpose** Reactivate a sleeping session for checkout captures.
+
+**Permission** Authenticated + Manager/Admin.
+
+**Response (200)** `{ "detail": "Session activated for checkout" }`
+
+### DELETE /api/attendance-sessions/{id}/
+
+**Purpose** Close a session (end of checkout window) and finalize attendance.
+
+**Permission** Authenticated + Manager/Admin.
+
+**Request Body (optional)**
+```json
+{ "leave_employee_codes": ["EMP001", "EMP002"] }
+```
+
+**Behavior**
+- If already closed → 400.
+- Processes checkout window (including leave codes/long-term leave) and finalizes statuses.
+
+**Success Response (200)**
+```json
+{ "session_id": 10, "entries_count": 5, "status": "closed" }
+```
+
+### GET /api/attendance-manage-sessions/
+
+**Purpose** List sessions with optional filters.
+
+**Permission**
+- Admin: all sessions.
+- Manager: sessions where `shift.department == manager.department`.
+
+**Query Params**
+- `active=true|false` (optional)
+- `shift_id=<id>` (optional)
+
+**Response (200)** Paginated `AttendanceSessionSerializer` list.
+
+### GET /api/attendance-manage-sessions/{id}/
+
+**Purpose** Retrieve one session.
+
+**Permission** Admin or department Manager (department check pending field availability; currently managers rely on temporary active-session visibility).
+
+### PATCH /api/attendance-manage-sessions/{id}/
+
+**Purpose** Partial update (primarily to flip active state).
+
+**Permission** Admin only.
+
+### POST /api/attendance-check-in/
+
+**Purpose** Upload a face image to record attendance for the current active session.
+
+**Permission** Authenticated + Manager/Admin.
+
+**Request** `multipart/form-data` with `image` file.
+
+**Responses**
+- `201` `{ "detail": "Attendance recorded successfully" }`
+- `400` with details: "No active attendance session", "Face not clear. Please try again.", "No face detected", or "Attendance already recorded".
+
+**Behavior** Uses the latest active session in `CHECK_IN` phase. Stores `recognized_at` on the session entry.
+
+### POST /api/attendance-check-out/
+
+**Purpose** Upload a face image to record checkout for the current active session in checkout phase.
+
+**Permission** Authenticated + Manager/Admin.
+
+**Request** `multipart/form-data` with `image` file.
+
+**Responses**
+- `201` `{ "detail": "Checkout recorded successfully" }`
+- `400` with details: "No active attendance session for checkout", "Face not clear. Please try again.", "No face detected", or "Attendance already recorded".
+
+**Behavior** Uses the latest active session in `CHECK_OUT` phase. Stores `checkout_recognized_at` on the session entry.
+
+### GET /api/attendance/
+
+**Purpose** List attendance records.
+
+**Permission**
+- Admin: all.
+- Manager: employees in manager's department (if department present); otherwise none.
+- Employee: only own records when `mine=true`.
+
+**Query Params**
+- `date__gte`, `date__lte`
+- `mine=true`
+- `employee_id`
+- `shift_id`
+
+**Response (200)** Paginated `AttendanceSerializer` list.
+
+### GET /api/attendance/{id}/
+
+**Purpose** Retrieve an attendance record.
+
+**Permission** Admin; Manager scoped to department; employee can access own record.
+
+### PATCH/PUT /api/attendance/{id}/
+
+**Purpose** Manual correction.
+
+**Permission** Admin only.
+
+### GET /api/shifts/
+
+**Purpose** List shifts.
+
+**Permission** Admin/Manager.
+
+### POST /api/shifts/
+
+**Purpose** Create shift.
+
+**Permission** Admin/Manager.
+
+### GET /api/employee-shifts/
+
+**Purpose** List employee-to-shift assignments.
+
+**Permission** Admin/Manager with `CanManageEmployeeShift` policy.
+
+### POST /api/employee-shifts/
+
+**Purpose** Assign employee to shift.
+
+**Permission** Admin/Manager with policy check.
+
+### Notes on Leave Handling
+- Long-term leave model `EmployeeLeave` exists and is consumed during attendance processing to set `status=ON_LEAVE` and clear check-in/out times when date falls inside the leave window.
+- Per-session leave codes can be supplied when processing check-in/checkout to force `ON_LEAVE` for that session date (endpoint parameters to be added).
