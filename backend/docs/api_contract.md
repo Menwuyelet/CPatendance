@@ -4,6 +4,7 @@ This contract documents currently implemented endpoints under:
 - `/api/auth/*`
 - `/api/accounts/*`
 - `/api/employees/*`
+- `/api/biometrics/*`
 
 Base behavior:
 - Authentication: JWT (`Authorization: Bearer <token>`)
@@ -108,22 +109,27 @@ None
 ## POST /api/accounts/users/
 
 ### Permission
-Authenticated + Admin
+Authenticated + Manager or Admin
 
 ### Request Body
-```json
-{
-  "full_name": "string",
-  "phone_number": "string",
-  "roles": [1, 2],
-  "department": "uuid"
-}
-```
+Content type: `multipart/form-data`
+
+Fields:
+- `full_name`: string
+- `phone_number`: string
+- `roles`: array of role ids
+- `department`: uuid (optional)
+- `face_image`: image file (required when role includes EMPLOYEE or MANAGER)
 
 ### Notes
 - `employee_code` and `password` are read-only in serializer input.
 - Server generates `employee_code` and random password.
 - If roles include `EMPLOYEE` or `MANAGER`, linked `employees.Employee` is created.
+- If roles include `EMPLOYEE` or `MANAGER`, face enrollment is executed during the same user creation transaction.
+- Enrollment binds to the newly generated employee code by loading the created user with that generated code.
+- Manager can create users only with `EMPLOYEE` role.
+- Manager cannot create `MANAGER` or `ADMIN` users.
+- Manager-created employee is assigned to manager's department.
 
 ### Success Response (201)
 `UserSerializer` payload:
@@ -486,3 +492,80 @@ Authenticated + Admin
 
 ### Success Response (204)
 No response body.
+
+## Biometrics Endpoints
+
+## Enrollment Lifecycle
+
+- Dedicated `POST /api/biometrics/face/enroll/` endpoint is removed.
+- Face enrollment is performed only during `POST /api/accounts/users/` when role includes `EMPLOYEE` or `MANAGER`.
+
+## GET /api/biometrics/profiles/
+
+### Permission
+Authenticated + Manager or Admin
+
+### Request Body
+None
+
+### Success Response (200)
+Array of `BiometricProfileSerializer` entries:
+```json
+[
+  {
+    "id": 12,
+    "employee_code": "string",
+    "employee_full_name": "string",
+    "biometric_type": "FACE",
+    "is_active": true,
+    "created_at": "datetime",
+    "updated_at": "datetime",
+    "last_used": "datetime-or-null"
+  }
+]
+```
+
+### Scope Rules
+- Admin: all profiles.
+- Manager: profiles for users in manager's department.
+
+## PATCH /api/biometrics/profiles/{id}/
+
+### Permission
+Authenticated + Manager or Admin, plus biometric policy check on target profile
+
+### Request Body
+```json
+{
+  "is_active": true
+}
+```
+
+### Success Response (200)
+`BiometricProfileSerializer` payload.
+
+### Error Responses
+- `403` when policy check fails.
+- `400` when `is_active` is missing.
+
+## PUT /api/biometrics/profiles/{id}/
+
+### Permission
+Authenticated + Manager or Admin, plus biometric policy check on target profile
+
+### Request Body
+Content type: `multipart/form-data` or `application/json`
+
+Supported fields:
+- `image`: image file (optional, re-enrolls face template)
+- `is_active`: boolean (optional)
+
+At least one of `image` or `is_active` must be provided.
+
+### Success Response (200)
+`BiometricProfileSerializer` payload.
+
+### Error Responses
+- `403` when policy check fails.
+- `400` when both `image` and `is_active` are missing.
+- `400` when face is not detected in provided image.

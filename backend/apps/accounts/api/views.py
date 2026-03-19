@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 from django.db import transaction
 from accounts.models import User
 from accounts.constants import Roles
@@ -35,8 +36,8 @@ class UserViewSet(viewsets.ModelViewSet):
     ViewSet for user management and self-service endpoints.
 
     Supports listing, retrieving and updating users. Actions are scoped
-    based on the requesting user's role; creation and mutation endpoints
-    are restricted to administrators by `get_permissions`.
+    based on the requesting user's role; create is allowed for
+    manager/admin, while mutation endpoints remain admin-only.
     """
 
     queryset = User.objects.all()
@@ -48,8 +49,11 @@ class UserViewSet(viewsets.ModelViewSet):
         return get_users_for_user(self.request.user)
 
     def get_permissions(self):
+        # Create is allowed for admin/manager with additional role checks in perform_create.
+        if self.action == "create":
+            self.permission_classes = [IsAuthenticated, IsManagerOrAdmin]
         # Admin-only actions
-        if self.action in [
+        elif self.action in [
             "create",
             "update",
             "partial_update",
@@ -92,6 +96,24 @@ class UserViewSet(viewsets.ModelViewSet):
         roles = data.get("roles", [])
         role_names = [role.name for role in roles]
         employee_roles = [Roles.EMPLOYEE, Roles.MANAGER]
+        request_user = self.request.user
+
+        is_admin_creator = request_user.is_admin()
+        is_manager_creator = (
+            request_user.is_department_manager() and not is_admin_creator
+        )
+
+        if is_manager_creator:
+            if not roles:
+                raise PermissionDenied(
+                    "Manager can only create users with EMPLOYEE role."
+                )
+
+            disallowed_roles = [name for name in role_names if name != Roles.EMPLOYEE]
+            if disallowed_roles:
+                raise PermissionDenied(
+                    "Manager can only create users with EMPLOYEE role; MANAGER/ADMIN are not allowed."
+                )
 
         employee_data = None
         if any(role in role_names for role in employee_roles):
@@ -101,7 +123,18 @@ class UserViewSet(viewsets.ModelViewSet):
                     raise serializers.ValidationError(
                         {field: "This field is required for user creation"}
                     )
-            employee_data = {"department": data.get("department")}
+
+            if is_manager_creator:
+                manager_employee = getattr(request_user, "employee", None)
+                if manager_employee is None or manager_employee.department is None:
+                    raise serializers.ValidationError(
+                        {
+                            "department": "Manager must be linked to an employee profile with a department to create employee users."
+                        }
+                    )
+                employee_data = {"department": manager_employee.department}
+            else:
+                employee_data = {"department": data.get("department")}
 
         employee_code = generate_employee_code()
         password = generate_password()
@@ -114,6 +147,30 @@ class UserViewSet(viewsets.ModelViewSet):
             roles=roles,
             employee_data=employee_data,
         )
+
+        # Enroll face at user creation for employee/manager roles using generated employee_code.
+        if any(role in role_names for role in employee_roles):
+            from biometrics.services.face_engine import FaceEngine
+            from biometrics.services.enrollment_service import (
+                BiometricEnrollmentService,
+            )
+
+            image = self.request.FILES.get("face_image")
+            if not image:
+                raise serializers.ValidationError(
+                    {"face_image": "This field is required for biometric enrollment."}
+                )
+
+            embedding = FaceEngine.image_to_embedding(image.read())
+            if embedding is None:
+                raise serializers.ValidationError(
+                    {"face_image": "No face detected in the uploaded image."}
+                )
+
+            enrolled_user = User.objects.get(employee_code=employee_code)
+            enrollment_service = BiometricEnrollmentService(enrolled_user)
+            enrollment_service.handle_embedding(embedding)
+
         serializer.instance = user
 
     @transaction.atomic

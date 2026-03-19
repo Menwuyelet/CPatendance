@@ -3,6 +3,7 @@
 This document is derived from current code implementation in:
 - accounts API views/serializers/services
 - employees API views/serializers/services
+- biometrics API views/serializers/services
 
 Only implemented behavior is documented.
 
@@ -64,14 +65,14 @@ Create a new `accounts.User`; optionally create linked `employees.Employee` when
 Authenticated + Admin
 
 ### Request Example
-```json
-{
-  "full_name": "Jane Doe",
-  "phone_number": "+250700000000",
-  "roles": [2],
-  "department": "2e39f5f8-a3a5-4f48-b84d-8e8cddccde9a"
-}
-```
+Content type: `multipart/form-data`
+
+Form fields example:
+- `full_name`: `Jane Doe`
+- `phone_number`: `+250700000000`
+- `roles`: `2`
+- `department`: `2e39f5f8-a3a5-4f48-b84d-8e8cddccde9a`
+- `face_image`: `<uploaded image file>`
 
 ### Success Response Example
 ```json
@@ -97,6 +98,25 @@ Authenticated + Admin
 - `employee_code` and `password` are read-only in create serializer input.
 - Backend generates both values using service functions.
 - If assigned role includes `EMPLOYEE` or `MANAGER`, service creates linked `employees.Employee`.
+- If assigned role includes `EMPLOYEE` or `MANAGER`, `face_image` is required and biometric face enrollment is executed during the same user creation transaction.
+- Enrollment is attached to the newly generated employee code (user is fetched by generated `employee_code` before enrollment call).
+
+## 2.1 Manager Creates Employee User (Not Manager/Admin)
+
+### Goal
+Allow department manager to create employee users only.
+
+### Endpoint
+`POST /api/accounts/users/`
+
+### Permission
+Authenticated + Manager or Admin
+
+### Truth Notes
+- Manager can create users only when all requested roles are exactly `EMPLOYEE`.
+- Manager cannot create `MANAGER` or `ADMIN` users.
+- Manager-created employee is forced into manager's own department.
+- Enrollment remains creation-only, so manager must provide `face_image` for employee creation.
 
 ## 3. Manager/Admin List Users
 
@@ -413,5 +433,95 @@ Authenticated + Admin
   "code": "ENG01",
   "manager": "f4ad3f96-5e8d-4d0c-a6fb-c5fd6b6d2fcb",
   "is_active": true
+}
+```
+
+## Biometrics App
+
+## 1. Face Enrollment Happens Only At User Creation
+
+### Truth Notes
+- Dedicated enrollment endpoint was removed.
+- Face enrollment is executed only during `POST /api/accounts/users/` for employee/manager-role creation.
+- Face template update after creation is handled through biometric profile update endpoint.
+
+## 2. Admin/Manager Lists Biometric Profiles
+
+### Endpoint
+`GET /api/biometrics/profiles/`
+
+### Permission
+Authenticated + Manager or Admin
+
+### Success Response Example
+```json
+[
+  {
+    "id": 12,
+    "employee_code": "HAC-1010",
+    "employee_full_name": "Employee User",
+    "biometric_type": "FACE",
+    "is_active": true,
+    "created_at": "2026-03-20T12:00:00Z",
+    "updated_at": "2026-03-20T12:00:00Z",
+    "last_used": "2026-03-20T12:00:00Z"
+  }
+]
+```
+
+### Truth Notes
+- Admin sees all biometric profiles.
+- Manager sees only profiles in manager department scope.
+
+## 3. Admin/Manager Updates Biometric Profile (Including Face Re-enrollment)
+
+### Endpoint
+`PUT /api/biometrics/profiles/{profile_id}/`
+
+### Permission
+Authenticated + Manager or Admin (with policy scope check)
+
+### Request Example
+Content type: `multipart/form-data` or `application/json`
+
+Example with metadata update only:
+```json
+{
+  "is_active": false
+}
+```
+
+Example with face re-enrollment:
+- `image`: `<uploaded image file>`
+- `is_active`: `true` (optional)
+
+### Success Response Example
+```json
+{
+  "id": 12,
+  "employee_code": "HAC-1010",
+  "employee_full_name": "Employee User",
+  "biometric_type": "FACE",
+  "is_active": false,
+  "created_at": "2026-03-20T12:00:00Z",
+  "updated_at": "2026-03-20T12:30:00Z",
+  "last_used": "2026-03-20T12:00:00Z"
+}
+```
+
+### Failure Response Examples
+```json
+{
+  "detail": "Not allowed"
+}
+```
+```json
+{
+  "detail": "Provide at least one of `image` or `is_active`."
+}
+```
+```json
+{
+  "detail": "No face detected"
 }
 ```
