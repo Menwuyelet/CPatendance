@@ -50,3 +50,39 @@ def evaluate_status(record):
     )
 
     return "LATE"
+
+
+def evaluate_final_status(record):
+    """Evaluate final status considering both check-in and check-out.
+
+    Priority:
+    1. ON_LEAVE (pre-set)
+    2. Missing either timestamp → ABSENT
+    3. Early leave when checkout before shift end minus grace
+    4. Late when check-in after start plus grace
+    5. PRESENT otherwise
+    """
+
+    # Respect explicit ON_LEAVE set earlier
+    if record.status == "ON_LEAVE":
+        return "ON_LEAVE"
+
+    if not record.check_in_time or not record.check_out_time:
+        return "ABSENT"
+
+    shift = record.employee_shift.shift
+
+    shift_start = combine_date_time(record.date, shift.start_time)
+    shift_end = combine_date_time(record.date, shift.end_time)
+    if shift_end <= shift_start:
+        shift_end = shift_end + timedelta(days=1)
+
+    grace = timedelta(minutes=15)
+
+    if record.check_out_time < shift_end - grace:
+        return "EARLY_LEAVE"
+
+    if record.check_in_time > shift_start + grace:
+        return "LATE"
+
+    return "PRESENT"
