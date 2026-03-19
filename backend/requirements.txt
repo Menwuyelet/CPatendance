@@ -1,0 +1,14 @@
+"cryptography==46.0.5
+Django==5.2.10
+django-cors-headers==4.9.0
+djangorestframework==3.17.0
+djangorestframework_simplejwt==5.5.1
+dotenv==0.9.9
+drf-spectacular==0.29.0
+insightface==0.7.3
+numpy==2.2.6
+onnx==1.20.1
+onnxruntime==1.23.2
+opencv-python==4.13.0.92
+opencv-python-headless==4.13.0.92
+rest-framework-simplejwt==0.0.2"
