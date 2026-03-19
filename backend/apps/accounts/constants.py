@@ -10,6 +10,5 @@ class Roles:
     hard-coding string values across the codebase.
     """
     ADMIN = "ADMIN" 
-    HR = "HR" 
     MANAGER = "MANAGER" 
     EMPLOYEE = "EMPLOYEE" 

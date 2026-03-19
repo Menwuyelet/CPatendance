@@ -35,15 +35,15 @@ class ShiftEmbeddingLoader:
 
         try:
 
-            employee_ids = EmployeeShift.objects.filter(shift=shift).values_list(
+            employee_ids = list(EmployeeShift.objects.filter(shift=shift).values_list(
                 "employee_id", flat=True
-            )
+            ))
 
-            profiles = BiometricProfile.objects.filter(
+            profiles = list(BiometricProfile.objects.filter(
                 employee_id__in=employee_ids,
                 biometric_type=BiometricProfile.BiometricType.FACE,
                 is_active=True,
-            )
+            ))
 
             embeddings = {}
 

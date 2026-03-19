@@ -6,15 +6,7 @@ This file contains the permission for the biometrics related tasks.
 from rest_framework.permissions import BasePermission
 
 
-class CanEnrollFace(BasePermission):
-    """Allow endpoints to accept enrollments from authenticated users."""
 
-    def has_permission(self, request, view):
-        """Return True for authenticated users allowed to enroll biometrics."""
-        user = request.user
-        return (
-            user.is_authenticated 
-        )
 
 
 class CanRecognizeFace(BasePermission):
