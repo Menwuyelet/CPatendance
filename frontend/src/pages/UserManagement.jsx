@@ -1,5 +1,5 @@
 // src/pages/UserManagement.jsx
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Grid,
@@ -29,6 +29,12 @@ import {
   CircularProgress,
   TableContainer,
   Snackbar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import {
   Edit,
@@ -39,6 +45,7 @@ import {
   CheckCircle,
   Cancel,
   FilterList,
+  Refresh,
   Sort,
   SwapVert,
 } from '@mui/icons-material';
@@ -69,7 +76,13 @@ const emptyForm = {
 
 const EMPLOYEE_ROLE_NAMES = ['EMPLOYEE', 'HR', 'MANAGER'];
 
+// Keep User Management payload in module scope so route re-mounts don't re-fetch.
+let userManagementDataCache = null;
+let userManagementInFlightPromise = null;
+
 const UserManagement = ({ scope = 'admin', onNotify }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const title = scope === 'hr' ? 'Employee Directory (Read-Only)' : 'User & Access Management';
   const description =
     scope === 'hr'
@@ -80,9 +93,9 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
   const [roleOptions, setRoleOptions] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const hasLoadedRef = useRef(false);
   const [form, setForm] = useState(emptyForm);
   const [isEditing, setIsEditing] = useState(false);
+  const [userModalOpen, setUserModalOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
@@ -105,116 +118,161 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
   };
 
   const showMessage = (message, severity = 'info') => {
-    console.log(`[NOTIFY ${severity.toUpperCase()}] ${message}`);
-    
-    // Call all notification methods to ensure visibility
+    // Use one notification channel only to avoid duplicate toasts.
     if (onNotify && typeof onNotify === 'function') {
       onNotify(message, severity);
+      return;
     }
-    
+
     if (addNotification && typeof addNotification === 'function') {
       addNotification(message, severity);
+      return;
     }
-    
-    // Always show local Snackbar as fallback
+
+    // Fallback when no global notification channel is available.
     setSnack({ open: true, message, severity });
+  };
+
+  const mapApiDataToUserManagementState = (usersRes, employeesRes, departmentsRes) => {
+    const usersList = Array.isArray(usersRes) ? usersRes : usersRes?.results || usersRes?.data || [];
+    const employeesList = Array.isArray(employeesRes)
+      ? employeesRes
+      : employeesRes?.results || employeesRes?.data || [];
+    const departmentsList = Array.isArray(departmentsRes)
+      ? departmentsRes
+      : departmentsRes?.results || departmentsRes?.data || [];
+
+    const employeeByUserId = new Map();
+    employeesList.forEach((e) => {
+      const userId = e.user?.id;
+      if (userId) {
+        employeeByUserId.set(userId, {
+          id: e.id,
+          fullName: e.full_name,
+          departmentName: e.department?.name || '',
+          departmentId: e.department?.id || '',
+          employeeCode: e.employee_code || '',
+        });
+      }
+    });
+
+    const roleMap = new Map();
+    const mappedUsers = (Array.isArray(usersList) ? usersList : []).map((u) => {
+      const rawRoles = Array.isArray(u.roles) ? u.roles : [];
+      const roleNames = rawRoles
+        .map((r) => (typeof r === 'string' ? r : r.name))
+        .filter(Boolean)
+        .map((r) => r.toUpperCase());
+
+      const emp = employeeByUserId.get(u.id);
+      const deptName = emp?.departmentName || u.department?.name || '';
+      const displayName = emp?.fullName || u.full_name || u.email?.split('@')[0] || 'User';
+
+      rawRoles.forEach((r) => {
+        const name = (typeof r === 'string' ? r : r.name) || '';
+        const upper = name.toUpperCase();
+        const id = typeof r === 'string' ? null : r.id;
+        if (upper && id != null && !roleMap.has(upper)) {
+          roleMap.set(upper, { name: upper, id });
+        }
+      });
+
+      const primaryRole = roleNames[0] || 'EMPLOYEE';
+
+      return {
+        id: u.id,
+        name: displayName,
+        email: u.email,
+        role: primaryRole,
+        rolesList: roleNames,
+        department: deptName,
+        departmentId: emp?.departmentId || '',
+        employeeCode: emp?.employeeCode || '',
+        employeeId: emp?.id || '',
+        status: u.is_active ? 'Active' : 'Inactive',
+      };
+    });
+
+    const merged = new Map();
+    BASE_ROLES.forEach((r) => merged.set(r.name, r));
+    roleMap.forEach((val, key) => merged.set(key, val));
+
+    return {
+      users: mappedUsers,
+      roleOptions: Array.from(merged.values()),
+      departments: departmentsList.map((d) => ({ id: d.id, name: d.name })),
+    };
+  };
+
+  const applyDataToState = (data) => {
+    setUsers(data.users || []);
+    setRoleOptions(data.roleOptions || []);
+    setDepartments(data.departments || []);
+  };
+
+  const loadUserManagementData = async ({ force = false, notifyOnSuccess = false } = {}) => {
+    try {
+      setLoading(true);
+
+      if (!force && userManagementDataCache) {
+        applyDataToState(userManagementDataCache);
+        return;
+      }
+
+      if (!force && userManagementInFlightPromise) {
+        const sharedData = await userManagementInFlightPromise;
+        applyDataToState(sharedData);
+        return;
+      }
+
+      const requestPromise = (async () => {
+        const [usersRes, employeesRes, departmentsRes] = await Promise.all([
+          api.get('/accounts/users/'),
+          api.get('/employees/employees/'),
+          api.get('/employees/departments/'),
+        ]);
+
+        return mapApiDataToUserManagementState(usersRes, employeesRes, departmentsRes);
+      })();
+
+      userManagementInFlightPromise = requestPromise;
+
+      const nextData = await requestPromise;
+      userManagementDataCache = nextData;
+      applyDataToState(nextData);
+
+      if (notifyOnSuccess) {
+        showMessage('Users and departments refreshed successfully', 'success');
+      }
+    } catch (err) {
+      console.error('Failed to load data:', err);
+      showMessage('Failed to load users or departments. Check server connection.', 'error');
+      setUsers([]);
+      setRoleOptions([]);
+      setDepartments([]);
+    } finally {
+      if (userManagementInFlightPromise) {
+        userManagementInFlightPromise = null;
+      }
+      setLoading(false);
+    }
   };
 
   // Load data once
   useEffect(() => {
-    if (hasLoadedRef.current) return;
-    hasLoadedRef.current = true;
-
-    const loadData = async () => {
-      try {
-        setLoading(true);
-
-        const usersRes = await api.get('/accounts/users/');
-        const usersList = Array.isArray(usersRes) ? usersRes : usersRes?.results || usersRes?.data || [];
-
-        const employeesRes = await api.get('/employees/employees/');
-        const employeesList = Array.isArray(employeesRes) ? employeesRes : employeesRes?.results || employeesRes?.data || [];
-
-        const employeeByUserId = new Map();
-        employeesList.forEach((e) => {
-          const userId = e.user?.id;
-          if (userId) {
-            employeeByUserId.set(userId, {
-              id: e.id,
-              fullName: e.full_name,
-              departmentName: e.department?.name || '',
-              departmentId: e.department?.id || '',
-              employeeCode: e.employee_code || '',
-            });
-          }
-        });
-
-        if (Array.isArray(usersList)) {
-          const roleMap = new Map();
-          const mapped = usersList.map((u) => {
-            const rawRoles = Array.isArray(u.roles) ? u.roles : [];
-            const roleNames = rawRoles
-              .map((r) => (typeof r === 'string' ? r : r.name))
-              .filter(Boolean)
-              .map((r) => r.toUpperCase());
-
-            const emp = employeeByUserId.get(u.id);
-            const deptName = emp?.departmentName || u.department?.name || '';
-            const displayName = emp?.fullName || u.full_name || u.email?.split('@')[0] || 'User';
-
-            rawRoles.forEach((r) => {
-              const name = (typeof r === 'string' ? r : r.name) || '';
-              const upper = name.toUpperCase();
-              const id = typeof r === 'string' ? null : r.id;
-              if (upper && id != null && !roleMap.has(upper)) {
-                roleMap.set(upper, { name: upper, id });
-              }
-            });
-
-            const primaryRole = roleNames[0] || 'EMPLOYEE';
-
-            return {
-              id: u.id,
-              name: displayName,
-              email: u.email,
-              role: primaryRole,
-              rolesList: roleNames,
-              department: deptName,
-              departmentId: emp?.departmentId || '',
-              employeeCode: emp?.employeeCode || '',
-              employeeId: emp?.id || '',
-              status: u.is_active ? 'Active' : 'Inactive',
-            };
-          });
-
-          setUsers(mapped);
-
-          const merged = new Map();
-          BASE_ROLES.forEach((r) => merged.set(r.name, r));
-          roleMap.forEach((val, key) => merged.set(key, val));
-          setRoleOptions(Array.from(merged.values()));
-        }
-
-        const departmentsRes = await api.get('/employees/departments/');
-        const departmentsList = Array.isArray(departmentsRes)
-          ? departmentsRes
-          : departmentsRes?.results || departmentsRes?.data || [];
-
-        setDepartments(departmentsList.map((d) => ({ id: d.id, name: d.name })));
-
-        showMessage('Users and departments loaded successfully', 'success');
-      } catch (err) {
-        console.error('Failed to load data:', err);
-        showMessage('Failed to load users or departments. Check server connection.', 'error');
-        setUsers([]);
-        setRoleOptions([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadData();
+    loadUserManagementData({ force: false, notifyOnSuccess: false });
   }, []);
+
+  // Keep cache in sync after local create/edit/delete operations.
+  useEffect(() => {
+    if (!loading) {
+      userManagementDataCache = { users, roleOptions, departments };
+    }
+  }, [loading, users, roleOptions, departments]);
+
+  const handleRefreshData = () => {
+    loadUserManagementData({ force: true, notifyOnSuccess: true });
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -315,10 +373,10 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           }
         }
 
-        console.log('Creating user with payload:', payload);
+        // console.log('Creating user with payload:', payload);
 
         const created = await api.post('/accounts/users/', payload);
-        console.log('User created successfully:', created);
+        // console.log('User created successfully:', created);
 
         const newUser = {
           id: created.id,
@@ -335,8 +393,8 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
         showMessage(`✓ User Created Successfully! "${form.name}" (${form.email}) has been added to the system.`, 'success');
       }
     } catch (err) {
-      console.error('User operation failed:', err);
-      console.log('Full error response:', err?.response?.data);
+      // console.error('User operation failed:', err);
+      // console.log('Full error response:', err?.response?.data);
 
       let errorMsg = err?.message || 'Failed to save user. Please try again.';
 
@@ -364,6 +422,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
 
     setForm(emptyForm);
     setIsEditing(false);
+    setUserModalOpen(false);
   };
 
   const handleEdit = (user) => {
@@ -375,6 +434,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
       password: '',
     });
     setIsEditing(true);
+    setUserModalOpen(true);
   };
 
   const handleDelete = async (user) => {
@@ -398,6 +458,13 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
   const handleReset = () => {
     setForm(emptyForm);
     setIsEditing(false);
+    setUserModalOpen(false);
+  };
+
+  const handleOpenAddModal = () => {
+    setForm(emptyForm);
+    setIsEditing(false);
+    setUserModalOpen(true);
   };
 
   const filteredUsers = useMemo(() => {
@@ -495,113 +562,46 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
       </Box>
 
       <Grid container spacing={4}>
-        {/* Form - only for admin */}
-        {scope === 'admin' && (
-          <Grid size={{ xs: 12, lg: 4 }}>
-            <Card sx={{ height: '100%', borderRadius: 3, boxShadow: 4 }}>
-              <CardHeader
-                title={
-                  <Typography variant="h6" fontWeight="medium">
-                    {isEditing ? 'Edit User' : 'Add New User'}
-                  </Typography>
-                }
-                avatar={<PersonAdd color="primary" />}
-              />
-              <Divider />
-              <CardContent>
-                <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                  <TextField label="Full Name" name="name" value={form.name} onChange={handleChange} fullWidth required />
-                  <TextField label="Email Address" name="email" type="email" value={form.email} onChange={handleChange} fullWidth required />
-
-                  <FormControl fullWidth>
-                    <InputLabel>Role</InputLabel>
-                    <Select name="roleId" value={form.roleId} onChange={handleChange} label="Role">
-                      {roleOptions.map((r) => (
-                        <MenuItem key={r.id} value={r.id}>
-                          {`${r.id} - ${r.name}`}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-
-                  {isEmployeeRole && (
-                    <FormControl fullWidth>
-                      <InputLabel>Department</InputLabel>
-                      <Select name="departmentId" value={form.departmentId} onChange={handleChange} label="Department">
-                        <MenuItem value="">No department</MenuItem>
-                        {departments.map((d) => (
-                          <MenuItem key={d.id} value={String(d.id)}>
-                            {d.name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  )}
-
-                  {!isEditing && (
-                    <>
-                      <TextField
-                        label="Password"
-                        name="password"
-                        type="password"
-                        value={form.password}
-                        onChange={handleChange}
-                        fullWidth
-                        required
-                      />
-
-                      {isEmployeeRole && (
-                        <>
-                          <Typography variant="subtitle2" color="text.secondary">
-                            Employee Details
-                          </Typography>
-                          <TextField
-                            label="Employee Code"
-                            name="employeeCode"
-                            value={form.employeeCode}
-                            onChange={handleChange}
-                            fullWidth
-                            required
-                            placeholder="e.g., EMP001"
-                            helperText="Required for Employee, HR, and Manager roles"
-                          />
-                        </>
-                      )}
-                    </>
-                  )}
-
-                  <FormControl fullWidth>
-                    <InputLabel>Status</InputLabel>
-                    <Select name="status" value={form.status} onChange={handleChange}>
-                      <MenuItem value="Active">Active</MenuItem>
-                      <MenuItem value="Inactive">Inactive</MenuItem>
-                    </Select>
-                  </FormControl>
-
-                  <Stack direction="row" spacing={2} sx={{ mt: 3 }}>
-                    {isEditing && (
-                      <Button variant="outlined" startIcon={<Clear />} onClick={handleReset}>
-                        Cancel
-                      </Button>
-                    )}
-                    <Button
-                      type="submit"
-                      variant="contained"
-                      fullWidth
-                      size="large"
-                      startIcon={isEditing ? <CheckCircle /> : <PersonAdd />}
-                    >
-                      {isEditing ? 'Save Changes' : 'Create User'}
-                    </Button>
-                  </Stack>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        )}
-
         {/* Table */}
-        <Grid size={{ xs: 12, lg: scope === 'admin' ? 8 : 12 }}>
+        <Grid size={{ xs: 12, lg: 12 }}>
+          {scope === 'admin' && (
+            <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end', gap: 1.5, flexWrap: 'wrap' }}>
+              <Button
+                variant="outlined"
+                size={isMobile ? 'medium' : 'large'}
+                startIcon={<Refresh />}
+                onClick={handleRefreshData}
+                disabled={loading}
+                sx={{ borderRadius: 2.5, px: 2.5, py: 1.1 }}
+              >
+                Refresh
+              </Button>
+              <Button
+                variant="contained"
+                size={isMobile ? 'medium' : 'large'}
+                startIcon={<PersonAdd />}
+                onClick={handleOpenAddModal}
+                sx={{ borderRadius: 2.5, px: 2.5, py: 1.1, boxShadow: 3 }}
+              >
+                Add User
+              </Button>
+            </Box>
+          )}
+          {scope !== 'admin' && (
+            <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+              <Button
+                variant="outlined"
+                size={isMobile ? 'medium' : 'large'}
+                startIcon={<Refresh />}
+                onClick={handleRefreshData}
+                disabled={loading}
+                sx={{ borderRadius: 2.5, px: 2.5, py: 1.1 }}
+              >
+                Refresh
+              </Button>
+            </Box>
+          )}
+
           {/* Filters */}
           <Card sx={{ mb: 2, borderRadius: 3, boxShadow: 3 }}>
             <CardHeader
@@ -759,7 +759,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                         <Typography color="text.secondary">
                           {search || filterRole !== 'ALL' || filterStatus !== 'ALL'
                             ? 'No users match your filters'
-                            : 'No users yet. Create your first user using the form.'}
+                            : 'No users yet. Click "Add User" to create the first account.'}
                         </Typography>
                       </TableCell>
                     </TableRow>
@@ -818,6 +818,114 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           </Card>
         </Grid>
       </Grid>
+
+      {scope === 'admin' && (
+        <Dialog
+          open={userModalOpen}
+          onClose={handleReset}
+          fullWidth
+          maxWidth="sm"
+          fullScreen={isMobile}
+          aria-labelledby="user-modal-title"
+        >
+          <DialogTitle id="user-modal-title" sx={{ pb: 1 }}>
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <PersonAdd color="primary" />
+              <Typography variant="h6" fontWeight={700}>
+                {isEditing ? 'Edit User' : 'Add New User'}
+              </Typography>
+            </Stack>
+          </DialogTitle>
+
+          <Box component="form" onSubmit={handleSubmit}>
+            <DialogContent dividers sx={{ pt: 2 }}>
+              <Stack spacing={2.25}>
+                <TextField label="Full Name" name="name" value={form.name} onChange={handleChange} fullWidth required />
+                <TextField label="Email Address" name="email" type="email" value={form.email} onChange={handleChange} fullWidth required />
+
+                <FormControl fullWidth>
+                  <InputLabel>Role</InputLabel>
+                  <Select name="roleId" value={form.roleId} onChange={handleChange} label="Role">
+                    {roleOptions.map((r) => (
+                      <MenuItem key={r.id} value={r.id}>
+                        {`${r.id} - ${r.name}`}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                {isEmployeeRole && (
+                  <FormControl fullWidth>
+                    <InputLabel>Department</InputLabel>
+                    <Select name="departmentId" value={form.departmentId} onChange={handleChange} label="Department">
+                      <MenuItem value="">No department</MenuItem>
+                      {departments.map((d) => (
+                        <MenuItem key={d.id} value={String(d.id)}>
+                          {d.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                )}
+
+                {!isEditing && (
+                  <>
+                    <TextField
+                      label="Password"
+                      name="password"
+                      type="password"
+                      value={form.password}
+                      onChange={handleChange}
+                      fullWidth
+                      required
+                    />
+
+                    {isEmployeeRole && (
+                      <>
+                        <Typography variant="subtitle2" color="text.secondary">
+                          Employee Details
+                        </Typography>
+                        <TextField
+                          label="Employee Code"
+                          name="employeeCode"
+                          value={form.employeeCode}
+                          onChange={handleChange}
+                          fullWidth
+                          required
+                          placeholder="e.g., EMP001"
+                          helperText="Required for Employee, HR, and Manager roles"
+                        />
+                      </>
+                    )}
+                  </>
+                )}
+
+                <FormControl fullWidth>
+                  <InputLabel>Status</InputLabel>
+                  <Select name="status" value={form.status} onChange={handleChange} label="Status">
+                    <MenuItem value="Active">Active</MenuItem>
+                    <MenuItem value="Inactive">Inactive</MenuItem>
+                  </Select>
+                </FormControl>
+              </Stack>
+            </DialogContent>
+
+            <DialogActions sx={{ p: 2, gap: 1, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+              <Button variant="outlined" startIcon={<Clear />} onClick={handleReset}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
+                size="large"
+                startIcon={isEditing ? <CheckCircle /> : <PersonAdd />}
+              >
+                {isEditing ? 'Save Changes' : 'Create User'}
+              </Button>
+            </DialogActions>
+          </Box>
+        </Dialog>
+      )}
 
       {/* Visible Snackbar for messages */}
       <Snackbar
