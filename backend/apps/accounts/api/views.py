@@ -3,6 +3,7 @@
 This file contains the views for the accounts app.
 """
 
+from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -86,12 +87,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @transaction.atomic
     def perform_create(self, serializer):
-        """
-        Create a new `User` and associated employee when required.
-
-        Validates required employee fields when user roles include an
-        employee-type role, then delegates creation to the service layer.
-        """
+        """Create a new `User`, capture generated password for response."""
         data = serializer.validated_data
         roles = data.get("roles", [])
         role_names = [role.name for role in roles]
@@ -148,6 +144,10 @@ class UserViewSet(viewsets.ModelViewSet):
             employee_data=employee_data,
         )
 
+        # Expose generated credentials back to the response
+        serializer._generated_password = password
+        serializer._generated_employee_code = user.employee_code
+
         # Enroll face at user creation for employee/manager roles using generated employee_code.
         if any(role in role_names for role in employee_roles):
             from biometrics.services.face_engine import FaceEngine
@@ -172,6 +172,28 @@ class UserViewSet(viewsets.ModelViewSet):
             enrollment_service.handle_embedding(embedding)
 
         serializer.instance = user
+
+    def create(self, request, *args, **kwargs):
+        """Return generated password in creation response while storing hashed."""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+
+        headers = self.get_success_headers(serializer.data)
+        response_data = serializer.data
+
+        if hasattr(serializer, "_generated_password"):
+            response_data = {
+                **response_data,
+                "password": serializer._generated_password,
+                "employee_code": getattr(
+                    serializer,
+                    "_generated_employee_code",
+                    response_data.get("employee_code"),
+                ),
+            }
+
+        return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
 
     @transaction.atomic
     def perform_update(self, serializer):

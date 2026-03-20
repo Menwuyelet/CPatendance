@@ -11,12 +11,8 @@ class UserManager(BaseUserManager):
     """Custom user manager using email as the unique identifier."""
 
     def normalize_code(self, code):
-        """Normalize the employee code by lowercasing it."""
-        code = code.strip()
-        for char in code:
-            if char not in "0123456789-":
-                code = code.replace(char, char.lower())
-        return code
+        """Normalize employee codes for lookup while storing uppercase for consistency."""
+        return code.strip().upper()
 
     def create_user(
         self, employee_code, full_name, phone_number, password=None, **extra_fields
@@ -58,4 +54,10 @@ class UserManager(BaseUserManager):
 
         return self.create_user(
             employee_code, full_name, phone_number, password, **extra_fields
+        )
+
+    def get_by_natural_key(self, employee_code):
+        """Ensure authentication lookups are case-insensitive by normalizing codes."""
+        return self.get(
+            **{self.model.USERNAME_FIELD: self.normalize_code(employee_code)}
         )

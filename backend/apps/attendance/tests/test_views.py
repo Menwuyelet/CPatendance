@@ -7,6 +7,7 @@ API tests for attendance viewsets.
 from datetime import datetime, time, timedelta, date
 from unittest.mock import patch
 
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -54,6 +55,15 @@ class AttendanceSessionViewSetTests(APITestCase):
 
         cls.create_url = reverse("attendance-sessions-list")
         cls.list_url = reverse("attendance-manage-sessions-list")
+        cls.sleep_url = lambda session_id: reverse(
+            "attendance-sessions-sleep", args=[session_id]
+        )
+        cls.activate_checkout_url = lambda session_id: reverse(
+            "attendance-sessions-activate-checkout", args=[session_id]
+        )
+        cls.close_url = lambda session_id: reverse(
+            "attendance-sessions-detail", args=[session_id]
+        )
 
     def setUp(self):
         self.client.force_authenticate(self.admin)
@@ -105,6 +115,47 @@ class AttendanceSessionViewSetTests(APITestCase):
         self.assertEqual(response.data["count"], 30)
         self.assertEqual(len(response.data["results"]), 25)
 
+    def test_session_sleep_requires_checkin_phase(self):
+        session = AttendanceSession.objects.create(
+            shift=self.shift,
+            started_by=self.admin,
+            is_active=True,
+            phase="CHECK_OUT",
+        )
+
+        response = self.client.post(self.sleep_url(session.id), {})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("detail", response.data)
+
+    def test_session_activate_checkout_happy_path(self):
+        session = AttendanceSession.objects.create(
+            shift=self.shift,
+            started_by=self.admin,
+            is_active=False,
+            phase="CHECK_OUT",
+        )
+
+        response = self.client.post(self.activate_checkout_url(session.id), {})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["detail"], "Session activated for checkout")
+
+    def test_session_close_marks_closed(self):
+        session = AttendanceSession.objects.create(
+            shift=self.shift,
+            started_by=self.admin,
+            is_active=True,
+            phase="CHECK_OUT",
+        )
+
+        with patch("attendance.api.views.process_attendance_session") as mocked_process:
+            response = self.client.delete(self.close_url(session.id), {})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "closed")
+        mocked_process.assert_called_once()
+
 
 class AttendanceRecordViewSetTests(APITestCase):
     """Tests for attendance record endpoints."""
@@ -141,6 +192,8 @@ class AttendanceRecordViewSetTests(APITestCase):
         )
 
         cls.list_url = reverse("attendance-list")
+        cls.check_in_url = reverse("attendance-taking-list")
+        cls.check_out_url = reverse("attendance-checkout-list")
 
     def setUp(self):
         self.client.force_authenticate(self.admin)
@@ -161,3 +214,97 @@ class AttendanceRecordViewSetTests(APITestCase):
         self.assertIn("results", response.data)
         self.assertEqual(response.data["count"], 30)
         self.assertEqual(len(response.data["results"]), 25)
+
+    def test_attendance_check_in_success(self):
+        AttendanceSession.objects.create(
+            shift=self.shift,
+            started_by=self.admin,
+            is_active=True,
+            phase="CHECK_IN",
+        )
+
+        with patch(
+            "attendance.api.views.AttendanceSessionService.check_in_next_worker",
+            return_value="STOP_SUCCESS",
+        ):
+            response = self.client.post(
+                self.check_in_url,
+                {"image": SimpleUploadedFile("face.jpg", b"fake")},
+                format="multipart",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["detail"], "Attendance recorded successfully")
+
+    def test_attendance_check_in_duplicate(self):
+        AttendanceSession.objects.create(
+            shift=self.shift,
+            started_by=self.admin,
+            is_active=True,
+            phase="CHECK_IN",
+        )
+
+        with patch(
+            "attendance.api.views.AttendanceSessionService.check_in_next_worker",
+            return_value="STOP_DUPLICATE",
+        ):
+            response = self.client.post(
+                self.check_in_url,
+                {"image": SimpleUploadedFile("face.jpg", b"fake")},
+                format="multipart",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("detail", response.data)
+
+    def test_attendance_check_out_success(self):
+        AttendanceSession.objects.create(
+            shift=self.shift,
+            started_by=self.admin,
+            is_active=True,
+            phase="CHECK_OUT",
+        )
+
+        with patch(
+            "attendance.api.views.AttendanceSessionService.check_in_next_worker",
+            return_value="STOP_SUCCESS",
+        ):
+            response = self.client.post(
+                self.check_out_url,
+                {"image": SimpleUploadedFile("face.jpg", b"fake")},
+                format="multipart",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["detail"], "Checkout recorded successfully")
+
+    def test_attendance_list_mine_scope_for_employee(self):
+        employee_user = User.objects.create_user(
+            email="employee-scope@test.com", password="password123"
+        )
+        employee = Employee.objects.create(
+            user=employee_user, full_name="Scoped", employee_code="EMP-SCOPE"
+        )
+        employee_shift = EmployeeShift.objects.create(
+            employee=employee, shift=self.shift
+        )
+
+        AttendanceRecord.objects.create(
+            employee=employee,
+            employee_shift=employee_shift,
+            date=date(2026, 2, 1),
+            taken_by=self.admin,
+        )
+
+        AttendanceRecord.objects.create(
+            employee=self.employee,
+            employee_shift=self.employee_shift,
+            date=date(2026, 2, 1),
+            taken_by=self.admin,
+        )
+
+        self.client.force_authenticate(employee_user)
+        response = self.client.get(self.list_url + "?mine=true")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
