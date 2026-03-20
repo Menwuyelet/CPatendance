@@ -5,6 +5,7 @@ This file contains the serializers for the accounts app.
 
 from rest_framework import serializers
 from accounts.models import User, Role
+from accounts.constants import Roles
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from employees.models import Department
 
@@ -39,10 +40,19 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         # Add user information to response
         user = self.user
+        role_names = [role.name for role in user.roles.all()]
+
+        if not any(role in role_names for role in (Roles.ADMIN, Roles.MANAGER)):
+            raise serializers.ValidationError(
+                {
+                    "error": "Authentication allowed only for ADMIN or MANAGER roles.",
+                }
+            )
+
         data["user"] = {
             "id": str(user.id),
             "employee_code": user.employee_code,
-            "roles": [role.name for role in user.roles.all()],
+            "roles": role_names,
         }
 
         return data

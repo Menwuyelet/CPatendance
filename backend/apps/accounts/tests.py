@@ -97,6 +97,14 @@ class AccountsAPITests(APITestCase):
         self.assertIn("access", res.data)
         self.assertIn("refresh", res.data)
 
+    def test_employee_login_forbidden(self):
+        res = self.client.post(
+            reverse("token_obtain_pair"),
+            {"employee_code": "HAC-1003", "password": self.employee_password},
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("ADMIN or MANAGER", str(res.data))
+
     def test_login_invalid_credentials(self):
         res = self.client.post(
             reverse("token_obtain_pair"),
@@ -314,9 +322,11 @@ class AccountsAPITests(APITestCase):
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_employee_cannot_list_users(self):
-        token = self.login("HAC-1003", self.employee_password)
-        res = self.client.get(reverse("user-list"), **self.auth(token))
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        res_login = self.client.post(
+            reverse("token_obtain_pair"),
+            {"employee_code": "HAC-1003", "password": self.employee_password},
+        )
+        self.assertEqual(res_login.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_token_refresh(self):
         login = self.client.post(
