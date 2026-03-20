@@ -4,13 +4,16 @@ This file contains the views for the attendance app.
 """
 
 from accounts.permissions.is_hr import IsHR
+from datetime import timedelta
 from attendance.models.employee_shift import EmployeeShift
 from rest_framework.viewsets import ViewSet
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
 from django.core.exceptions import ValidationError
 from accounts.permissions import IsAdmin, IsHRorManager
 from attendance.models import AttendanceRecord
@@ -19,6 +22,7 @@ from attendance.services.attendance_session_service import AttendanceSessionServ
 from attendance.services.process_session_service import process_attendance_session
 from django.utils import timezone
 from attendance.services.shift_service import ShiftService
+from attendance.services.status import combine_date_time
 from attendance.services.employee_shift_service import EmployeeShiftService
 from attendance.permissions.employee_shift_permission import CanManageEmployeeShift
 from rest_framework.parsers import MultiPartParser
@@ -46,10 +50,32 @@ class AttendanceSessionCreateViewSet(ViewSet):
         """
         shift = get_object_or_404(Shift, id=request.data.get("shift_id"))
 
+        now = timezone.localtime(timezone.now())
+        today = now.date()
+
+        if not shift.applies_today(today):
+            return Response(
+                {"detail": "Attendance session can only start on a shift day."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        shift_start = combine_date_time(today, shift.start_time)
+        shift_end = combine_date_time(today, shift.end_time)
+        if shift_end <= shift_start:
+            shift_end = shift_end + timedelta(days=1)
+
+        if not (shift_start <= now <= shift_end):
+            return Response(
+                {"detail": "Attendance session can only start during shift hours."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         session = AttendanceSession.objects.create(
             shift=shift,
             started_by=request.user,
+            started_at=now,
             is_active=True,
+            phase=AttendanceSession.PHASE_CHECK_IN,
         )
 
         return Response(
@@ -70,6 +96,12 @@ class AttendanceSessionCreateViewSet(ViewSet):
         if not session.is_active:
             return Response(
                 {"detail": "Session already closed"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if session.phase != AttendanceSession.PHASE_CHECK_OUT:
+            return Response(
+                {"detail": "Checkout session must be active before closing."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         service = AttendanceSessionService(session)
@@ -97,6 +129,17 @@ class AttendanceSessionViewSet(ViewSet):
     """
 
     serializer_class = AttendanceSessionSerializer
+
+    def _paginate(self, request, qs, serializer_class):
+        """Paginate a queryset using default DRF pagination settings."""
+        paginator = PageNumberPagination()
+        page = paginator.paginate_queryset(qs, request)
+        if page is not None:
+            serializer = serializer_class(page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+
+        serializer = serializer_class(qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def list(self, request):
         """List attendance sessions visible to the requesting user."""
@@ -137,9 +180,7 @@ class AttendanceSessionViewSet(ViewSet):
         if shift_id:
             qs = qs.filter(shift_id=shift_id)
 
-        return Response(
-            AttendanceSessionSerializer(qs, many=True).data, status=status.HTTP_200_OK
-        )
+        return self._paginate(request, qs, AttendanceSessionSerializer)
 
     def retrieve(self, request, pk=None):
         """Retrieve a single attendance session by id after permission checks."""
@@ -180,6 +221,76 @@ class AttendanceSessionViewSet(ViewSet):
             AttendanceSessionSerializer(session).data, status=status.HTTP_200_OK
         )
 
+    @action(detail=True, methods=["post"], url_path="end-check-in")
+    def end_check_in(self, request, pk=None):
+        """End check-in and move the session into sleep mode."""
+        session = get_object_or_404(AttendanceSession, id=pk)
+        self._check_permission(request, session)
+
+        if session.phase != AttendanceSession.PHASE_CHECK_IN:
+            return Response(
+                {"detail": "Check-in session is not active."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        now = timezone.now()
+        session.phase = AttendanceSession.PHASE_SLEEP
+        session.check_in_closed_at = now
+        session.is_active = False
+        session.save(update_fields=["phase", "check_in_closed_at", "is_active"])
+
+        return Response(
+            AttendanceSessionSerializer(session).data, status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=["post"], url_path="start-check-out")
+    def start_check_out(self, request, pk=None):
+        """Activate check-out session after sleep."""
+        session = get_object_or_404(AttendanceSession, id=pk)
+        self._check_permission(request, session)
+
+        if session.phase != AttendanceSession.PHASE_SLEEP:
+            return Response(
+                {"detail": "Session must be in sleep mode before check-out."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        now = timezone.now()
+        session.phase = AttendanceSession.PHASE_CHECK_OUT
+        session.check_out_started_at = now
+        session.is_active = True
+        session.save(update_fields=["phase", "check_out_started_at", "is_active"])
+
+        return Response(
+            AttendanceSessionSerializer(session).data, status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=["post"], url_path="end-check-out")
+    def end_check_out(self, request, pk=None):
+        """Close checkout session and process attendance permanently."""
+        session = get_object_or_404(AttendanceSession, id=pk)
+        self._check_permission(request, session)
+
+        if session.phase != AttendanceSession.PHASE_CHECK_OUT:
+            return Response(
+                {"detail": "Check-out session is not active."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        service = AttendanceSessionService(session)
+        raw_entries = service.close()
+
+        process_attendance_session(session, request.user)
+
+        return Response(
+            {
+                "session_id": session.id,
+                "entries_count": len(raw_entries),
+                "status": "closed",
+            },
+            status=status.HTTP_200_OK,
+        )
+
     def _check_permission(self, request, session):
         """Internal helper that raises when the `request.user` cannot access `session`.
 
@@ -208,34 +319,70 @@ class AttendanceTakingViewSet(ViewSet):
     parser_classes = [MultiPartParser]
 
     def create(self, request):
-        """Handle POST with image to perform a single facial check-in.
+        """Handle POST with image to perform a facial check-in/check-out.
 
-        Expects `image` in `request.FILES`. Returns a dictionary with a
-        `result` status string describing the outcome of processing.
+        Expects `image` in `request.FILES` and optional `action` in form data
+        (`check_in` or `check_out`). Returns a dictionary with a `detail`
+        message describing the outcome of processing.
         """
         image = request.FILES.get("image")
+        action = (request.data.get("action") or "check_in").strip().lower()
 
         if not image:
             return Response({"detail": "Image required"}, status=400)
 
-        session = (
-            AttendanceSession.objects.filter(is_active=True)
-            .order_by("-started_at")
-            .first()
-        )
+        if action not in {"check_in", "check_out"}:
+            return Response(
+                {"detail": "Invalid action. Use check_in or check_out."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if action == "check_in":
+            session = (
+                AttendanceSession.objects.filter(
+                    is_active=True, phase=AttendanceSession.PHASE_CHECK_IN
+                )
+                .order_by("-started_at")
+                .first()
+            )
+        else:
+            session = (
+                AttendanceSession.objects.filter(
+                    is_active=True, phase=AttendanceSession.PHASE_CHECK_OUT
+                )
+                .order_by("-started_at")
+                .first()
+            )
 
         if not session:
+            detail = (
+                "No active check-in session"
+                if action == "check_in"
+                else "No active check-out session"
+            )
+            return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
+
+        service = AttendanceSessionService(session)
+        if action == "check_in":
+            result = service.check_in_next_worker(image.read())
+        else:
+            result = service.check_out_next_worker(image.read())
+
+        if result == "NO_ACTIVE_SESSION":
             return Response(
                 {"detail": "No active attendance session"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        service = AttendanceSessionService(session)
-        result = service.check_in_next_worker(image.read())
-
-        if result == "NO_ACTIVE_SESSION":
+        elif result == "NOT_IN_CHECK_IN":
             return Response(
-                {"detail": "No active attendance session"},
+                {"detail": "Check-in session is not active."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        elif result == "NOT_IN_CHECK_OUT":
+            return Response(
+                {"detail": "Check-out session is not active."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -257,6 +404,24 @@ class AttendanceTakingViewSet(ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        elif result == "NO_CHECK_IN":
+            return Response(
+                {"detail": "Check-in required before check-out."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        elif result == "ALREADY_CHECKED_OUT":
+            return Response(
+                {"detail": "Check-out already recorded."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        elif result == "CHECK_OUT_SUCCESS":
+            return Response(
+                {"detail": "Check-out recorded successfully"},
+                status=status.HTTP_201_CREATED,
+            )
+
         return Response(
             {"detail": "Attendance recorded successfully"},
             status=status.HTTP_201_CREATED,
@@ -272,6 +437,17 @@ class AttendanceRecordViewSet(ViewSet):
     """
 
     serializer_class = AttendanceSerializer
+
+    def _paginate(self, request, qs, serializer_class):
+        """Paginate a queryset using default DRF pagination settings."""
+        paginator = PageNumberPagination()
+        page = paginator.paginate_queryset(qs, request)
+        if page is not None:
+            serializer = serializer_class(page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+
+        serializer = serializer_class(qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def list(self, request):
         """List attendance sessions visible to the requesting user."""
@@ -316,9 +492,7 @@ class AttendanceRecordViewSet(ViewSet):
         if shift_id:
             qs = qs.filter(employee_shift__shift_id=shift_id)
 
-        return Response(
-            AttendanceSerializer(qs, many=True).data, status=status.HTTP_200_OK
-        )
+        return self._paginate(request, qs, AttendanceSerializer)
 
     def retrieve(self, request, pk=None):
         """Retrieve a single attendance session by id after permission checks."""

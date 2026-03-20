@@ -59,6 +59,7 @@ def process_attendance_session(session: AttendanceSession, user):
             employee=entry.employee,
             user=user,
             check_in_time=entry.recognized_at,
+            check_out_time=entry.check_out_at,
             session=session,
         )
 
