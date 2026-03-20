@@ -23,6 +23,8 @@ import {
   Select,
   MenuItem,
   Switch,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import {
   Person,
@@ -52,10 +54,10 @@ import {
 } from '@mui/icons-material';
 
 // Dashboard Layout
-const DashboardLayout = ({ children, title, breadcrumbs = [], actions }) => (
-  <Box sx={{ width: '100%' }}>
-    <Box sx={{ mb: 4 }}>
-      <Typography variant="h4" fontWeight="bold" gutterBottom>
+const DashboardLayout = ({ children, title, breadcrumbs = [], actions, isMobile }) => (
+  <Box sx={{ width: '100%', maxWidth: '1320px', mx: 'auto', px: { xs: 0.5, sm: 1 } }}>
+    <Box sx={{ mb: { xs: 2.5, sm: 4 } }}>
+      <Typography variant={isMobile ? 'h5' : 'h4'} fontWeight="bold" gutterBottom>
         {title}
       </Typography>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
@@ -83,6 +85,9 @@ const Settings = ({ role, onNotify }) => {
   // Use ThemeContext for consistent theme management
   const { mode, toggleTheme } = useContext(ThemeContext);
   const isDarkMode = mode === 'dark';
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
   
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -117,17 +122,6 @@ const Settings = ({ role, onNotify }) => {
   // Activity log state
   const [activityLog, setActivityLog] = useState([]);
   const [showActivityLog, setShowActivityLog] = useState(false);
-
-  // Apply theme class to body and data-theme attribute
-  useEffect(() => {
-    if (mode === 'dark') {
-      document.body.classList.add('dark-mode');
-      document.documentElement.setAttribute('data-theme', 'dark');
-    } else {
-      document.body.classList.remove('dark-mode');
-      document.documentElement.setAttribute('data-theme', 'light');
-    }
-  }, [mode]);
 
   // Password change state
   const [passwordForm, setPasswordForm] = useState({
@@ -335,7 +329,7 @@ const Settings = ({ role, onNotify }) => {
 
   if (loading) {
     return (
-      <DashboardLayout title="Account Settings">
+      <DashboardLayout title="Account Settings" isMobile={isMobile}>
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
           <CircularProgress size={60} />
         </Box>
@@ -347,6 +341,7 @@ const Settings = ({ role, onNotify }) => {
     <DashboardLayout 
       title="Account Settings"
       breadcrumbs={[{ label: 'Settings' }]}
+      isMobile={isMobile}
     >
       {error && !user && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
@@ -354,12 +349,12 @@ const Settings = ({ role, onNotify }) => {
         </Alert>
       )}
 
-      <Grid container spacing={3}>
+      <Grid container spacing={{ xs: 2, md: 3 }}>
         {/* Notification Preferences Card */}
         <Grid size={{ xs: 12, lg: 6 }}>
           <Card sx={{ height: '100%', boxShadow: 3, borderRadius: 2 }}>
             <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2} mb={3}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} mb={3}>
                 <Avatar sx={{ bgcolor: 'info.main', width: 56, height: 56 }}>
                   {notificationPrefs.emailNotifications ? <Notifications fontSize="large" /> : <NotificationsOff fontSize="large" />}
                 </Avatar>
@@ -370,7 +365,7 @@ const Settings = ({ role, onNotify }) => {
               </Stack>
 
               <Stack spacing={2}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'grey.50', borderRadius: 2 }}>
+                <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: { xs: 1.25, sm: 0 }, p: 2, bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'grey.50', borderRadius: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <Email />
                     <Box>
@@ -385,7 +380,7 @@ const Settings = ({ role, onNotify }) => {
                   />
                 </Box>
 
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'grey.50', borderRadius: 2 }}>
+                <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: { xs: 1.25, sm: 0 }, p: 2, bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'grey.50', borderRadius: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <Timer />
                     <Box>
@@ -400,7 +395,7 @@ const Settings = ({ role, onNotify }) => {
                   />
                 </Box>
 
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'grey.50', borderRadius: 2 }}>
+                <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: { xs: 1.25, sm: 0 }, p: 2, bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'grey.50', borderRadius: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <History />
                     <Box>
@@ -422,6 +417,7 @@ const Settings = ({ role, onNotify }) => {
                   startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <Save />}
                   onClick={handleNotificationSave}
                   disabled={saving}
+                  fullWidth={isMobile}
                 >
                   Save Preferences
                 </Button>
@@ -434,7 +430,7 @@ const Settings = ({ role, onNotify }) => {
         <Grid size={{ xs: 12, lg: 6 }}>
           <Card sx={{ height: '100%', boxShadow: 3, borderRadius: 2 }}>
             <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2} mb={3}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} mb={3}>
                 <Avatar sx={{ bgcolor: 'success.main', width: 56, height: 56 }}>
                   <Computer fontSize="large" />
                 </Avatar>
@@ -446,6 +442,7 @@ const Settings = ({ role, onNotify }) => {
                   variant="outlined"
                   size="small"
                   onClick={() => setShowSessions(!showSessions)}
+                  fullWidth={isMobile}
                 >
                   {showSessions ? 'Hide' : 'View'}
                 </Button>
@@ -455,7 +452,7 @@ const Settings = ({ role, onNotify }) => {
                 <Stack spacing={2}>
                   {activeSessions.map(session => (
                     <Box key={session.id} sx={{ p: 2, bgcolor: session.current ? 'primary.light' : (isDarkMode ? 'rgba(255,255,255,0.05)' : 'grey.50'), borderRadius: 2 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Box sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: 1.5 }}>
                         <Box>
                           <Typography fontWeight="medium">{session.device}</Typography>
                           <Typography variant="body2" color="text.secondary">{session.location}</Typography>
@@ -501,7 +498,7 @@ const Settings = ({ role, onNotify }) => {
         <Grid size={{ xs: 12, lg: 6 }}>
           <Card sx={{ height: '100%', boxShadow: 3, borderRadius: 2 }}>
             <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2} mb={3}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} mb={3}>
                 <Avatar sx={{ bgcolor: twoFactorEnabled ? 'success.main' : 'warning.main', width: 56, height: 56 }}>
                   <VerifiedUser fontSize="large" />
                 </Avatar>
@@ -542,7 +539,7 @@ const Settings = ({ role, onNotify }) => {
         <Grid size={{ xs: 12, lg: 6 }}>
           <Card sx={{ height: '100%', boxShadow: 3, borderRadius: 2 }}>
             <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2} mb={3}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} mb={3}>
                 <Avatar sx={{ bgcolor: 'secondary.main', width: 56, height: 56 }}>
                   <History fontSize="large" />
                 </Avatar>
@@ -554,6 +551,7 @@ const Settings = ({ role, onNotify }) => {
                   variant="outlined"
                   size="small"
                   onClick={() => setShowActivityLog(!showActivityLog)}
+                  fullWidth={isMobile}
                 >
                   {showActivityLog ? 'Hide' : 'View'}
                 </Button>
@@ -562,7 +560,7 @@ const Settings = ({ role, onNotify }) => {
               {showActivityLog && (
                 <Stack spacing={1}>
                   {activityLog.map(activity => (
-                    <Box key={activity.id} sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 1.5, bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'grey.50', borderRadius: 1 }}>
+                    <Box key={activity.id} sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'flex-start', sm: 'center' }, gap: 1.5, p: 1.5, bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'grey.50', borderRadius: 1 }}>
                       <Box sx={{ flex: 1 }}>
                         <Typography fontWeight="medium">{activity.action}</Typography>
                         <Typography variant="body2" color="text.secondary">{activity.device}</Typography>
@@ -586,7 +584,7 @@ const Settings = ({ role, onNotify }) => {
         <Grid size={{ xs: 12, lg: 6 }}>
           <Card sx={{ height: '100%', boxShadow: 2, borderRadius: 2 }}>
             <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2} mb={2}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} mb={2}>
                 <Avatar sx={{ bgcolor: isDarkMode ? 'grey.700' : 'primary.main', width: 48, height: 48 }}>
                   {isDarkMode ? <Brightness4 /> : <Brightness7 />}
                 </Avatar>
@@ -596,7 +594,7 @@ const Settings = ({ role, onNotify }) => {
                 </Box>
               </Stack>
 
-              <Box sx={{ display: 'flex', gap: 1 }}>
+              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
                 <Button
                   variant={!isDarkMode ? 'contained' : 'outlined'}
                   onClick={() => isDarkMode && toggleTheme()}
@@ -615,7 +613,7 @@ const Settings = ({ role, onNotify }) => {
                 </Button>
               </Box>
 
-              <Box sx={{ mt: 2, p: 1.5, bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'grey.50', borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box sx={{ mt: 2, p: 1.5, bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'grey.50', borderRadius: 2, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: { xs: 1, sm: 0 } }}>
                 <Typography variant="body2" color="text.secondary">
                   Active: {isDarkMode ? 'Dark Mode 🌙' : 'Light Mode ☀️'}
                 </Typography>
@@ -637,7 +635,7 @@ const Settings = ({ role, onNotify }) => {
         <Grid size={{ xs: 12, lg: 6 }}>
           <Card sx={{ height: '100%', boxShadow: 3, borderRadius: 2 }}>
             <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2} mb={3}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} mb={3}>
                 <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56 }}>
                   <Person fontSize="large" />
                 </Avatar>
@@ -687,6 +685,7 @@ const Settings = ({ role, onNotify }) => {
                   startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <Save />}
                   onClick={handleSave}
                   disabled={saving}
+                  fullWidth={isMobile}
                 >
                   {saving ? 'Saving...' : 'Save User Changes'}
                 </Button>
@@ -699,7 +698,7 @@ const Settings = ({ role, onNotify }) => {
         <Grid size={{ xs: 12, lg: 6 }}>
           <Card sx={{ height: '100%', boxShadow: 3, borderRadius: 2 }}>
             <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2} mb={3}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} mb={3}>
                 <Avatar sx={{ bgcolor: 'secondary.main', width: 56, height: 56 }}>
                   <Badge fontSize="large" />
                 </Avatar>
@@ -761,6 +760,7 @@ const Settings = ({ role, onNotify }) => {
                     startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <Save />}
                     onClick={handleEmployeeSave}
                     disabled={saving}
+                    fullWidth={isMobile}
                   >
                     {saving ? 'Saving...' : 'Save Employee Info'}
                   </Button>
@@ -774,7 +774,7 @@ const Settings = ({ role, onNotify }) => {
         <Grid size={{ xs: 12 }}>
           <Card sx={{ boxShadow: 3, borderRadius: 2 }}>
             <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2} mb={3}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} mb={3}>
                 <Avatar sx={{ bgcolor: 'warning.main', width: 56, height: 56 }}>
                   <Lock fontSize="large" />
                 </Avatar>
@@ -785,6 +785,7 @@ const Settings = ({ role, onNotify }) => {
                 <Button
                   variant={showPasswordForm ? "outlined" : "contained"}
                   onClick={() => setShowPasswordForm(!showPasswordForm)}
+                  fullWidth={isMobile}
                 >
                   {showPasswordForm ? 'Hide' : 'Change Password'}
                 </Button>
@@ -869,6 +870,7 @@ const Settings = ({ role, onNotify }) => {
                       color="warning"
                       startIcon={<Lock />}
                       onClick={handlePasswordChange}
+                      fullWidth={isMobile}
                     >
                       Update Password
                     </Button>
@@ -883,7 +885,7 @@ const Settings = ({ role, onNotify }) => {
         <Grid size={{ xs: 12 }}>
           <Card sx={{ boxShadow: 3, borderRadius: 2 }}>
             <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2} mb={3}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} mb={3}>
                 <Avatar sx={{ bgcolor: 'info.main', width: 56, height: 56 }}>
                   <Security fontSize="large" />
                 </Avatar>
