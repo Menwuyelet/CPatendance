@@ -381,6 +381,38 @@ Authenticated + Admin
 - Writable fields: `department`, `photo`, `is_active`.
 - `POST /api/employees/employees/` is not allowed (`http_method_names` excludes post).
 
+## Attendance App
+
+### 1. Manager/Admin runs attendance session (check-in → checkout)
+
+- Start session: `POST /api/attendance-sessions/` with `shift_id` during shift window on a valid shift day (overnight shifts handled by rolling end to next day).
+- Check-in captures: `POST /api/attendance-check-in/` with `image` (multipart) uses latest active `CHECK_IN` session; duplicate employee returns 400.
+- Sleep (end check-in window): `POST /api/attendance-sessions/{id}/sleep/` optionally with `leave_employee_codes`; marks ON_LEAVE for leave codes/active leave windows, marks ABSENT for non-recognized shift employees, and keeps PRESENT/LATE for recognized ones.
+- Activate checkout: `POST /api/attendance-sessions/{id}/activate-checkout/` reopens session for checkout captures.
+- Checkout captures: `POST /api/attendance-check-out/` with `image` (multipart) uses latest active `CHECK_OUT` session; duplicate checkout returns 400.
+- Close: `DELETE /api/attendance-sessions/{id}/` (optional `leave_employee_codes`) finalizes statuses (EARLY_LEAVE if checkout before end minus 15m, LATE if check-in after grace, ABSENT if missing timestamps, ON_LEAVE preserved) and deactivates session.
+
+### 2. Attendance records visibility and correction
+
+- List: `GET /api/attendance/` — Admin sees all; Manager sees department employees; Employee can scope to self with `mine=true`. Filters: `date__gte`, `date__lte`, `employee_id`, `shift_id`.
+- Retrieve: `GET /api/attendance/{id}/` with same scoping rules.
+- Correct: `PATCH/PUT /api/attendance/{id}/` allowed for Admin or department Manager; updates status/timestamps and sets `taken_by` to caller.
+
+### 3. Shifts and assignments
+
+- Manage shifts: `GET/POST /api/shifts/`, `PATCH/PUT/DELETE /api/shifts/{id}/` for Admin/Manager.
+- Assign/remove employee shift: `GET/POST /api/employee-shifts/`, `DELETE /api/employee-shifts/{id}/` for Admin/Manager (policy enforced). Business rule: max 2 applicable shifts per employee per day; overnight shifts allowed.
+
+### 4. Leave windows
+
+- CRUD leave: `GET/POST /api/employee-leaves/`, `GET/PUT/PATCH/DELETE /api/employee-leaves/{id}/` — Admin global, Manager limited to own department employees.
+- Leave applied automatically during sleep/close to set `status=ON_LEAVE` and clear timestamps for the session date.
+
+### 5. Status evaluation (implemented logic)
+
+- Check-in grace: 15 minutes after shift start → PRESENT else LATE.
+- Final status priority: ON_LEAVE > missing check-in/out → ABSENT > checkout before shift end minus 15m → EARLY_LEAVE > late check-in → LATE > otherwise PRESENT.
+
 ## 3. Manager/Admin List Departments
 
 ### Endpoint

@@ -657,13 +657,13 @@ At least one of `image` or `is_active` must be provided.
 
 **Purpose** Retrieve one session.
 
-**Permission** Admin or department Manager (department check pending field availability; currently managers rely on temporary active-session visibility).
+**Permission** Admin, or department Manager when `session.shift.department` matches manager's department.
 
 ### PATCH /api/attendance-manage-sessions/{id}/
 
 **Purpose** Partial update (primarily to flip active state).
 
-**Permission** Admin only.
+**Permission** Admin or department Manager (department-scoped via session shift).
 
 ### POST /api/attendance-check-in/
 
@@ -720,7 +720,7 @@ At least one of `image` or `is_active` must be provided.
 
 **Purpose** Manual correction.
 
-**Permission** Admin only.
+**Permission** Admin or department Manager (department-scoped via employee department).
 
 ### GET /api/shifts/
 
@@ -746,6 +746,47 @@ At least one of `image` or `is_active` must be provided.
 
 **Permission** Admin/Manager with policy check.
 
+### DELETE /api/employee-shifts/{id}/
+
+**Purpose** Remove an employee-to-shift assignment.
+
+**Permission** Admin/Manager with policy check.
+
+### GET /api/employee-leaves/
+
+**Purpose** List long-term leave windows.
+
+**Permission** Admin; department Manager limited to own department employees.
+
+### POST /api/employee-leaves/
+
+**Purpose** Create leave window.
+
+**Permission** Admin; department Manager scoped to own department employees.
+
+**Request Body**
+```json
+{ "employee": "uuid", "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "reason": "string" }
+```
+
+### GET /api/employee-leaves/{id}/
+
+**Purpose** Retrieve leave window.
+
+**Permission** Admin; department Manager scoped to own department employees.
+
+### PUT/PATCH /api/employee-leaves/{id}/
+
+**Purpose** Update leave window.
+
+**Permission** Admin; department Manager scoped to own department employees.
+
+### DELETE /api/employee-leaves/{id}/
+
+**Purpose** Delete leave window.
+
+**Permission** Admin; department Manager scoped to own department employees.
+
 ### Notes on Leave Handling
 - Long-term leave model `EmployeeLeave` exists and is consumed during attendance processing to set `status=ON_LEAVE` and clear check-in/out times when date falls inside the leave window.
-- Per-session leave codes can be supplied when processing check-in/checkout to force `ON_LEAVE` for that session date (endpoint parameters to be added).
+- Per-session leave codes can be supplied when processing check-in/checkout to force `ON_LEAVE` for that session date (via `leave_employee_codes` on sleep/close endpoints).
