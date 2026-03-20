@@ -1,10 +1,11 @@
 """Module backend/apps/attendance/services/attendance_session_service.py
 
-This file contains the Attendacne sessions service class used to handle session acctivities.
+This file contains the Attendance sessions service class used to handle session acctivities.
 """
 
 from django.utils import timezone
 from attendance.models import AttendanceSessionEntry
+from attendance.models.atendance_session import SessionPhase
 from biometrics.services.matching_service import BiometricMatchingService
 from attendance.services.attendance_service import AttendanceAbsenceService
 from biometrics.services.face_engine import FaceEngine
@@ -27,40 +28,33 @@ class AttendanceSessionService:
             session.id,
         )
 
-    def _match_employee(self, embedding):
-        """Match a face embedding to an employee id or return None."""
-        return BiometricMatchingService.match_face(embedding, self.session.shift)
+    def process_embedding(self, embedding):
+        """
+        Process a single face embedding and record a session entry.
 
-    def process_check_in(self, embedding):
-        """Process a face embedding for check-in.
-
-        Returns a status string:
-        - "NO_ACTIVE_SESSION" when session inactive
+        Returns a status string indicating how the caller should proceed:
+        - "NO_ACTIVE_SESSION" when session inactive or error
         - "TRY_AGAIN" when no matching employee
-        - "STOP_DUPLICATE" when already checked in
-        - "STOP_SUCCESS" when check-in recorded
+        - "STOP_DUPLICATE" when the employee already has an entry
+        - "STOP_SUCCESS" when an entry was created
+        - "NO_FACE_DETECTED" when no face is detected on the image sent
         """
         if not self.session.is_active:
             logger.warning(
                 "SESSION_PROCESS_DENIED | reason=session_inactive | session_id=%s",
                 self.session.id,
             )
+
             return "NO_ACTIVE_SESSION"
 
-        if self.session.phase != self.session.PHASE_CHECK_IN:
-            logger.warning(
-                "SESSION_PROCESS_DENIED | reason=not_check_in_phase | session_id=%s",
-                self.session.id,
-            )
-            return "NOT_IN_CHECK_IN"
-
-        employee_id = self._match_employee(embedding)
+        employee_id = BiometricMatchingService.match_face(embedding, self.session.shift)
 
         if not employee_id:
             logger.info(
                 "SESSION_EMBEDDING_PROCESS_STARTED | session_id=%s",
                 self.session.id,
             )
+
             return "TRY_AGAIN"
 
         entry, created = AttendanceSessionEntry.objects.get_or_create(
@@ -69,87 +63,51 @@ class AttendanceSessionService:
             defaults={"recognized_at": timezone.now()},
         )
 
-        if not created:
-            logger.warning(
-                "SESSION_DUPLICATE_ENTRY | session_id=%s | employee_id=%s",
-                self.session.id,
-                employee_id,
-            )
-            return "STOP_DUPLICATE"
+        if self.session.phase == SessionPhase.CHECK_IN:
+            if not created:
+                logger.warning(
+                    "SESSION_DUPLICATE_ENTRY | phase=CHECK_IN | session_id=%s | employee_id=%s",
+                    self.session.id,
+                    employee_id,
+                )
+                return "STOP_DUPLICATE"
 
-        logger.info(
-            "SESSION_ENTRY_CREATED | session_id=%s | employee_id=%s",
-            self.session.id,
-            employee_id,
-        )
-        return "STOP_SUCCESS"
-
-    def process_check_out(self, embedding):
-        """Process a face embedding for check-out.
-
-        Returns a status string:
-        - "NO_ACTIVE_SESSION" when session inactive
-        - "TRY_AGAIN" when no matching employee
-        - "NO_CHECK_IN" when no check-in exists
-        - "ALREADY_CHECKED_OUT" when checkout already recorded
-        - "CHECK_OUT_SUCCESS" when checkout recorded
-        """
-        if not self.session.is_active:
-            logger.warning(
-                "SESSION_PROCESS_DENIED | reason=session_inactive | session_id=%s",
-                self.session.id,
-            )
-            return "NO_ACTIVE_SESSION"
-
-        if self.session.phase != self.session.PHASE_CHECK_OUT:
-            logger.warning(
-                "SESSION_PROCESS_DENIED | reason=not_check_out_phase | session_id=%s",
-                self.session.id,
-            )
-            return "NOT_IN_CHECK_OUT"
-
-        employee_id = self._match_employee(embedding)
-
-        if not employee_id:
             logger.info(
-                "SESSION_EMBEDDING_PROCESS_STARTED | session_id=%s",
-                self.session.id,
-            )
-            return "TRY_AGAIN"
-
-        entry = AttendanceSessionEntry.objects.filter(
-            session=self.session,
-            employee_id=employee_id,
-        ).first()
-
-        if not entry:
-            logger.warning(
-                "SESSION_CHECK_OUT_MISSING_CHECK_IN | session_id=%s | employee_id=%s",
+                "SESSION_ENTRY_CREATED | phase=CHECK_IN | session_id=%s | employee_id=%s",
                 self.session.id,
                 employee_id,
             )
-            return "NO_CHECK_IN"
+            return "STOP_SUCCESS"
 
-        if entry.check_out_at:
-            logger.warning(
-                "SESSION_CHECK_OUT_DUPLICATE | session_id=%s | employee_id=%s",
+        if self.session.phase == SessionPhase.CHECK_OUT:
+            if entry.checkout_recognized_at:
+                logger.warning(
+                    "SESSION_DUPLICATE_ENTRY | phase=CHECK_OUT | session_id=%s | employee_id=%s",
+                    self.session.id,
+                    employee_id,
+                )
+                return "STOP_DUPLICATE"
+
+            entry.checkout_recognized_at = timezone.now()
+            entry.save(update_fields=["checkout_recognized_at"])
+
+            logger.info(
+                "SESSION_ENTRY_CREATED | phase=CHECK_OUT | session_id=%s | employee_id=%s",
                 self.session.id,
                 employee_id,
             )
-            return "ALREADY_CHECKED_OUT"
+            return "STOP_SUCCESS"
 
-        entry.check_out_at = timezone.now()
-        entry.save(update_fields=["check_out_at"])
-
-        logger.info(
-            "SESSION_CHECK_OUT_RECORDED | session_id=%s | employee_id=%s",
+        logger.warning(
+            "SESSION_PROCESS_DENIED | reason=invalid_phase | session_id=%s | phase=%s",
             self.session.id,
-            employee_id,
+            self.session.phase,
         )
-        return "CHECK_OUT_SUCCESS"
+        return "NO_ACTIVE_SESSION"
 
     def check_in_next_worker(self, image_bytes):
-        """Convert an uploaded image to an embedding and process it.
+        """
+        Convert an uploaded image to an embedding and process it.
 
         Returns the same status strings as `process_embedding`.
         """
@@ -168,27 +126,21 @@ class AttendanceSessionService:
 
             return "NO_FACE_DETECTED"
 
-        return self.process_check_in(embedding)
+        return self.process_embedding(embedding)
 
-    def check_out_next_worker(self, image_bytes):
-        """Convert an uploaded image to an embedding and record check-out."""
-        logger.info(
-            "SESSION_CHECK_OUT_IMAGE_RECEIVED | session_id=%s",
-            self.session.id,
-        )
+    def make_sleep(self, leave_employee_codes=None):
+        """
+        Mark the session as a 'sleep' session for checkout session and process check-in attendance.
+        """
+        leave_employee_codes = leave_employee_codes or []
+        self.session.make_sleep()
+        AttendanceAbsenceService.process_check_in(self.session, leave_employee_codes)
 
-        embedding = FaceEngine.image_to_embedding(image_bytes)
+    def activate_checkout(self):
+        """Wake the session for checkout window."""
+        self.session.activate_checkout()
 
-        if embedding is None:
-            logger.info(
-                "SESSION_NO_FACE_DETECTED | session_id=%s",
-                self.session.id,
-            )
-            return "NO_FACE_DETECTED"
-
-        return self.process_check_out(embedding)
-
-    def close(self):
+    def close(self, leave_employee_codes=None):
         """
         Close session and return raw session entries.
         Does NOT create AttendanceRecord.
@@ -205,26 +157,15 @@ class AttendanceSessionService:
             self.session.id,
         )
 
-        absent_count = AttendanceAbsenceService.mark_absent_for_session(self.session)
+        leave_employee_codes = leave_employee_codes or []
 
-        now = timezone.now()
-        self.session.is_active = False
-        self.session.phase = self.session.PHASE_CLOSED
-        self.session.check_out_closed_at = self.session.check_out_closed_at or now
-        self.session.ended_at = now
-        self.session.save(
-            update_fields=[
-                "is_active",
-                "phase",
-                "check_out_closed_at",
-                "ended_at",
-            ]
-        )
+        AttendanceAbsenceService.process_check_out(self.session, leave_employee_codes)
+
+        self.session.close()
 
         logger.info(
-            "SESSION_CLOSE_COMPLETED | session_id=%s | absent_count=%s",
+            "SESSION_CLOSE_COMPLETED | session_id=%s",
             self.session.id,
-            absent_count,
         )
 
         return list(

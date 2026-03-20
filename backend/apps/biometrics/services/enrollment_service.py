@@ -37,22 +37,23 @@ class BiometricEnrollmentService:
         """
 
         logger.info(
-            "BIOMETRIC_ENROLLMENT_STARTED | employee_id=%s",
-            self.employee.id,
+            "BIOMETRIC_ENROLLMENT_STARTED | employee_code=%s",
+            self.employee.employee_code,
         )
 
         if not self.employee.is_active:
             logger.warning(
-                "BIOMETRIC_ENROLLMENT_DENIED | employee_id=%s | reason=inactive_employee",
-                self.employee.id,
+                "BIOMETRIC_ENROLLMENT_DENIED | employee_code=%s | reason=inactive_employee",
+                self.employee.employee_code,
             )
 
             raise ValueError("Inactive employee cannot be enrolled")
 
         vector = np.asarray(embedding, dtype="float32").tobytes()
+
         logger.info(
-            "BIOMETRIC_ENROLLMENT_VECTOR_READY | employee_id=%s | vector_size=%s",
-            self.employee.id,
+            "BIOMETRIC_ENROLLMENT_VECTOR_READY | employee_code=%s | vector_size=%s",
+            self.employee.employee_code,
             len(vector),
         )
 
@@ -69,8 +70,8 @@ class BiometricEnrollmentService:
         )
 
         logger.info(
-            "BIOMETRIC_ENROLLMENT_SUCCESS | employee_id=%s | created=%s | profile_id=%s",
-            self.employee.id,
+            "BIOMETRIC_ENROLLMENT_SUCCESS | employee_code=%s | created=%s | profile_id=%s",
+            self.employee.employee_code,
             created,
             profile.id,
         )

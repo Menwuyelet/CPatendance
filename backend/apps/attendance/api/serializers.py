@@ -8,26 +8,7 @@ from attendance.models import AttendanceRecord
 from attendance.models import AttendanceSession
 from attendance.models import EmployeeShift
 from attendance.models import Shift
-
-
-class AttendanceCheckInSerializer(serializers.Serializer):
-    """Serializer for attendance check-in requests.
-
-    Fields:
-    - `employee_id` (int, optional): explicit employee to check in
-    - `check_in_time` (datetime, optional): explicit check-in time
-    """
-
-    employee_id = serializers.IntegerField(required=False)
-    check_in_time = serializers.DateTimeField(required=False)
-
-    def validate(self, attrs):
-        """Validate incoming check-in payload.
-
-        Currently this method is a passthrough but keeps a hook for future
-        validations related to `employee_id` or `check_in_time`.
-        """
-        return attrs
+from attendance.models import EmployeeLeave
 
 
 class AttendanceSessionSerializer(serializers.ModelSerializer):
@@ -40,20 +21,21 @@ class AttendanceSessionSerializer(serializers.ModelSerializer):
             "shift",
             "started_by",
             "started_at",
-            "check_in_closed_at",
-            "check_out_started_at",
-            "check_out_closed_at",
             "is_active",
-            "phase",
             "ended_at",
+            "phase",
+            "is_sleep",
+            "check_in_processed_at",
+            "check_out_processed_at",
         )
         read_only_fields = (
             "started_by",
             "started_at",
-            "check_in_closed_at",
-            "check_out_started_at",
-            "check_out_closed_at",
-            "ended_at",
+            "ednded_at",
+            "phase",
+            "is_sleep",
+            "check_in_processed_at",
+            "check_out_processed_at",
         )
 
 
@@ -75,8 +57,6 @@ class AttendanceSerializer(serializers.ModelSerializer):
             "date",
             "check_in_time",
             "check_out_time",
-            "left_early",
-            "no_check_out",
             "status",
             "taken_by",
             "created_at",
@@ -115,3 +95,27 @@ class ShiftSerializer(serializers.ModelSerializer):
             "saturday",
             "sunday",
         ]
+
+
+class EmployeeLeaveSerializer(serializers.ModelSerializer):
+    """Serializer for long-term leave windows."""
+
+    class Meta:
+        model = EmployeeLeave
+        fields = [
+            "id",
+            "employee",
+            "start_date",
+            "end_date",
+            "reason",
+            "created_by",
+            "created_at",
+        ]
+        read_only_fields = ["id", "created_by", "created_at"]
+
+    def validate(self, attrs):
+        start = attrs.get("start_date")
+        end = attrs.get("end_date")
+        if start and end and end < start:
+            raise serializers.ValidationError("end_date cannot be before start_date")
+        return attrs

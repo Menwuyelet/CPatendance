@@ -1,41 +1,39 @@
 """Module backend/apps/biometrics/models/biometric_record.py
 
-This file contains the implimentation of representation models of biometric app entities.
+This file contains the implementation of representation models of biometric app entities.
 """
 
 # apps/biometrics/models.py
 from django.db import models
 
+
 class BiometricProfile(models.Model):
-    """Stores encrypted biometric templates for an `Employee`.
+    """
+    Stores encrypted biometric templates for an `Employee`.
 
     `template_data` contains an encrypted embedding or template blob.
     """
 
     class BiometricType(models.TextChoices):
         """Enumeration of supported biometric types (FACE, FINGERPRINT)."""
+
         FACE = "FACE", "Face Recognition"
         FINGERPRINT = "FINGERPRINT", "Fingerprint"
 
     employee = models.ForeignKey(
-        "employees.Employee",  
-        on_delete=models.CASCADE,
-        related_name="biometric_profiles"
+        "accounts.User", on_delete=models.CASCADE, related_name="biometric_profiles"
     )
 
     biometric_type = models.CharField(
-        max_length=20,
-        choices=BiometricType.choices,
-        default=BiometricType.FACE
+        max_length=20, choices=BiometricType.choices, default=BiometricType.FACE
     )
 
     template_data = models.BinaryField(
-        help_text="Encrypted biometric template (embeddings/feature vector)"
+        help_text="Encrypted biometric template (embeddings)"
     )
 
     is_active = models.BooleanField(
-        default=True,
-        help_text="Set to False to revoke access"
+        default=True, help_text="Set to False to revoke access"
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -44,11 +42,16 @@ class BiometricProfile(models.Model):
 
     class Meta:
         """Meta information for `BiometricProfile` model."""
+
         unique_together = ("employee", "biometric_type")
         verbose_name = "Biometric Profile"
         verbose_name_plural = "Biometric Profiles"
-        ordering = ['-created_at']
+        ordering = ["-created_at"]
+
+    def get_biometric_type_display(self):
+        """Return the human-readable name of the biometric type."""
+        return self.BiometricType(self.biometric_type).label
 
     def __str__(self):
         """Return a readable representation combining employee and type."""
-        return f"{self.employee} - {self.get_biometric_type_display()}"
+        return f"{self.employee.employee_code} - {self.get_biometric_type_display()}"

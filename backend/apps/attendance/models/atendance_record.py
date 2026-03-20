@@ -7,7 +7,8 @@ from django.db import models
 
 
 class AttendanceRecord(models.Model):
-    """Stores a single employee attendance entry for a date and shift.
+    """
+    Stores a single employee attendance entry for a date and shift.
 
     Includes check-in/check-out timestamps, status and who recorded the
     entry. Used by reporting and manual correction endpoints.
@@ -18,6 +19,7 @@ class AttendanceRecord(models.Model):
         ("LATE", "Late"),
         ("ABSENT", "Absent"),
         ("ON_LEAVE", "On Leave"),
+        ("EARLY_LEAVE", "Early Leave"),
     )
 
     employee = models.ForeignKey(
@@ -36,10 +38,7 @@ class AttendanceRecord(models.Model):
     check_in_time = models.DateTimeField(null=True, blank=True)
     check_out_time = models.DateTimeField(null=True, blank=True)
 
-    left_early = models.BooleanField(default=False)
-    no_check_out = models.BooleanField(default=False)
-
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="ABSENT")
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default="ABSENT")
 
     taken_by = models.ForeignKey(
         "accounts.User",
@@ -54,6 +53,7 @@ class AttendanceRecord(models.Model):
         """Model `Meta`: unique constraints and useful indexes for queries."""
 
         unique_together = ("employee_shift", "employee", "date")
+        ordering = ["-created_at", "-id"]
         indexes = [
             models.Index(fields=["employee", "date"]),
             models.Index(fields=["date"]),

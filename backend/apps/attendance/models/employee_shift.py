@@ -7,7 +7,8 @@ from django.db import models
 from attendance.models.shift import Shift
 
 class EmployeeShift(models.Model):
-    """Assignment linking an employee to a shift.
+    """
+    Assignment linking an employee to a shift.
 
     Represents which `Shift` instances are assigned to an `Employee`.
     Used when resolving which shift an employee should follow on a date.

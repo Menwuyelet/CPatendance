@@ -4,7 +4,6 @@ This file contains the services used for employee related tasks update_employee 
 get_employees_for_users.
 """
 
-
 from employees.models import Employee
 
 from config.logging import get_logger
@@ -41,7 +40,7 @@ def update_employee(employee, **kwargs):
 def get_employees_for_user(request_user):
     """
     Returns queryset of employees that the request_user can view.
-    Admins see all, HR see all, managers their department, employees only self.
+    Admins see all, managers their department.
     """
     logger.info(
         "event=employee_list_started user_id=%s",
@@ -56,33 +55,16 @@ def get_employees_for_user(request_user):
 
         return Employee.objects.all()
 
-    elif request_user.is_hr():
-        logger.info(
-            "event=employee_list_granted role=hr user_id=%s",
-            request_user.id,
-        )
-
-        return Employee.objects.all()
-
     elif request_user.is_department_manager():
-
-        if hasattr(request_user, "employee") and request_user.employee.department:
-            logger.info(
-                "event=employee_list_granted role=manager user_id=%s department_id=%s",
-                request_user.id,
-                request_user.employee.department.id,
-            )
-            return Employee.objects.filter(department=request_user.employee.department)
-
-        logger.warning(
-            "event=employee_list_denied role=manager user_id=%s reason=no_department",
+        logger.info(
+            "event=employee_list_granted role=manager user_id=%s department_id=%s",
             request_user.id,
+            request_user.employee.department.id,
         )
-        return Employee.objects.none()
+
+        return Employee.objects.filter(department=request_user.employee.department)
 
     else:
-        logger.info(
-            "event=employee_list_granted role=employee user_id=%s",
-            request_user.id,
-        )
-        return Employee.objects.filter(user=request_user)
+        logger.info("event=employee_list_denied")
+
+        return Employee.objects.none()

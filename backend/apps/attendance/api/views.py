@@ -3,21 +3,23 @@
 This file contains the views for the attendance app.
 """
 
-from accounts.permissions.is_hr import IsHR
 from datetime import timedelta
 from attendance.models.employee_shift import EmployeeShift
 from rest_framework.viewsets import ViewSet
-from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
+from django.db import transaction
 from django.core.exceptions import ValidationError
-from accounts.permissions import IsAdmin, IsHRorManager
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.decorators import action
+from accounts.permissions import IsManagerOrAdmin
 from attendance.models import AttendanceRecord
-from attendance.models import AttendanceSession, Shift
+from attendance.models import AttendanceSession, Shift, EmployeeLeave
+from attendance.models.atendance_session import SessionPhase
 from attendance.services.attendance_session_service import AttendanceSessionService
 from attendance.services.process_session_service import process_attendance_session
 from django.utils import timezone
@@ -31,17 +33,18 @@ from attendance.api.serializers import (
     AttendanceSessionSerializer,
     ShiftSerializer,
     EmployeeShiftSerializer,
-    AttendanceCheckInSerializer,
+    EmployeeLeaveSerializer,
 )
 
 
 class AttendanceSessionCreateViewSet(ViewSet):
     """
-    HR / Manager starts attendance session
+    Manager / Admin starts attendance session
     """
 
-    permission_classes = [IsAuthenticated, IsHRorManager | IsAdmin]
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
 
+    @transaction.atomic
     def create(self, request):
         """Start a new attendance session for a given shift.
 
@@ -75,7 +78,6 @@ class AttendanceSessionCreateViewSet(ViewSet):
             started_by=request.user,
             started_at=now,
             is_active=True,
-            phase=AttendanceSession.PHASE_CHECK_IN,
         )
 
         return Response(
@@ -86,6 +88,7 @@ class AttendanceSessionCreateViewSet(ViewSet):
             status=status.HTTP_201_CREATED,
         )
 
+    @transaction.atomic
     def destroy(self, request, pk=None):
         """Close an active attendance session identified by `pk`.
 
@@ -98,15 +101,10 @@ class AttendanceSessionCreateViewSet(ViewSet):
                 {"detail": "Session already closed"}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        if session.phase != AttendanceSession.PHASE_CHECK_OUT:
-            return Response(
-                {"detail": "Checkout session must be active before closing."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         service = AttendanceSessionService(session)
 
-        raw_entries = service.close()
+        leave_codes = request.data.get("leave_employee_codes", [])
+        raw_entries = service.close(leave_codes)
 
         process_attendance_session(session, request.user)
 
@@ -117,6 +115,52 @@ class AttendanceSessionCreateViewSet(ViewSet):
                 "status": "closed",
             },
             status=status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated, IsManagerOrAdmin],
+    )
+    @transaction.atomic
+    def sleep(self, request, pk=None):
+        """Put session to sleep and process check-in window (mark absences/leave)."""
+        session = get_object_or_404(AttendanceSession, id=pk)
+        if not session.is_active or session.phase != SessionPhase.CHECK_IN:
+            return Response(
+                {"detail": "Session not in check-in phase"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        leave_codes = request.data.get("leave_employee_codes", [])
+        service = AttendanceSessionService(session)
+        service.make_sleep(leave_codes)
+
+        return Response(
+            {"detail": "Session moved to checkout phase"}, status=status.HTTP_200_OK
+        )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated, IsManagerOrAdmin],
+        url_path="activate-checkout",
+    )
+    @transaction.atomic
+    def activate_checkout(self, request, pk=None):
+        """Reactivate session for checkout captures."""
+        session = get_object_or_404(AttendanceSession, id=pk)
+        if session.phase != SessionPhase.CHECK_OUT:
+            return Response(
+                {"detail": "Session not ready for checkout"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        service = AttendanceSessionService(session)
+        service.activate_checkout()
+
+        return Response(
+            {"detail": "Session activated for checkout"}, status=status.HTTP_200_OK
         )
 
 
@@ -146,29 +190,14 @@ class AttendanceSessionViewSet(ViewSet):
         qs = AttendanceSession.objects.select_related("shift", "started_by").order_by(
             "-started_at"
         )
-        if request.user.is_admin() or request.user.is_hr():
-            """
-            Admin and HR can see all the attendance sessions.
-            """
+        if request.user.is_admin():
             pass
-
         elif request.user.is_department_manager():
-            """
-            Department manager can see sessions for shifts in their department.
-            NOTE: This requires the Shift model to have a `department` field.
-            Once the department field is added to Shift, uncomment the filter below.
-            """
-            # employee = getattr(request.user, "employee", None)
-            # if employee and employee.department_id:
-            #     # Show sessions for shifts in manager's department
-            #     qs = qs.filter(shift__department_id=employee.department_id).distinct()
-            # else:
-            #     qs = qs.none()
-
-            # TEMPORARY FIX: Show all active sessions for managers until department field is added
-            # This allows managers to see and manage sessions, but is less restrictive
-            qs = qs.filter(is_active=True)
-
+            employee = getattr(request.user, "employee", None)
+            if employee and employee.department_id:
+                qs = qs.filter(shift__department_id=employee.department_id).distinct()
+            else:
+                qs = qs.none()
         else:
             qs = qs.none()
 
@@ -191,13 +220,16 @@ class AttendanceSessionViewSet(ViewSet):
             AttendanceSessionSerializer(session).data, status=status.HTTP_200_OK
         )
 
+    @transaction.atomic
+    @transaction.atomic
+    @transaction.atomic
     def update(self, request, pk=None):
         """Partially update an attendance session (e.g., mark closed)."""
         session = get_object_or_404(AttendanceSession, id=pk)
         self._check_permission(request, session)
 
-        # Only HR / Admin can modify session state
-        if not (request.user.is_admin() or request.user.is_hr()):
+        # Admin or Manager can modify session state
+        if not (request.user.is_admin() or request.user.is_department_manager()):
             return Response(
                 {"detail": "Not allowed to modify attendance sessions"},
                 status=status.HTTP_403_FORBIDDEN,
@@ -221,84 +253,14 @@ class AttendanceSessionViewSet(ViewSet):
             AttendanceSessionSerializer(session).data, status=status.HTTP_200_OK
         )
 
-    @action(detail=True, methods=["post"], url_path="end-check-in")
-    def end_check_in(self, request, pk=None):
-        """End check-in and move the session into sleep mode."""
-        session = get_object_or_404(AttendanceSession, id=pk)
-        self._check_permission(request, session)
-
-        if session.phase != AttendanceSession.PHASE_CHECK_IN:
-            return Response(
-                {"detail": "Check-in session is not active."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        now = timezone.now()
-        session.phase = AttendanceSession.PHASE_SLEEP
-        session.check_in_closed_at = now
-        session.is_active = False
-        session.save(update_fields=["phase", "check_in_closed_at", "is_active"])
-
-        return Response(
-            AttendanceSessionSerializer(session).data, status=status.HTTP_200_OK
-        )
-
-    @action(detail=True, methods=["post"], url_path="start-check-out")
-    def start_check_out(self, request, pk=None):
-        """Activate check-out session after sleep."""
-        session = get_object_or_404(AttendanceSession, id=pk)
-        self._check_permission(request, session)
-
-        if session.phase != AttendanceSession.PHASE_SLEEP:
-            return Response(
-                {"detail": "Session must be in sleep mode before check-out."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        now = timezone.now()
-        session.phase = AttendanceSession.PHASE_CHECK_OUT
-        session.check_out_started_at = now
-        session.is_active = True
-        session.save(update_fields=["phase", "check_out_started_at", "is_active"])
-
-        return Response(
-            AttendanceSessionSerializer(session).data, status=status.HTTP_200_OK
-        )
-
-    @action(detail=True, methods=["post"], url_path="end-check-out")
-    def end_check_out(self, request, pk=None):
-        """Close checkout session and process attendance permanently."""
-        session = get_object_or_404(AttendanceSession, id=pk)
-        self._check_permission(request, session)
-
-        if session.phase != AttendanceSession.PHASE_CHECK_OUT:
-            return Response(
-                {"detail": "Check-out session is not active."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        service = AttendanceSessionService(session)
-        raw_entries = service.close()
-
-        process_attendance_session(session, request.user)
-
-        return Response(
-            {
-                "session_id": session.id,
-                "entries_count": len(raw_entries),
-                "status": "closed",
-            },
-            status=status.HTTP_200_OK,
-        )
-
     def _check_permission(self, request, session):
         """Internal helper that raises when the `request.user` cannot access `session`.
 
-        - Admins and HR bypass checks.
+        - Admins bypass checks.
         - Department managers may access sessions for their department.
         - Otherwise raises `PermissionError`.
         """
-        if request.user.is_admin() or request.user.is_hr():
+        if request.user.is_admin():
             return
 
         if request.user.is_department_manager():
@@ -317,72 +279,40 @@ class AttendanceTakingViewSet(ViewSet):
     """
 
     parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
 
+    @transaction.atomic
     def create(self, request):
-        """Handle POST with image to perform a facial check-in/check-out.
+        """Handle POST with image to perform a single facial check-in.
 
-        Expects `image` in `request.FILES` and optional `action` in form data
-        (`check_in` or `check_out`). Returns a dictionary with a `detail`
-        message describing the outcome of processing.
+        Expects `image` in `request.FILES`. Returns a dictionary with a
+        `result` status string describing the outcome of processing.
         """
         image = request.FILES.get("image")
-        action = (request.data.get("action") or "check_in").strip().lower()
 
         if not image:
             return Response({"detail": "Image required"}, status=400)
 
-        if action not in {"check_in", "check_out"}:
-            return Response(
-                {"detail": "Invalid action. Use check_in or check_out."},
-                status=status.HTTP_400_BAD_REQUEST,
+        session = (
+            AttendanceSession.objects.filter(
+                is_active=True, phase=SessionPhase.CHECK_IN
             )
-
-        if action == "check_in":
-            session = (
-                AttendanceSession.objects.filter(
-                    is_active=True, phase=AttendanceSession.PHASE_CHECK_IN
-                )
-                .order_by("-started_at")
-                .first()
-            )
-        else:
-            session = (
-                AttendanceSession.objects.filter(
-                    is_active=True, phase=AttendanceSession.PHASE_CHECK_OUT
-                )
-                .order_by("-started_at")
-                .first()
-            )
+            .order_by("-started_at")
+            .first()
+        )
 
         if not session:
-            detail = (
-                "No active check-in session"
-                if action == "check_in"
-                else "No active check-out session"
-            )
-            return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
-
-        service = AttendanceSessionService(session)
-        if action == "check_in":
-            result = service.check_in_next_worker(image.read())
-        else:
-            result = service.check_out_next_worker(image.read())
-
-        if result == "NO_ACTIVE_SESSION":
             return Response(
                 {"detail": "No active attendance session"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        elif result == "NOT_IN_CHECK_IN":
-            return Response(
-                {"detail": "Check-in session is not active."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        service = AttendanceSessionService(session)
+        result = service.check_in_next_worker(image.read())
 
-        elif result == "NOT_IN_CHECK_OUT":
+        if result == "NO_ACTIVE_SESSION":
             return Response(
-                {"detail": "Check-out session is not active."},
+                {"detail": "No active attendance session"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -404,26 +334,68 @@ class AttendanceTakingViewSet(ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        elif result == "NO_CHECK_IN":
+        return Response(
+            {"detail": "Attendance recorded successfully"},
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class AttendanceCheckoutViewSet(ViewSet):
+    """Checkout capture for an active session in checkout phase."""
+
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+
+    @transaction.atomic
+    def create(self, request):
+        image = request.FILES.get("image")
+
+        if not image:
+            return Response({"detail": "Image required"}, status=400)
+
+        session = (
+            AttendanceSession.objects.filter(
+                is_active=True, phase=SessionPhase.CHECK_OUT
+            )
+            .order_by("-started_at")
+            .first()
+        )
+
+        if not session:
             return Response(
-                {"detail": "Check-in required before check-out."},
+                {"detail": "No active attendance session for checkout"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        elif result == "ALREADY_CHECKED_OUT":
+        service = AttendanceSessionService(session)
+        result = service.check_in_next_worker(image.read())
+
+        if result == "NO_ACTIVE_SESSION":
             return Response(
-                {"detail": "Check-out already recorded."},
+                {"detail": "No active attendance session"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        elif result == "CHECK_OUT_SUCCESS":
+        elif result == "TRY_AGAIN":
             return Response(
-                {"detail": "Check-out recorded successfully"},
-                status=status.HTTP_201_CREATED,
+                {"detail": "Face not clear. Please try again."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        elif result == "NO_FACE_DETECTED":
+            return Response(
+                {"detail": "No face detected"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        elif result == "STOP_DUPLICATE":
+            return Response(
+                {"detail": "Attendance already recorded"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         return Response(
-            {"detail": "Attendance recorded successfully"},
+            {"detail": "Checkout recorded successfully"},
             status=status.HTTP_201_CREATED,
         )
 
@@ -453,7 +425,7 @@ class AttendanceRecordViewSet(ViewSet):
         """List attendance sessions visible to the requesting user."""
         qs = AttendanceRecord.objects.select_related("employee", "employee_shift")
 
-        if request.user.is_admin() or request.user.is_hr():
+        if request.user.is_admin():
             pass
         elif request.user.is_department_manager():
             if hasattr(request.user, "employee") and request.user.employee.department:
@@ -502,12 +474,13 @@ class AttendanceRecordViewSet(ViewSet):
 
         return Response(AttendanceSerializer(record).data, status=status.HTTP_200_OK)
 
+    @transaction.atomic
     def update(self, request, pk=None):
         """Partially update an attendance session (e.g., mark closed)."""
         record = get_object_or_404(AttendanceRecord, id=pk)
 
-        # Only HR / Admin can manually modify attendance
-        if not (request.user.is_admin() or request.user.is_hr()):
+        # Only Admin or Manager can manually modify attendance
+        if not (request.user.is_admin() or request.user.is_department_manager()):
             return Response(
                 {"detail": "Not allowed to modify attendance records"},
                 status=status.HTTP_403_FORBIDDEN,
@@ -522,11 +495,10 @@ class AttendanceRecordViewSet(ViewSet):
     def _check_object_permission(self, request, record):
         """Ensure `request.user` may access the given `AttendanceRecord`.
 
-        Raises `PermissionError` when access is not permitted. Admins and HR
-        bypass checks; department managers and the record's employee may
-        access as appropriate.
+        Raises `PermissionError` when access is not permitted. Admins bypass checks;
+        department managers and the record's employee may access as appropriate.
         """
-        if request.user.is_admin() or request.user.is_hr():
+        if request.user.is_admin():
             return
 
         if request.user.is_department_manager():
@@ -548,23 +520,13 @@ class AttendanceRecordViewSet(ViewSet):
 class ShiftViewSet(ViewSet):
     """API operations for managing shifts (list, create, update, delete).
 
-    Provides CRUD endpoints used by HR/admins to maintain shift
+    Provides CRUD endpoints used by managers/admins to maintain shift
     definitions used across attendance sessions.
     """
 
     serializer_class = ShiftSerializer
 
-    permission_classes = [IsAuthenticated, IsHRorManager | IsAdmin]
-
-    def get_permissions(self):
-        """Return permission instances for the current action.
-
-        For mutating shift endpoints (create/update/destroy) restrict access
-        to authenticated HR users.
-        """
-        if self.action in ["create", "update", "partial_update", "destroy"]:
-            self.permission_classes = [IsAuthenticated, IsHR]
-        return super().get_permissions()
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
 
     def list(self, request):
         """Return all configured shifts serialized for clients."""
@@ -572,6 +534,7 @@ class ShiftViewSet(ViewSet):
         serializer = ShiftSerializer(shifts, many=True)
         return Response(serializer.data)
 
+    @transaction.atomic
     def create(self, request):
         """Create a new `Shift` from validated request payload."""
         serializer = ShiftSerializer(data=request.data)
@@ -580,6 +543,7 @@ class ShiftViewSet(ViewSet):
         shift = ShiftService.create_shift(serializer.validated_data)
         return Response(ShiftSerializer(shift).data, status=status.HTTP_201_CREATED)
 
+    @transaction.atomic
     def update(self, request, pk=None):
         """Update an existing `Shift` with provided partial data."""
         shift = Shift.objects.get(pk=pk)
@@ -589,6 +553,7 @@ class ShiftViewSet(ViewSet):
         shift = ShiftService.update_shift(shift, serializer.validated_data)
         return Response(ShiftSerializer(shift).data)
 
+    @transaction.atomic
     def destroy(self, request, pk=None):
         """Delete the specified `Shift` instance permanently."""
         shift = Shift.objects.get(pk=pk)
@@ -616,6 +581,7 @@ class EmployeeShiftViewSet(ViewSet):
         serializer = EmployeeShiftSerializer(assignments, many=True)
         return Response(serializer.data)
 
+    @transaction.atomic
     def create(self, request):
         """Assign a `Shift` to an `Employee` based on the request payload."""
         serializer = EmployeeShiftSerializer(data=request.data)
@@ -638,6 +604,7 @@ class EmployeeShiftViewSet(ViewSet):
             EmployeeShiftSerializer(assignment).data, status=status.HTTP_201_CREATED
         )
 
+    @transaction.atomic
     def destroy(self, request, pk=None):
         """Remove the specified employee-shift assignment from the system."""
         assignment = EmployeeShift.objects.get(pk=pk)
@@ -647,14 +614,96 @@ class EmployeeShiftViewSet(ViewSet):
     def _can_manage_employee(self, user, employee):
         """Return True when `user` is allowed to manage the given `employee`.
 
-        Considers HR role and department manager relationship.
+        Considers admin role and department manager relationship.
         """
-        # HR
-        if getattr(user, "role", None) == "HR":
+        if hasattr(user, "is_admin") and user.is_admin():
             return True
 
-        # Manager of department
         if getattr(user, "role", None) == "MANAGER":
             return employee.department and employee.department.manager_id == user.id
 
         return False
+
+
+class EmployeeLeaveViewSet(ViewSet):
+    """CRUD for long-term leave windows.
+
+    Admin can manage all. Managers are limited to employees in their department.
+    """
+
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+    serializer_class = EmployeeLeaveSerializer
+
+    def _filter_queryset(self, request):
+        qs = EmployeeLeave.objects.select_related("employee", "employee__department")
+        if request.user.is_admin():
+            return qs
+
+        if request.user.is_department_manager():
+            employee = getattr(request.user, "employee", None)
+            if employee and employee.department_id:
+                return qs.filter(employee__department_id=employee.department_id)
+        return qs.none()
+
+    def _assert_can_manage(self, request, employee):
+        if request.user.is_admin():
+            return
+        if request.user.is_department_manager():
+            manager_emp = getattr(request.user, "employee", None)
+            if (
+                manager_emp
+                and manager_emp.department_id
+                and employee.department_id == manager_emp.department_id
+            ):
+                return
+        raise PermissionDenied("Not allowed to manage leave for this employee")
+
+    def list(self, request):
+        qs = self._filter_queryset(request)
+        serializer = EmployeeLeaveSerializer(qs, many=True)
+        return Response(serializer.data)
+
+    def retrieve(self, request, pk=None):
+        leave = get_object_or_404(self._filter_queryset(request), pk=pk)
+        serializer = EmployeeLeaveSerializer(leave)
+        return Response(serializer.data)
+
+    @transaction.atomic
+    def create(self, request):
+        serializer = EmployeeLeaveSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        employee = serializer.validated_data["employee"]
+        self._assert_can_manage(request, employee)
+
+        leave = serializer.save(created_by=request.user)
+        return Response(
+            EmployeeLeaveSerializer(leave).data, status=status.HTTP_201_CREATED
+        )
+
+    @transaction.atomic
+    def update(self, request, pk=None):
+        leave = get_object_or_404(EmployeeLeave, pk=pk)
+        self._assert_can_manage(request, leave.employee)
+
+        serializer = EmployeeLeaveSerializer(leave, data=request.data, partial=False)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    @transaction.atomic
+    def partial_update(self, request, pk=None):
+        leave = get_object_or_404(EmployeeLeave, pk=pk)
+        self._assert_can_manage(request, leave.employee)
+
+        serializer = EmployeeLeaveSerializer(leave, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    @transaction.atomic
+    def destroy(self, request, pk=None):
+        leave = get_object_or_404(EmployeeLeave, pk=pk)
+        self._assert_can_manage(request, leave.employee)
+        leave.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

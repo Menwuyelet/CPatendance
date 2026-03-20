@@ -36,7 +36,11 @@ ALLOWED_HOSTS = ["*"]
 SECURE_SSL_REDIRECT = False  # Use Gunicorn + certificates for HTTPS in production
 SESSION_COOKIE_SECURE = False  # Set True in production with HTTPS
 CSRF_COOKIE_SECURE = False  # Set True in production with HTTPS
-CSRF_TRUSTED_ORIGINS = ['http://127.0.0.1:5174', 'http://localhost:5174', 'https://10.240.41.144:5174']
+CSRF_TRUSTED_ORIGINS = [
+    "http://127.0.0.1:5174",
+    "http://localhost:5174",
+    "https://10.240.41.144:5174",
+]
 
 
 X_FRAME_OPTIONS = "DENY"
@@ -67,6 +71,12 @@ INSTALLED_APPS = [
 
 
 AUTH_USER_MODEL = "accounts.User"
+
+# Enable employee_code authentication via custom backend, with Django default fallback.
+AUTHENTICATION_BACKENDS = [
+    "accounts.authentication_backend.HybridAuthBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -203,6 +213,19 @@ SPECTACULAR_SETTINGS = {
     # Auth
     "COMPONENT_SPLIT_REQUEST": True,
     "SECURITY": [{"bearerAuth": []}],
+    "APPEND_COMPONENTS": {
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+            }
+        }
+    },
+    "SWAGGER_UI_SETTINGS": {
+        # Keep entered tokens across page reloads in Swagger UI
+        "persistAuthorization": True,
+    },
     "AUTHENTICATION_WHITELIST": [],
 }
 

@@ -5,7 +5,8 @@ This file contains the implimentation of the representation of shift.
 from django.db import models
 
 class Shift(models.Model):
-    """Represents a work shift with schedule and day flags.
+    """
+    Represents a work shift with schedule and day flags.
 
     Stores start/end times and which weekdays the shift applies to. Used by
     scheduling and attendance session logic.
@@ -16,15 +17,13 @@ class Shift(models.Model):
 
     description = models.TextField(blank=True)
 
-    # ========== ADDED BY FRONTEND DEVELOPER - PLEASE UNCOMMENT AFTER REVIEW ==========
-    # department = models.ForeignKey(
-    #     "employees.Department",
-    #     on_delete=models.CASCADE,
-    #     null=True,
-    #     blank=True,
-    #     help_text="Department this shift belongs to (needed for Manager session visibility)"
-    # )
-    # ==================================================================================
+    department = models.ForeignKey(
+        "employees.Department",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text="Department this shift belongs to (needed for Manager session visibility)"
+    )
 
     # days this shift applies to
     monday = models.BooleanField(default=False)
@@ -63,6 +62,10 @@ class Shift(models.Model):
             self.sunday,
         ][weekday]
 
+    def department_name(self):
+        """Return the name of the department this shift belongs to, or None."""
+        return self.department.name if self.department else None
+    
     def __str__(self):
         """Return the human-readable name for the shift."""
         return self.name

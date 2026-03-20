@@ -1,27 +1,11 @@
-# --- Frontend
 frontend/node_modules/
-frontend/build/
-frontend/.env
-frontend/.eslintcache
-
-# --- Backend-
-backend/venv/
-backend/env/
+**/*:Zone.Identifier
+AICALL.md
+AI/
+backend/*.sqlite3
+venv
 backend/.env
-backend/db.sqlite3
+node_modules
 backend/logs/*.log
-*.sqlite3
+tasks.md
 
-# --- Python & System Files 
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-*/__pycache__/
-**/*.pyc
-
-# --- OS Specific (The Zone.Identifier files) 
-*.Identifier
-.DS_Store
-Thumbs.db

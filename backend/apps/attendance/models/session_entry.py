@@ -9,7 +9,8 @@ from .atendance_session import AttendanceSession
 
 
 class AttendanceSessionEntry(models.Model):
-    """Records a single recognition event within an attendance session.
+    """
+    Records a single recognition event within an attendance session.
 
     Links a detected/recognized employee to the session and records the
     timestamp when recognition occurred.
@@ -23,6 +24,8 @@ class AttendanceSessionEntry(models.Model):
 
     recognized_at = models.DateTimeField()
     check_out_at = models.DateTimeField(null=True, blank=True)
+
+    checkout_recognized_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         """Model `Meta`: enforces uniqueness of (session, employee) entries."""

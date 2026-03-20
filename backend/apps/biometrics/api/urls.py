@@ -5,11 +5,9 @@ This file contains the url routing for the biometrics app using DefaultRouter fr
 
 from rest_framework.routers import DefaultRouter
 from biometrics.api.views import (
-    FaceEnrollmentViewSet,
-    BiometricProfileViewSet
+    BiometricProfileViewSet,
 )
 
 router = DefaultRouter()
-router.register("face/enroll", FaceEnrollmentViewSet, basename="face-enroll")
-router.register("profiles", BiometricProfileViewSet, basename="biometric-profiles")  
+router.register("profiles", BiometricProfileViewSet, basename="biometric-profiles")
 urlpatterns = router.urls
