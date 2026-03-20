@@ -12,6 +12,7 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
+from django.db import transaction
 from django.core.exceptions import ValidationError
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.decorators import action
@@ -43,6 +44,7 @@ class AttendanceSessionCreateViewSet(ViewSet):
 
     permission_classes = [IsAuthenticated, IsManagerOrAdmin]
 
+    @transaction.atomic
     def create(self, request):
         """Start a new attendance session for a given shift.
 
@@ -86,6 +88,7 @@ class AttendanceSessionCreateViewSet(ViewSet):
             status=status.HTTP_201_CREATED,
         )
 
+    @transaction.atomic
     def destroy(self, request, pk=None):
         """Close an active attendance session identified by `pk`.
 
@@ -119,6 +122,7 @@ class AttendanceSessionCreateViewSet(ViewSet):
         methods=["post"],
         permission_classes=[IsAuthenticated, IsManagerOrAdmin],
     )
+    @transaction.atomic
     def sleep(self, request, pk=None):
         """Put session to sleep and process check-in window (mark absences/leave)."""
         session = get_object_or_404(AttendanceSession, id=pk)
@@ -142,6 +146,7 @@ class AttendanceSessionCreateViewSet(ViewSet):
         permission_classes=[IsAuthenticated, IsManagerOrAdmin],
         url_path="activate-checkout",
     )
+    @transaction.atomic
     def activate_checkout(self, request, pk=None):
         """Reactivate session for checkout captures."""
         session = get_object_or_404(AttendanceSession, id=pk)
@@ -215,6 +220,9 @@ class AttendanceSessionViewSet(ViewSet):
             AttendanceSessionSerializer(session).data, status=status.HTTP_200_OK
         )
 
+    @transaction.atomic
+    @transaction.atomic
+    @transaction.atomic
     def update(self, request, pk=None):
         """Partially update an attendance session (e.g., mark closed)."""
         session = get_object_or_404(AttendanceSession, id=pk)
@@ -273,6 +281,7 @@ class AttendanceTakingViewSet(ViewSet):
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, IsManagerOrAdmin]
 
+    @transaction.atomic
     def create(self, request):
         """Handle POST with image to perform a single facial check-in.
 
@@ -337,6 +346,7 @@ class AttendanceCheckoutViewSet(ViewSet):
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated, IsManagerOrAdmin]
 
+    @transaction.atomic
     def create(self, request):
         image = request.FILES.get("image")
 
@@ -464,6 +474,7 @@ class AttendanceRecordViewSet(ViewSet):
 
         return Response(AttendanceSerializer(record).data, status=status.HTTP_200_OK)
 
+    @transaction.atomic
     def update(self, request, pk=None):
         """Partially update an attendance session (e.g., mark closed)."""
         record = get_object_or_404(AttendanceRecord, id=pk)
@@ -523,6 +534,7 @@ class ShiftViewSet(ViewSet):
         serializer = ShiftSerializer(shifts, many=True)
         return Response(serializer.data)
 
+    @transaction.atomic
     def create(self, request):
         """Create a new `Shift` from validated request payload."""
         serializer = ShiftSerializer(data=request.data)
@@ -531,6 +543,7 @@ class ShiftViewSet(ViewSet):
         shift = ShiftService.create_shift(serializer.validated_data)
         return Response(ShiftSerializer(shift).data, status=status.HTTP_201_CREATED)
 
+    @transaction.atomic
     def update(self, request, pk=None):
         """Update an existing `Shift` with provided partial data."""
         shift = Shift.objects.get(pk=pk)
@@ -540,6 +553,7 @@ class ShiftViewSet(ViewSet):
         shift = ShiftService.update_shift(shift, serializer.validated_data)
         return Response(ShiftSerializer(shift).data)
 
+    @transaction.atomic
     def destroy(self, request, pk=None):
         """Delete the specified `Shift` instance permanently."""
         shift = Shift.objects.get(pk=pk)
@@ -567,6 +581,7 @@ class EmployeeShiftViewSet(ViewSet):
         serializer = EmployeeShiftSerializer(assignments, many=True)
         return Response(serializer.data)
 
+    @transaction.atomic
     def create(self, request):
         """Assign a `Shift` to an `Employee` based on the request payload."""
         serializer = EmployeeShiftSerializer(data=request.data)
@@ -589,6 +604,7 @@ class EmployeeShiftViewSet(ViewSet):
             EmployeeShiftSerializer(assignment).data, status=status.HTTP_201_CREATED
         )
 
+    @transaction.atomic
     def destroy(self, request, pk=None):
         """Remove the specified employee-shift assignment from the system."""
         assignment = EmployeeShift.objects.get(pk=pk)
@@ -634,7 +650,11 @@ class EmployeeLeaveViewSet(ViewSet):
             return
         if request.user.is_department_manager():
             manager_emp = getattr(request.user, "employee", None)
-            if manager_emp and manager_emp.department_id and employee.department_id == manager_emp.department_id:
+            if (
+                manager_emp
+                and manager_emp.department_id
+                and employee.department_id == manager_emp.department_id
+            ):
                 return
         raise PermissionDenied("Not allowed to manage leave for this employee")
 
@@ -648,6 +668,7 @@ class EmployeeLeaveViewSet(ViewSet):
         serializer = EmployeeLeaveSerializer(leave)
         return Response(serializer.data)
 
+    @transaction.atomic
     def create(self, request):
         serializer = EmployeeLeaveSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -656,8 +677,11 @@ class EmployeeLeaveViewSet(ViewSet):
         self._assert_can_manage(request, employee)
 
         leave = serializer.save(created_by=request.user)
-        return Response(EmployeeLeaveSerializer(leave).data, status=status.HTTP_201_CREATED)
+        return Response(
+            EmployeeLeaveSerializer(leave).data, status=status.HTTP_201_CREATED
+        )
 
+    @transaction.atomic
     def update(self, request, pk=None):
         leave = get_object_or_404(EmployeeLeave, pk=pk)
         self._assert_can_manage(request, leave.employee)
@@ -667,6 +691,7 @@ class EmployeeLeaveViewSet(ViewSet):
         serializer.save()
         return Response(serializer.data)
 
+    @transaction.atomic
     def partial_update(self, request, pk=None):
         leave = get_object_or_404(EmployeeLeave, pk=pk)
         self._assert_can_manage(request, leave.employee)
@@ -676,6 +701,7 @@ class EmployeeLeaveViewSet(ViewSet):
         serializer.save()
         return Response(serializer.data)
 
+    @transaction.atomic
     def destroy(self, request, pk=None):
         leave = get_object_or_404(EmployeeLeave, pk=pk)
         self._assert_can_manage(request, leave.employee)

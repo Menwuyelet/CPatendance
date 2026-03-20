@@ -145,6 +145,6 @@ def generate_employee_code():
         next_id = last_user.employee_code[-4:]  # Get the last 4 characters
         next_id = int(next_id) + 1
     else:
-        next_id = 10001  # Starting employee code if no users exist
+        next_id = 1001  # Starting employee code if no users exist
 
     return f"HAC-{next_id:04d}"

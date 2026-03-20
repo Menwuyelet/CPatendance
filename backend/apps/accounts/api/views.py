@@ -173,6 +173,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
         serializer.instance = user
 
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
         """Return generated password in creation response while storing hashed."""
         serializer = self.get_serializer(data=request.data)
@@ -201,6 +202,18 @@ class UserViewSet(viewsets.ModelViewSet):
         data = serializer.validated_data
         user = update_user(self.get_object(), **data)
         serializer.instance = user
+
+    @transaction.atomic
+    def update(self, *args, **kwargs):
+        return super().update(*args, **kwargs)
+
+    @transaction.atomic
+    def partial_update(self, *args, **kwargs):
+        return super().partial_update(*args, **kwargs)
+
+    @transaction.atomic
+    def destroy(self, *args, **kwargs):
+        return super().destroy(*args, **kwargs)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def me(self, request):

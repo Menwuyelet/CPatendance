@@ -9,6 +9,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.pagination import PageNumberPagination
+from django.db import transaction
 from employees.models import Employee, Department
 from .serializers import (
     EmployeeSerializer,
@@ -41,6 +42,22 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         if self.action in ["update", "partial_update", "destroy"]:
             self.permission_classes = [IsAdmin]
         return super().get_permissions()
+
+    @transaction.atomic
+    def create(self, *args, **kwargs):
+        return super().create(*args, **kwargs)
+
+    @transaction.atomic
+    def update(self, *args, **kwargs):
+        return super().update(*args, **kwargs)
+
+    @transaction.atomic
+    def partial_update(self, *args, **kwargs):
+        return super().partial_update(*args, **kwargs)
+
+    @transaction.atomic
+    def destroy(self, *args, **kwargs):
+        return super().destroy(*args, **kwargs)
 
     queryset = Department.objects.select_related("manager").all()
     serializer_class = DepartmentSerializer
@@ -92,3 +109,15 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         employee = update_employee(self.get_object(), **data)
         serializer.instance = employee
         serializer.save()
+
+    @transaction.atomic
+    def update(self, *args, **kwargs):
+        return super().update(*args, **kwargs)
+
+    @transaction.atomic
+    def partial_update(self, *args, **kwargs):
+        return super().partial_update(*args, **kwargs)
+
+    @transaction.atomic
+    def destroy(self, *args, **kwargs):
+        return super().destroy(*args, **kwargs)

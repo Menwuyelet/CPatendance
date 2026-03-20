@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
+from django.db import transaction
 from biometrics.models import BiometricProfile
 from biometrics.services.enrollment_service import BiometricEnrollmentService
 from accounts.policies.biometric import BiometricPolicy
@@ -54,6 +55,7 @@ class BiometricProfileViewSet(ViewSet):
             BiometricProfileSerializer(qs, many=True).data, status=status.HTTP_200_OK
         )
 
+    @transaction.atomic
     def partial_update(self, request, pk=None):
         """
         Activate or deactivate a biometric profile.
@@ -77,6 +79,7 @@ class BiometricProfileViewSet(ViewSet):
             BiometricProfileSerializer(profile).data, status=status.HTTP_200_OK
         )
 
+    @transaction.atomic
     def update(self, request, pk=None):
         """
         Update biometric profile metadata and optionally re-enroll face template.
