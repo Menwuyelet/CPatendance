@@ -40,7 +40,9 @@ class EmployeesAPITests(APITestCase):
             password=cls.manager_password,
         )
         cls.manager.roles.add(cls.role_manager)
-        cls.manager_emp = Employee.objects.create(user=cls.manager, department=cls.dept_main)
+        cls.manager_emp = Employee.objects.create(
+            user=cls.manager, department=cls.dept_main
+        )
         cls.dept_main.manager = cls.manager
         cls.dept_main.save()
 
@@ -52,7 +54,9 @@ class EmployeesAPITests(APITestCase):
             password="EmployeePass123!",
         )
         cls.emp_main.roles.add(cls.role_employee)
-        cls.emp_main_profile = Employee.objects.create(user=cls.emp_main, department=cls.dept_main)
+        cls.emp_main_profile = Employee.objects.create(
+            user=cls.emp_main, department=cls.dept_main
+        )
 
         cls.emp_other = User.objects.create_user(
             employee_code="HAC-2004",
@@ -61,7 +65,9 @@ class EmployeesAPITests(APITestCase):
             password="OtherPass123!",
         )
         cls.emp_other.roles.add(cls.role_employee)
-        cls.emp_other_profile = Employee.objects.create(user=cls.emp_other, department=cls.dept_other)
+        cls.emp_other_profile = Employee.objects.create(
+            user=cls.emp_other, department=cls.dept_other
+        )
 
     def login(self, code, password):
         res = self.client.post(
@@ -83,6 +89,14 @@ class EmployeesAPITests(APITestCase):
             **self.auth(token),
         )
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+
+    def test_manager_cannot_delete_department(self):
+        token = self.login("HAC-2002", self.manager_password)
+        res = self.client.delete(
+            reverse("department-detail", args=[self.dept_other.id]),
+            **self.auth(token),
+        )
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_manager_can_create_department(self):
         token = self.login("HAC-2002", self.manager_password)
@@ -142,6 +156,15 @@ class EmployeesAPITests(APITestCase):
         token = self.login("HAC-2003", "EmployeePass123!")
         res = self.client.get(reverse("employee-list"), **self.auth(token))
         self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_post_employee_endpoint_not_allowed(self):
+        token = self.login("HAC-2001", self.admin_password)
+        res = self.client.post(
+            reverse("employee-list"),
+            {"user": self.emp_main.id},
+            **self.auth(token),
+        )
+        self.assertEqual(res.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def test_admin_can_update_employee(self):
         token = self.login("HAC-2001", self.admin_password)

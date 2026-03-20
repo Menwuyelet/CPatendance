@@ -177,3 +177,23 @@ class BiometricsAPITests(APITestCase):
             **self.auth(token),
         )
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_update_requires_image_or_active_flag(self):
+        token = self.login("HAC-3001", self.admin_password)
+        res = self.client.put(
+            reverse("biometric-profiles-detail", args=[self.bio_main.id]),
+            {},
+            format="multipart",
+            **self.auth(token),
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_manager_cannot_update_other_department_profile(self):
+        token = self.login("HAC-3002", self.manager_password)
+        res = self.client.put(
+            reverse("biometric-profiles-detail", args=[self.bio_other.id]),
+            {"is_active": False},
+            format="multipart",
+            **self.auth(token),
+        )
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)

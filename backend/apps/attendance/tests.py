@@ -358,6 +358,46 @@ class AttendanceAPITests(APITestCase):
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("Too many shifts", str(res.data))
 
+    # Listing scope
+    def test_employee_session_list_is_empty(self):
+        token = self.login("HAC-4003", "EmployeePass123!")
+        AttendanceSession.objects.create(
+            shift=self.shift_main,
+            started_by=self.manager,
+            is_active=True,
+        )
+        res = self.client.get(
+            reverse("attendance-manage-sessions-list"), **self.auth(token)
+        )
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        results = res.data.get("results", res.data)
+        self.assertEqual(len(results), 0)
+
+    def test_manager_session_list_scoped_to_department(self):
+        token = self.login("HAC-4002", self.manager_password)
+        # session in manager department
+        session_main = AttendanceSession.objects.create(
+            shift=self.shift_main,
+            started_by=self.manager,
+            is_active=True,
+        )
+        # session in other department should be hidden
+        AttendanceSession.objects.create(
+            shift=self.shift_other,
+            started_by=self.admin,
+            is_active=True,
+        )
+
+        res = self.client.get(
+            reverse("attendance-manage-sessions-list"), **self.auth(token)
+        )
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        results = res.data.get("results", res.data)
+        ids = [item["id"] for item in results]
+        self.assertIn(session_main.id, ids)
+        # ensure only manager dept visible
+        self.assertEqual(len(ids), 1)
+
     # Employee leaves
     def test_manager_can_create_leave_for_department_employee(self):
         token = self.login("HAC-4002", self.manager_password)

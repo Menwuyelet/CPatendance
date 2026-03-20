@@ -161,6 +161,16 @@ class AccountsAPITests(APITestCase):
         res = self.client.post(reverse("user-list"), payload, **self.auth(token))
         self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_manager_cannot_create_manager_user(self):
+        token = self.login("HAC-1002", self.manager_password)
+        payload = {
+            "full_name": "Should Fail Manager",
+            "phone_number": "+211",
+            "roles": [self.role_manager.id],
+        }
+        res = self.client.post(reverse("user-list"), payload, **self.auth(token))
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_manager_create_employee_requires_face_image(self):
         token = self.login("HAC-1002", self.manager_password)
         payload = {
@@ -194,6 +204,17 @@ class AccountsAPITests(APITestCase):
         mock_embed.assert_called()
         mock_handle.assert_called()
 
+    def test_admin_create_manager_requires_face_image(self):
+        token = self.login("HAC-1001", self.admin_password)
+        payload = {
+            "full_name": "Manager No Face",
+            "phone_number": "+204",
+            "roles": [self.role_manager.id],
+        }
+        res = self.client.post(reverse("user-list"), payload, **self.auth(token))
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("face_image", res.data)
+
     # Mutation endpoints
     def test_change_password_wrong_current(self):
         token = self.login("HAC-1001", self.admin_password)
@@ -213,6 +234,19 @@ class AccountsAPITests(APITestCase):
         res = self.client.patch(reverse("user-change-password"), {}, **self.auth(token))
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_change_password_confirmation_mismatch(self):
+        token = self.login("HAC-1001", self.admin_password)
+        res = self.client.patch(
+            reverse("user-change-password"),
+            {
+                "current_password": self.admin_password,
+                "new_password": "Mismatch123!",
+                "password_confirmation": "Other123!",
+            },
+            **self.auth(token),
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_reset_password_success(self):
         token = self.login("HAC-1001", self.admin_password)
         res = self.client.patch(
@@ -222,6 +256,15 @@ class AccountsAPITests(APITestCase):
         )
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertIn("new_password", res.data)
+
+    def test_reset_password_unknown_code(self):
+        token = self.login("HAC-1001", self.admin_password)
+        res = self.client.patch(
+            reverse("user-reset-password"),
+            {"employee_code": "HAC-9999"},
+            **self.auth(token),
+        )
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_reset_password_missing_code(self):
         token = self.login("HAC-1001", self.admin_password)
