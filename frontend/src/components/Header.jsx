@@ -1,5 +1,5 @@
 // src/components/Header.jsx
-import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo, useContext } from 'react';
 import {
   Toolbar,
   Typography,
@@ -14,11 +14,19 @@ import {
   ListItemSecondaryAction,
   Button,
   Divider,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import { Notifications, Logout, CheckCircle, DarkMode, LightMode } from '@mui/icons-material';
 import { useNotifications } from '../context/NotificationContext';
+import { ThemeContext } from '../index.jsx';
 
 const Header = memo(({ user, onLogout }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
+  const { mode, toggleTheme } = useContext(ThemeContext);
+
   // Get notifications from context with safe fallback
   const notificationContext = useNotifications();
   const {
@@ -32,27 +40,7 @@ const Header = memo(({ user, onLogout }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
   
-  // Dark mode default to true (dark mode as default)
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem('darkMode');
-    if (saved) {
-      return JSON.parse(saved);
-    }
-    // Default to dark mode
-    return true;
-  });
-
-  // Apply dark mode class to body
-  useEffect(() => {
-    if (darkMode) {
-      document.body.classList.add('dark-mode');
-      document.documentElement.setAttribute('data-theme', 'dark');
-    } else {
-      document.body.classList.remove('dark-mode');
-      document.documentElement.setAttribute('data-theme', 'light');
-    }
-    localStorage.setItem('darkMode', JSON.stringify(darkMode));
-  }, [darkMode]);
+  const darkMode = mode === 'dark';
 
   const handleBellClick = useCallback((event) => {
     setAnchorEl(event.currentTarget);
@@ -63,8 +51,8 @@ const Header = memo(({ user, onLogout }) => {
   }, []);
 
   const toggleDarkMode = useCallback(() => {
-    setDarkMode(prev => !prev);
-  }, []);
+    toggleTheme();
+  }, [toggleTheme]);
 
   // Update clock every minute
   useEffect(() => {
@@ -92,11 +80,14 @@ const Header = memo(({ user, onLogout }) => {
       alignItems: 'center',
       width: '100%',
       height: '100%',
+      minWidth: 0,
+      gap: { xs: 0.5, sm: 1 },
     }}>
       <Typography 
-        variant="h8" 
+        variant="h6"
         sx={{ 
-          flexGrow: 1, 
+          flexGrow: 1,
+          minWidth: 0,
           fontWeight: 'bold',
           background: darkMode 
             ? 'linear-gradient(45deg, #ffffff 30%, #cc0000 90%)'
@@ -104,45 +95,61 @@ const Header = memo(({ user, onLogout }) => {
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
           backgroundClip: 'text',
-          fontSize: '1.25rem',
+          fontSize: { xs: '0.9rem', sm: '1.05rem', md: '1.2rem' },
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          pr: 0.5,
         }}
       >
-        Attendance Management System
+        {isMobile ? 'Attendance System' : 'Attendance Management System'}
       </Typography>
 
-      <Typography variant="body2" sx={{ 
-        mr: 3, 
-        minWidth: 140, 
-        textAlign: 'right',
-        color: textColor,
-        fontWeight: 500,
-      }}>
-        {dateLabel}
-        <span style={{ 
-          fontSize: '1rem', 
-          paddingLeft: 10, 
-          fontWeight: 'bold',
+      {!isMobile && (
+        <Typography variant="body2" sx={{ 
+          mr: { sm: 1, md: 2 },
+          minWidth: { sm: 105, md: 140 },
+          textAlign: 'right',
           color: textColor,
-        }}>{timeLabel}</span>
-      </Typography>
+          fontWeight: 500,
+          whiteSpace: 'nowrap',
+          fontSize: { sm: '0.78rem', md: '0.875rem' },
+        }}>
+          {isTablet ? timeLabel : dateLabel}
+          {!isTablet && (
+            <span style={{ 
+              fontSize: '0.95rem', 
+              paddingLeft: 8, 
+              fontWeight: 'bold',
+              color: textColor,
+            }}>{timeLabel}</span>
+          )}
+        </Typography>
+      )}
 
-      <Typography variant="body2" sx={{ 
-        mr: 3,
-        color: textColor,
-        fontWeight: 500,
-      }}>
-        Role: <strong>{user?.role || 'Unknown'}</strong>
-      </Typography>
+      {!isTablet && (
+        <Typography variant="body2" sx={{ 
+          mr: 2,
+          color: textColor,
+          fontWeight: 500,
+          whiteSpace: 'nowrap',
+          fontSize: '0.875rem',
+        }}>
+          Role: <strong>{user?.role || 'Unknown'}</strong>
+        </Typography>
+      )}
 
       {/* Notification Bell */}
       <IconButton 
         onClick={handleBellClick} 
         sx={{ 
-          mr: 1,
+          mr: { xs: 0, sm: 0.5 },
           color: textColor,
+          width: { xs: 34, sm: 38 },
+          height: { xs: 34, sm: 38 },
         }}
       >
-        <Badge badgeContent={unreadCount} color="error">
+        <Badge badgeContent={unreadCount} color="error" max={99}>
           <Notifications />
         </Badge>
       </IconButton>
@@ -151,7 +158,7 @@ const Header = memo(({ user, onLogout }) => {
       <IconButton 
         onClick={toggleDarkMode} 
         sx={{ 
-          mr: 1,
+          mr: { xs: 0, sm: 0.5 },
           bgcolor: darkMode ? '#cc0000' : '#f5f5f5',
           color: darkMode ? '#ffffff' : '#000000',
           border: '1px solid',
@@ -160,12 +167,12 @@ const Header = memo(({ user, onLogout }) => {
             bgcolor: darkMode ? '#990000' : '#e0e0e0',
             borderColor: darkMode ? '#990000' : '#ccc',
           },
-          width: 36,
-          height: 36,
+          width: { xs: 34, sm: 36 },
+          height: { xs: 34, sm: 36 },
         }}
         title={darkMode ? 'Switch to Light Mode ☀️' : 'Switch to Dark Mode 🌙'}
       >
-        {darkMode ? <LightMode sx={{ fontSize: 20 }} /> : <DarkMode sx={{ fontSize: 20 }} />}
+        {darkMode ? <LightMode sx={{ fontSize: { xs: 18, sm: 20 } }} /> : <DarkMode sx={{ fontSize: { xs: 18, sm: 20 } }} />}
       </IconButton>
 
       {/* Notification Popover */}
@@ -173,12 +180,13 @@ const Header = memo(({ user, onLogout }) => {
         open={open}
         anchorEl={anchorEl}
         onClose={handleClose}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: isMobile ? 'center' : 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: isMobile ? 'center' : 'right' }}
         PaperProps={{ 
           sx: { 
-            width: 380, 
-            maxHeight: 500, 
+            width: isMobile ? 'calc(100vw - 16px)' : 380,
+            maxWidth: 'calc(100vw - 16px)',
+            maxHeight: isMobile ? '70vh' : 500,
             mt: 1,
             bgcolor: bgColor,
             color: textColor,
@@ -251,8 +259,8 @@ const Header = memo(({ user, onLogout }) => {
       </Popover>
 
       {/* User Avatar */}
-      <IconButton sx={{ mx: 1 }}>
-        <Avatar sx={{ bgcolor: 'primary.main', width: 30, height: 30 }}>
+      <IconButton sx={{ mx: { xs: 0, sm: 0.5 }, p: { xs: 0.3, sm: 0.6 } }}>
+        <Avatar sx={{ bgcolor: 'primary.main', width: { xs: 28, sm: 30 }, height: { xs: 28, sm: 30 } }}>
           <Typography variant="subtitle1" fontWeight="bold">
             {userInitial}
           </Typography>
