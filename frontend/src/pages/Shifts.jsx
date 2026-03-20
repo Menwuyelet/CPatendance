@@ -5,6 +5,7 @@ import {
   Box,
   Card,
   CardContent,
+  TableContainer,
   Typography,
   Table,
   TableHead,
@@ -34,32 +35,118 @@ import {
   Paper,
   Collapse,
   Grid,
-  RadioGroup,
-  Radio,
   ToggleButton,
   ToggleButtonGroup,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import { 
   Add as AddIcon, 
   Edit as EditIcon, 
   Delete as DeleteIcon, 
+  Refresh as RefreshIcon,
   Search, 
   Clear, 
   FilterList, 
   ExpandMore, 
   ExpandLess,
   AccessTime,
-  CalendarToday,
   Schedule,
   LightMode,
   DarkMode
 } from '@mui/icons-material';
-import { LocalizationProvider, TimePicker, DesktopTimePicker } from '@mui/x-date-pickers';
+import { LocalizationProvider, TimePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { api } from '../services/api.service.js';
 import { format, parse } from 'date-fns';
 
+const SHIFT_DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+const getDayLabels = (item) =>
+  SHIFT_DAYS.filter((day) => item?.[day]).map((day) => day.charAt(0).toUpperCase() + day.slice(1, 3));
+
+const getDurationLabel = (startTime, endTime) => {
+  if (!startTime || !endTime) return '';
+
+  const diffMs = endTime - startTime;
+  const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  return `${diffHrs}h ${diffMins}m`;
+};
+
+const SHIFTS_PAGE_CACHE_KEY = 'attendance.shifts.pageCache.v1';
+
+const readPersistedShiftsPageCache = () => {
+  if (typeof window === 'undefined') {
+    return {
+      shifts: null,
+      employees: null,
+      employeeShifts: null,
+    };
+  }
+
+  try {
+    const raw = window.sessionStorage.getItem(SHIFTS_PAGE_CACHE_KEY);
+    if (!raw) {
+      return {
+        shifts: null,
+        employees: null,
+        employeeShifts: null,
+      };
+    }
+
+    const parsed = JSON.parse(raw);
+    return {
+      shifts: Array.isArray(parsed?.shifts) ? parsed.shifts : null,
+      employees: Array.isArray(parsed?.employees) ? parsed.employees : null,
+      employeeShifts: Array.isArray(parsed?.employeeShifts) ? parsed.employeeShifts : null,
+    };
+  } catch (error) {
+    // console.warn('Unable to read persisted shifts cache:', error);
+    return {
+      shifts: null,
+      employees: null,
+      employeeShifts: null,
+    };
+  }
+};
+
+const persistShiftsPageCache = (cache) => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.sessionStorage.setItem(SHIFTS_PAGE_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.warn('Unable to persist shifts cache:', error);
+  }
+};
+
+const stripShiftViewFields = (shift) => {
+  if (!shift || typeof shift !== 'object') return shift;
+
+  const {
+    start_time_date,
+    end_time_date,
+    start_time_display,
+    end_time_display,
+    ...rest
+  } = shift;
+
+  return rest;
+};
+
+// Module-level cache so revisiting the route doesn't re-fetch by default.
+let shiftsPageCache = readPersistedShiftsPageCache();
+
+let shiftsPageInFlight = {
+  shifts: null,
+  employeeData: null,
+};
+
 const Shifts = ({ role, onNotify: propsNotify }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
   const isManager = role === 'Manager';
   const isHR = role === 'HR';
   const isAdmin = role === 'Admin';
@@ -129,6 +216,9 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
   // UI state for filters
   const [shiftFilterExpanded, setShiftFilterExpanded] = useState(false);
   const [employeeShiftFilterExpanded, setEmployeeShiftFilterExpanded] = useState(false);
+  const [showFullShiftList, setShowFullShiftList] = useState(false);
+  const [showFullEmployeeList, setShowFullEmployeeList] = useState(false);
+  const [expandedEmployeeRows, setExpandedEmployeeRows] = useState({});
 
   const emptyShiftForm = {
     name: '',
@@ -210,112 +300,162 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
     return formatTime(date, timeFormat);
   };
 
-  // Helper to parse time from string with AM/PM support
-  const parseTimeString = (timeStr) => {
-    if (!timeStr) return null;
-    
+  const processShiftList = (list) =>
+    list.map((shift) => {
+      const startTimeDate = timeStringToDate(shift.start_time);
+      const endTimeDate = timeStringToDate(shift.end_time);
+      return {
+        ...shift,
+        start_time_date: startTimeDate,
+        end_time_date: endTimeDate,
+        start_time_display: formatTime(startTimeDate, timeFormat),
+        end_time_display: formatTime(endTimeDate, timeFormat),
+      };
+    });
+
+  const loadShiftList = async ({ force = false } = {}) => {
+    if (!canViewShifts) {
+      setShifts([]);
+      setShiftsLoading(false);
+      return false;
+    }
+
     try {
-      // Check if it already has AM/PM
-      if (timeStr.toLowerCase().includes('am') || timeStr.toLowerCase().includes('pm')) {
-        return parse(timeStr, 'h:mm a', new Date());
+      if (!force && Array.isArray(shiftsPageCache.shifts)) {
+        setShifts(processShiftList(shiftsPageCache.shifts));
+        setShiftsLoading(false);
+        return true;
       }
-      
-      // If it's 24-hour format or just numbers
-      const [hours, minutes] = timeStr.split(':').map(Number);
-      const date = new Date();
-      date.setHours(hours, minutes || 0, 0, 0);
-      return date;
-    } catch (error) {
-      console.error('Error parsing time string:', timeStr, error);
-      return null;
+
+      setShiftsLoading(true);
+      setShiftError('');
+
+      if (!force && shiftsPageInFlight.shifts) {
+        const sharedData = await shiftsPageInFlight.shifts;
+        setShifts(processShiftList(sharedData));
+        return true;
+      }
+
+      const requestPromise = api.get('/attendance/shifts/');
+      shiftsPageInFlight.shifts = requestPromise;
+      const data = await requestPromise;
+      const list = Array.isArray(data) ? data : [];
+      shiftsPageCache.shifts = list;
+      setShifts(processShiftList(list));
+      return true;
+    } catch (err) {
+      console.error('Unable to load shifts:', err);
+      setShifts([]);
+      setShiftError('Unable to load shifts.');
+      if (err.response?.status !== 403) {
+        showNotification('Failed to fetch shifts from server.', 'error');
+      }
+      return false;
+    } finally {
+      shiftsPageInFlight.shifts = null;
+      setShiftsLoading(false);
+    }
+  };
+
+  const loadEmployeeAssignmentData = async ({ force = false } = {}) => {
+    if (!canManageEmployeeShifts) {
+      setEmployeeShifts([]);
+      setEmployees([]);
+      setEmployeeShiftsLoading(false);
+      return false;
+    }
+
+    try {
+      if (
+        !force &&
+        Array.isArray(shiftsPageCache.employees) &&
+        Array.isArray(shiftsPageCache.employeeShifts)
+      ) {
+        setEmployees(shiftsPageCache.employees);
+        setEmployeeShifts(shiftsPageCache.employeeShifts);
+        setEmployeeShiftsLoading(false);
+        return true;
+      }
+
+      setEmployeeShiftsLoading(true);
+      setEmployeeShiftsError('');
+
+      if (!force && shiftsPageInFlight.employeeData) {
+        const sharedData = await shiftsPageInFlight.employeeData;
+        setEmployees(sharedData.employees);
+        setEmployeeShifts(sharedData.employeeShifts);
+        return true;
+      }
+
+      const requestPromise = Promise.all([
+        api.get('/employees/employees/').catch((err) => {
+          console.error('Error loading employees:', err);
+          return [];
+        }),
+        api.listEmployeeShifts().catch((err) => {
+          console.error('Error loading employee shifts:', err);
+          return [];
+        }),
+      ]).then(([employeesData, employeeShiftsData]) => ({
+        employees: Array.isArray(employeesData)
+          ? employeesData
+          : employeesData?.results || employeesData?.data || [],
+        employeeShifts: Array.isArray(employeeShiftsData)
+          ? employeeShiftsData
+          : employeeShiftsData?.results || employeeShiftsData?.data || [],
+      }));
+
+      shiftsPageInFlight.employeeData = requestPromise;
+      const nextData = await requestPromise;
+
+      shiftsPageCache.employees = nextData.employees;
+      shiftsPageCache.employeeShifts = nextData.employeeShifts;
+      setEmployees(nextData.employees);
+      setEmployeeShifts(nextData.employeeShifts);
+      return true;
+    } catch (err) {
+      console.error('Unable to load employee shifts:', err);
+      setEmployeeShifts([]);
+      setEmployees([]);
+      setEmployeeShiftsError('Unable to load employee shifts.');
+      showNotification('Failed to fetch employee shifts.', 'error');
+      return false;
+    } finally {
+      shiftsPageInFlight.employeeData = null;
+      setEmployeeShiftsLoading(false);
+    }
+  };
+
+  const handleRefreshLists = async () => {
+    const [shiftOk, employeeOk] = await Promise.all([
+      loadShiftList({ force: true }),
+      canManageEmployeeShifts ? loadEmployeeAssignmentData({ force: true }) : Promise.resolve(true),
+    ]);
+
+    if (shiftOk && employeeOk) {
+      showNotification('Shifts data refreshed successfully.', 'success');
     }
   };
 
   useEffect(() => {
-    if (!canViewShifts) {
-      setShifts([]);
-      setShiftsLoading(false);
-      return;
-    }
-
-    const loadShifts = async () => {
-      setShiftsLoading(true);
-      setShiftError('');
-      try {
-        const data = await api.get('/attendance/shifts/');
-        const list = Array.isArray(data) ? data : [];
-        
-        // Convert time strings to Date objects with AM/PM support
-        const processedList = list.map(shift => ({
-          ...shift,
-          start_time_date: timeStringToDate(shift.start_time),
-          end_time_date: timeStringToDate(shift.end_time),
-          // Store formatted times for display
-          start_time_display: formatTime(timeStringToDate(shift.start_time), timeFormat),
-          end_time_display: formatTime(timeStringToDate(shift.end_time), timeFormat),
-        }));
-        
-        setShifts(processedList);
-      } catch (err) {
-        console.error('Unable to load shifts:', err);
-        setShifts([]);
-        setShiftError('Unable to load shifts.');
-        if (err.response?.status !== 403) {
-          showNotification('Failed to fetch shifts from server.', 'error');
-        }
-      } finally {
-        setShiftsLoading(false);
-      }
-    };
-
-    loadShifts();
-  }, [canViewShifts, timeFormat]);
+    loadShiftList({ force: false });
+  }, [canViewShifts]);
 
   // Load employee shifts and employees
   useEffect(() => {
-    if (!canManageEmployeeShifts) {
-      setEmployeeShifts([]);
-      setEmployeeShiftsLoading(false);
-      return;
-    }
-
-    const loadEmployeeShifts = async () => {
-      setEmployeeShiftsLoading(true);
-      setEmployeeShiftsError('');
-      try {
-        const [employeesData, employeeShiftsData] = await Promise.all([
-          api.get('/employees/employees/').catch((err) => {
-            console.error('Error loading employees:', err);
-            return [];
-          }),
-          api.listEmployeeShifts().catch((err) => {
-            console.error('Error loading employee shifts:', err);
-            return [];
-          }),
-        ]);
-
-        const employeesList = Array.isArray(employeesData)
-          ? employeesData
-          : employeesData?.results || employeesData?.data || [];
-        const employeeShiftsList = Array.isArray(employeeShiftsData)
-          ? employeeShiftsData
-          : employeeShiftsData?.results || employeeShiftsData?.data || [];
-
-        setEmployees(employeesList);
-        setEmployeeShifts(employeeShiftsList);
-      } catch (err) {
-        console.error('Unable to load employee shifts:', err);
-        setEmployeeShifts([]);
-        setEmployees([]);
-        setEmployeeShiftsError('Unable to load employee shifts.');
-        showNotification('Failed to fetch employee shifts.', 'error');
-      } finally {
-        setEmployeeShiftsLoading(false);
-      }
-    };
-
-    loadEmployeeShifts();
+    loadEmployeeAssignmentData({ force: false });
   }, [canManageEmployeeShifts]);
+
+  // Update cached display labels when user changes preferred time format.
+  useEffect(() => {
+    setShifts((prev) =>
+      prev.map((shift) => ({
+        ...shift,
+        start_time_display: formatTime(shift.start_time_date, timeFormat),
+        end_time_display: formatTime(shift.end_time_date, timeFormat),
+      })),
+    );
+  }, [timeFormat]);
 
   // Filter employees based on search
   const filteredEmployees = useMemo(() => {
@@ -439,6 +579,43 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
     });
   }, [enrichedEmployeeShifts, employeeShiftFilters]);
 
+  const groupedEmployeeAssignments = useMemo(() => {
+    const groupedMap = new Map();
+
+    filteredEmployeeShifts.forEach((assignment) => {
+      const employee = assignment.employee || {};
+      const employeeId = typeof employee === 'object' && employee !== null ? employee.id : employee;
+      const groupKey = String(employeeId || employee.user?.email || assignment.id);
+
+      if (!groupedMap.has(groupKey)) {
+        groupedMap.set(groupKey, {
+          key: groupKey,
+          employeeId,
+          employee,
+          assignments: [],
+        });
+      }
+
+      groupedMap.get(groupKey).assignments.push(assignment);
+    });
+
+    return Array.from(groupedMap.values()).sort((a, b) => {
+      const left = String(a.employee?.full_name || a.employee?.employee_code || '').toLowerCase();
+      const right = String(b.employee?.full_name || b.employee?.employee_code || '').toLowerCase();
+      return left.localeCompare(right);
+    });
+  }, [filteredEmployeeShifts]);
+
+  const visibleShifts = useMemo(
+    () => (showFullShiftList ? filteredShifts : filteredShifts.slice(0, 12)),
+    [filteredShifts, showFullShiftList],
+  );
+
+  const visibleGroupedEmployeeAssignments = useMemo(
+    () => (showFullEmployeeList ? groupedEmployeeAssignments : groupedEmployeeAssignments.slice(0, 12)),
+    [groupedEmployeeAssignments, showFullEmployeeList],
+  );
+
   // Get active filter count for shifts
   const activeShiftFilterCount = useMemo(() => {
     let count = 0;
@@ -541,6 +718,7 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
       },
       timeRange: { start: null, end: null }
     });
+    setShowFullShiftList(false);
   };
 
   const clearEmployeeShiftFilters = () => {
@@ -549,6 +727,15 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
       shift: '',
       employeeStatus: ''
     });
+    setShowFullEmployeeList(false);
+    setExpandedEmployeeRows({});
+  };
+
+  const toggleEmployeeRow = (rowKey) => {
+    setExpandedEmployeeRows((prev) => ({
+      ...prev,
+      [rowKey]: !prev[rowKey],
+    }));
   };
 
   const handleTimeFormatChange = (event) => {
@@ -656,10 +843,9 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
     });
     
     // Count shifts for each day and return the maximum
-    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
     let maxShiftsPerDay = 0;
     
-    days.forEach(day => {
+    SHIFT_DAYS.forEach(day => {
       const shiftsOnDay = employeeShiftAssignments.filter(a => a.shift && a.shift[day]);
       if (shiftsOnDay.length > maxShiftsPerDay) {
         maxShiftsPerDay = shiftsOnDay.length;
@@ -702,8 +888,7 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
     // Get the shift being assigned to check its days
     const selectedShift = shifts.find(s => String(s.id) === String(employeeShiftForm.shift));
     if (selectedShift) {
-      const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-      const daysWithNewShift = days.filter(day => selectedShift[day]);
+      const daysWithNewShift = SHIFT_DAYS.filter(day => selectedShift[day]);
       
       // Check if adding this shift would exceed limit on any day
       for (const day of daysWithNewShift) {
@@ -723,14 +908,22 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
     }
     
     try {
-      await api.assignEmployeeShift(employeeShiftForm.employee, employeeShiftForm.shift);
+      const createdAssignment = await api.assignEmployeeShift(employeeShiftForm.employee, employeeShiftForm.shift);
       showNotification('Shift assigned to employee successfully.', 'success');
       setEmployeeShiftDialogOpen(false);
       setEmployeeShiftForm({ employee: '', shift: '' });
       setEmployeeSearch('');
-      // Reload employee shifts
-      const data = await api.listEmployeeShifts();
-      setEmployeeShifts(Array.isArray(data) ? data : []);
+
+      const optimisticAssignment =
+        createdAssignment && typeof createdAssignment === 'object'
+          ? createdAssignment
+          : {
+              id: `tmp-${Date.now()}`,
+              employee: employeeShiftForm.employee,
+              shift: employeeShiftForm.shift,
+            };
+
+      setEmployeeShifts((prev) => [optimisticAssignment, ...prev]);
     } catch (err) {
       // Extract error message
       let errorMsg = 'Failed to assign shift to employee.';
@@ -771,9 +964,7 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
     try {
       await api.removeEmployeeShift(assignmentId);
       showNotification('Shift assignment removed successfully.', 'success');
-      // Reload employee shifts
-      const data = await api.listEmployeeShifts();
-      setEmployeeShifts(Array.isArray(data) ? data : []);
+      setEmployeeShifts((prev) => prev.filter((assignment) => assignment.id !== assignmentId));
     } catch (err) {
       console.error('Failed to remove shift assignment:', err);
       showNotification(err.message || 'Failed to remove shift assignment.', 'error');
@@ -789,6 +980,30 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
     }
   }, []);
 
+  useEffect(() => {
+    shiftsPageCache = {
+      ...shiftsPageCache,
+      shifts: Array.isArray(shifts) ? shifts.map(stripShiftViewFields) : null,
+    };
+    persistShiftsPageCache(shiftsPageCache);
+  }, [shifts]);
+
+  useEffect(() => {
+    shiftsPageCache = {
+      ...shiftsPageCache,
+      employees: Array.isArray(employees) ? employees : null,
+    };
+    persistShiftsPageCache(shiftsPageCache);
+  }, [employees]);
+
+  useEffect(() => {
+    shiftsPageCache = {
+      ...shiftsPageCache,
+      employeeShifts: Array.isArray(employeeShifts) ? employeeShifts : null,
+    };
+    persistShiftsPageCache(shiftsPageCache);
+  }, [employeeShifts]);
+
   if (!canViewShifts) {
     return (
       <Box sx={{ p: 3 }}>
@@ -799,33 +1014,51 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Box sx={{ p: 3 }}>
+      <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
         {/* Header with Time Format Toggle */}
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-          <Typography variant="h4" gutterBottom fontWeight="600">
+        <Stack
+          direction={{ xs: 'column', md: 'row' }}
+          justifyContent="space-between"
+          alignItems={{ xs: 'stretch', md: 'center' }}
+          spacing={1.5}
+          sx={{ mb: 2 }}
+        >
+          <Typography variant={isMobile ? 'h5' : 'h4'} gutterBottom fontWeight="600">
             Shift Management
           </Typography>
           
-          <FormControl>
+          <FormControl sx={{ width: { xs: '100%', md: 'auto' } }}>
             <ToggleButtonGroup
               value={timeFormat}
               exclusive
               onChange={handleTimeFormatChange}
               size="small"
               aria-label="time format"
+              fullWidth={isMobile}
+              orientation={isMobile ? 'vertical' : 'horizontal'}
             >
               <ToggleButton value="12" aria-label="12-hour format">
-                <Stack direction="row" alignItems="center" spacing={1}>
+                <Stack direction="row" alignItems="center" justifyContent="center" spacing={1}>
                   <LightMode fontSize="small" />
                   <Typography variant="body2">12-Hour (AM/PM)</Typography>
                 </Stack>
               </ToggleButton>
               <ToggleButton value="24" aria-label="24-hour format">
-                <Stack direction="row" alignItems="center" spacing={1}>
+                <Stack direction="row" alignItems="center" justifyContent="center" spacing={1}>
                   <DarkMode fontSize="small" />
                   <Typography variant="body2">24-Hour</Typography>
                 </Stack>
               </ToggleButton>
+                  <Button
+                    variant="outlined"
+                    startIcon={<RefreshIcon />}
+                    onClick={handleRefreshLists}
+                    size="small"
+                    fullWidth={isMobile}
+                    disabled={shiftsLoading || employeeShiftsLoading}
+                  >
+                    Refresh
+                  </Button>
             </ToggleButtonGroup>
           </FormControl>
         </Stack>
@@ -848,7 +1081,11 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
               alignItems={{ xs: 'flex-start', sm: 'center' }}
               sx={{ mb: 2 }}
             >
-              <Stack direction="row" spacing={1} alignItems="center">
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={1}
+                alignItems={{ xs: 'flex-start', sm: 'center' }}
+              >
                 <Typography variant="h6">Shift List</Typography>
                 {activeShiftFilterCount > 0 && (
                   <Chip 
@@ -865,16 +1102,32 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
                   variant="outlined"
                   icon={<AccessTime fontSize="small" />}
                 />
+                <Chip
+                  label={`${visibleShifts.length}/${filteredShifts.length} shown`}
+                  size="small"
+                  variant="outlined"
+                />
               </Stack>
-              <Stack direction="row" spacing={1}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: { xs: '100%', sm: 'auto' } }}>
                 <Button
                   variant="outlined"
                   startIcon={<FilterList />}
                   endIcon={shiftFilterExpanded ? <ExpandLess /> : <ExpandMore />}
                   onClick={() => setShiftFilterExpanded(!shiftFilterExpanded)}
                   size="small"
+                  fullWidth={isMobile}
                 >
                   Filter
+                </Button>
+                <Button
+                  variant="outlined"
+                  endIcon={showFullShiftList ? <ExpandLess /> : <ExpandMore />}
+                  onClick={() => setShowFullShiftList((prev) => !prev)}
+                  size="small"
+                  fullWidth={isMobile}
+                  disabled={filteredShifts.length <= 12}
+                >
+                  {showFullShiftList ? 'Show Less' : 'Show Full List'}
                 </Button>
                 {canManageShifts && (
                   <Button
@@ -882,6 +1135,7 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
                     startIcon={<AddIcon />}
                     onClick={openShiftDialogForCreate}
                     size="small"
+                    fullWidth={isMobile}
                   >
                     Add Shift
                   </Button>
@@ -906,6 +1160,7 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
                         </IconButton>
                       ),
                     }}
+                    fullWidth
                     sx={{ flexGrow: 1 }}
                   />
                   
@@ -964,6 +1219,7 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
                     startIcon={<Clear />}
                     variant="outlined"
                     disabled={activeShiftFilterCount === 0}
+                    fullWidth={isMobile}
                   >
                     Clear All
                   </Button>
@@ -973,8 +1229,8 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
                   <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
                     Filter by Days:
                   </Typography>
-                  <FormGroup row>
-                    {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => (
+                  <FormGroup row={!isMobile}>
+                    {SHIFT_DAYS.map((day) => (
                       <FormControlLabel
                         key={day}
                         control={
@@ -1015,103 +1271,154 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
             ) : (
               <>
                 <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-                  Showing {filteredShifts.length} of {shifts.length} shifts • Displaying in {timeFormat}-hour format
+                  Showing {visibleShifts.length} of {filteredShifts.length} filtered shifts ({shifts.length} total) • Displaying in {timeFormat}-hour format
                 </Typography>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell><strong>Name</strong></TableCell>
-                      <TableCell><strong>Time</strong></TableCell>
-                      <TableCell><strong>Days</strong></TableCell>
-                      <TableCell><strong>Duration</strong></TableCell>
-                      <TableCell><strong>Description</strong></TableCell>
-                      {canManageShifts && (
-                        <TableCell align="right"><strong>Actions</strong></TableCell>
-                      )}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {filteredShifts.map((shift) => {
-                      const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-                        .filter((d) => shift[d])
-                        .map((d) => d.charAt(0).toUpperCase() + d.slice(1, 3));
-                      
-                      // Calculate duration
-                      const startTime = shift.start_time_date;
-                      const endTime = shift.end_time_date;
-                      let duration = '';
-                      if (startTime && endTime) {
-                        const diffMs = endTime - startTime;
-                        const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-                        const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-                        duration = `${diffHrs}h ${diffMins}m`;
-                      }
-                      
+                {isTablet ? (
+                  <Stack spacing={1.5}>
+                    {visibleShifts.map((shift) => {
+                      const days = getDayLabels(shift);
+                      const duration = getDurationLabel(shift.start_time_date, shift.end_time_date);
+
                       return (
-                        <TableRow key={shift.id} hover>
-                          <TableCell>{shift.name}</TableCell>
-                          <TableCell>
-                            <Stack direction="column" spacing={0.5}>
-                              <Typography variant="body2">
-                                {shift.start_time_display || shift.start_time} – {shift.end_time_display || shift.end_time}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                <AccessTime fontSize="inherit" /> {duration}
-                              </Typography>
+                        <Paper key={shift.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                          <Stack spacing={1.25}>
+                            <Stack direction="row" justifyContent="space-between" spacing={1} alignItems="flex-start">
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="subtitle1" fontWeight={700} noWrap>
+                                  {shift.name}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  {shift.start_time_display || shift.start_time} - {shift.end_time_display || shift.end_time}
+                                </Typography>
+                              </Box>
+                              {duration && <Chip label={duration} size="small" color="primary" variant="outlined" />}
                             </Stack>
-                          </TableCell>
-                          <TableCell>
-                            <Stack direction="row" spacing={0.5} flexWrap="wrap">
-                              {days.map((day) => (
-                                <Chip key={day} label={day} size="small" variant="outlined" />
-                              ))}
+                            <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
+                              {days.length > 0 ? (
+                                days.map((day) => <Chip key={day} label={day} size="small" variant="outlined" />)
+                              ) : (
+                                <Chip label="No active day" size="small" variant="outlined" />
+                              )}
                             </Stack>
-                          </TableCell>
-                          <TableCell>
-                            <Chip 
-                              label={duration} 
-                              size="small" 
-                              color="primary"
-                              variant="outlined"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 200 }}>
-                              {shift.description || '–'}
+                            <Typography variant="body2" color="text.secondary">
+                              {shift.description || 'No description provided.'}
                             </Typography>
-                          </TableCell>
-                          {canManageShifts && (
-                            <TableCell align="right">
-                              <Tooltip title="Edit">
-                                <IconButton size="small" onClick={() => openShiftDialogForEdit(shift)}>
-                                  <EditIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Delete">
-                                <IconButton
-                                  size="small"
-                                  color="error"
-                                  onClick={() => handleDeleteShift(shift.id)}
-                                >
-                                  <DeleteIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            </TableCell>
-                          )}
-                        </TableRow>
+                            {canManageShifts && (
+                              <Stack direction="row" spacing={1} justifyContent="flex-end">
+                                <Button size="small" startIcon={<EditIcon />} onClick={() => openShiftDialogForEdit(shift)}>
+                                  Edit
+                                </Button>
+                                <Button size="small" color="error" startIcon={<DeleteIcon />} onClick={() => handleDeleteShift(shift.id)}>
+                                  Delete
+                                </Button>
+                              </Stack>
+                            )}
+                          </Stack>
+                        </Paper>
                       );
                     })}
-                  </TableBody>
-                </Table>
+                  </Stack>
+                ) : (
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell><strong>Name</strong></TableCell>
+                          <TableCell><strong>Time</strong></TableCell>
+                          <TableCell><strong>Days</strong></TableCell>
+                          <TableCell><strong>Duration</strong></TableCell>
+                          <TableCell><strong>Description</strong></TableCell>
+                          {canManageShifts && (
+                            <TableCell align="right"><strong>Actions</strong></TableCell>
+                          )}
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {visibleShifts.map((shift) => {
+                          const days = getDayLabels(shift);
+                          const duration = getDurationLabel(shift.start_time_date, shift.end_time_date);
+
+                          return (
+                            <TableRow key={shift.id} hover>
+                              <TableCell>{shift.name}</TableCell>
+                              <TableCell>
+                                <Stack direction="column" spacing={0.5}>
+                                  <Typography variant="body2">
+                                    {shift.start_time_display || shift.start_time} - {shift.end_time_display || shift.end_time}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    <AccessTime fontSize="inherit" /> {duration}
+                                  </Typography>
+                                </Stack>
+                              </TableCell>
+                              <TableCell>
+                                <Stack direction="row" spacing={0.5} flexWrap="wrap">
+                                  {days.map((day) => (
+                                    <Chip key={day} label={day} size="small" variant="outlined" />
+                                  ))}
+                                </Stack>
+                              </TableCell>
+                              <TableCell>
+                                <Chip 
+                                  label={duration} 
+                                  size="small" 
+                                  color="primary"
+                                  variant="outlined"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 200 }}>
+                                  {shift.description || '–'}
+                                </Typography>
+                              </TableCell>
+                              {canManageShifts && (
+                                <TableCell align="right">
+                                  <Tooltip title="Edit">
+                                    <IconButton size="small" onClick={() => openShiftDialogForEdit(shift)}>
+                                      <EditIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                  <Tooltip title="Delete">
+                                    <IconButton
+                                      size="small"
+                                      color="error"
+                                      onClick={() => handleDeleteShift(shift.id)}
+                                    >
+                                      <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </TableCell>
+                              )}
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
               </>
             )}
           </CardContent>
         </Card>
 
         {/* Shift Dialog */}
-        <Dialog open={shiftDialogOpen} onClose={closeShiftDialog} fullWidth maxWidth="sm">
+        <Dialog
+          open={shiftDialogOpen}
+          onClose={closeShiftDialog}
+          fullWidth
+          maxWidth="sm"
+          fullScreen={isMobile}
+          scroll="paper"
+          PaperProps={{
+            sx: {
+              width: { xs: 'calc(100vw - 16px)', sm: '100%' },
+              maxHeight: { xs: 'calc(100dvh - 16px)', sm: 'calc(100dvh - 48px)' },
+              m: { xs: 1, sm: 3 },
+            },
+          }}
+        >
           <DialogTitle>
-            <Stack direction="row" alignItems="center" spacing={1}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1}>
               <Schedule />
               <span>{editingShift ? 'Edit Shift' : 'Add New Shift'}</span>
               <Chip 
@@ -1123,7 +1430,7 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
               />
             </Stack>
           </DialogTitle>
-          <DialogContent dividers>
+          <DialogContent dividers sx={{ px: { xs: 2, sm: 3 }, py: 2 }}>
             <TextField
               margin="normal"
               label="Shift Name"
@@ -1233,8 +1540,8 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
               <Typography variant="subtitle2" gutterBottom>
                 Active Days
               </Typography>
-              <FormGroup row>
-                {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => (
+              <FormGroup row={!isMobile}>
+                {SHIFT_DAYS.map((day) => (
                   <FormControlLabel
                     key={day}
                     control={
@@ -1249,13 +1556,14 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
               </FormGroup>
             </Box>
           </DialogContent>
-          <DialogActions>
-            <Button onClick={closeShiftDialog}>Cancel</Button>
+          <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2, flexDirection: { xs: 'column-reverse', sm: 'row' }, gap: 1 }}>
+            <Button onClick={closeShiftDialog} fullWidth={isMobile}>Cancel</Button>
             {canManageShifts && (
               <Button 
                 onClick={handleSubmitShift} 
                 variant="contained"
                 disabled={!shiftForm.name || !shiftForm.start_time || !shiftForm.end_time}
+                fullWidth={isMobile}
               >
                 {editingShift ? 'Save Changes' : 'Create Shift'}
               </Button>
@@ -1274,7 +1582,7 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
                 alignItems={{ xs: 'flex-start', sm: 'center' }}
                 sx={{ mb: 2 }}
               >
-                <Stack direction="row" spacing={1} alignItems="center">
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', sm: 'center' }}>
                   <Typography variant="h6">Employee Shift Assignments</Typography>
                   {activeEmployeeShiftFilterCount > 0 && (
                     <Chip 
@@ -1284,14 +1592,25 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
                       variant="outlined"
                     />
                   )}
+                  <Chip
+                    label={`${visibleGroupedEmployeeAssignments.length}/${groupedEmployeeAssignments.length} employees`}
+                    size="small"
+                    variant="outlined"
+                  />
+                  <Chip
+                    label={`${filteredEmployeeShifts.length} assignments`}
+                    size="small"
+                    variant="outlined"
+                  />
                 </Stack>
-                <Stack direction="row" spacing={1}>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: { xs: '100%', sm: 'auto' } }}>
                   <Button
                     variant="outlined"
                     startIcon={<FilterList />}
                     endIcon={employeeShiftFilterExpanded ? <ExpandLess /> : <ExpandMore />}
                     onClick={() => setEmployeeShiftFilterExpanded(!employeeShiftFilterExpanded)}
                     size="small"
+                      fullWidth={isMobile}
                   >
                     Filter
                   </Button>
@@ -1300,6 +1619,7 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
                     startIcon={<AddIcon />}
                     onClick={() => setEmployeeShiftDialogOpen(true)}
                     size="small"
+                    fullWidth={isMobile}
                   >
                     Assign Shift
                   </Button>
@@ -1323,10 +1643,11 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
                           </IconButton>
                         ),
                       }}
+                      fullWidth
                       sx={{ flexGrow: 1 }}
                     />
                     
-                    <FormControl size="small" sx={{ minWidth: 150 }}>
+                    <FormControl size="small" sx={{ minWidth: 150, width: { xs: '100%', md: 'auto' } }}>
                       <InputLabel>Shift</InputLabel>
                       <Select
                         value={employeeShiftFilters.shift}
@@ -1347,7 +1668,7 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
                       </Select>
                     </FormControl>
                     
-                    <FormControl size="small" sx={{ minWidth: 150 }}>
+                    <FormControl size="small" sx={{ minWidth: 150, width: { xs: '100%', md: 'auto' } }}>
                       <InputLabel>Employee Status</InputLabel>
                       <Select
                         value={employeeShiftFilters.employeeStatus}
@@ -1366,6 +1687,7 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
                       startIcon={<Clear />}
                       variant="outlined"
                       disabled={activeEmployeeShiftFilterCount === 0}
+                      fullWidth={isMobile}
                     >
                       Clear All
                     </Button>
@@ -1384,7 +1706,7 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                   <CircularProgress size={32} />
                 </Box>
-              ) : filteredEmployeeShifts.length === 0 ? (
+              ) : groupedEmployeeAssignments.length === 0 ? (
                 <Alert severity="info">
                   {enrichedEmployeeShifts.length === 0 
                     ? 'No employee shift assignments found.' 
@@ -1398,82 +1720,177 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
               ) : (
                 <>
                   <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-                    Showing {filteredEmployeeShifts.length} of {enrichedEmployeeShifts.length} assignments
+                    Showing {visibleGroupedEmployeeAssignments.length} employee rows with {filteredEmployeeShifts.length} assignment(s)
                   </Typography>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell><strong>Employee</strong></TableCell>
-                        <TableCell><strong>Email</strong></TableCell>
-                        <TableCell><strong>Employee Code</strong></TableCell>
-                        <TableCell><strong>Shift</strong></TableCell>
-                        <TableCell><strong>Shift Time</strong></TableCell>
-                        <TableCell><strong>Duration</strong></TableCell>
-                        <TableCell align="right"><strong>Actions</strong></TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {filteredEmployeeShifts.map((assignment) => {
-                        const shift = assignment.shift;
-                        let duration = '';
-                        if (shift?.start_time_date && shift?.end_time_date) {
-                          const diffMs = shift.end_time_date - shift.start_time_date;
-                          const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-                          const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-                          duration = `${diffHrs}h ${diffMins}m`;
-                        }
-                        
+                  {isTablet ? (
+                    <Stack spacing={1.5}>
+                      {visibleGroupedEmployeeAssignments.map((group) => {
+                        const employee = group.employee || {};
+                        const isExpanded = !!expandedEmployeeRows[group.key];
+                        const visibleAssignments = isExpanded ? group.assignments : group.assignments.slice(0, 2);
+
                         return (
-                          <TableRow key={assignment.id} hover>
-                            <TableCell>
-                              {assignment.employee?.full_name || 'Unknown'}
-                            </TableCell>
-                            <TableCell>{assignment.employee?.user?.email || '-'}</TableCell>
-                            <TableCell>{assignment.employee?.employee_code || '-'}</TableCell>
-                            <TableCell>
-                              <Chip 
-                                label={assignment.shift?.name || 'Unknown'} 
-                                size="small" 
-                                variant="outlined" 
-                                color="primary"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Stack>
-                                <Typography variant="body2">
-                                  {shift?.start_time_display || shift?.start_time} - {shift?.end_time_display || shift?.end_time}
-                                </Typography>
-                                {timeFormat === '12' && (
-                                  <Typography variant="caption" color="text.secondary">
-                                    24h: {shift?.start_time} - {shift?.end_time}
+                          <Paper key={group.key} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                            <Stack spacing={1.25}>
+                              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                                <Box sx={{ minWidth: 0 }}>
+                                  <Typography variant="subtitle1" fontWeight={700} noWrap>
+                                    {employee.full_name || 'Unknown'}
                                   </Typography>
-                                )}
+                                  <Typography variant="body2" color="text.secondary" noWrap>
+                                    {employee.user?.email || '-'}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    Code: {employee.employee_code || '-'}
+                                  </Typography>
+                                </Box>
+                                <Chip label={`${group.assignments.length} shift(s)`} size="small" variant="outlined" />
                               </Stack>
-                            </TableCell>
-                            <TableCell>
-                              <Chip 
-                                label={duration} 
-                                size="small" 
-                                color="secondary"
-                                variant="outlined"
-                              />
-                            </TableCell>
-                            <TableCell align="right">
-                              <Tooltip title="Remove Assignment">
-                                <IconButton
+
+                              {visibleAssignments.map((assignment) => {
+                                const shift = assignment.shift;
+                                const duration = getDurationLabel(shift?.start_time_date, shift?.end_time_date);
+                                return (
+                                  <Paper key={assignment.id} variant="outlined" sx={{ p: 1, borderRadius: 1.5 }}>
+                                    <Stack spacing={0.75}>
+                                      <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', sm: 'center' }}>
+                                          <Chip
+                                            label={assignment.shift?.name || 'Unknown'}
+                                            size="small"
+                                            variant="outlined"
+                                            color="primary"
+                                          />
+                                          {duration && <Chip label={duration} size="small" color="secondary" variant="outlined" />}
+                                        </Stack>
+                                        <Button
+                                          size="small"
+                                          color="error"
+                                          startIcon={<DeleteIcon />}
+                                          onClick={() => handleRemoveEmployeeShift(assignment.id)}
+                                        >
+                                          Remove
+                                        </Button>
+                                      </Stack>
+                                      <Typography variant="body2">
+                                        {shift?.start_time_display || shift?.start_time} - {shift?.end_time_display || shift?.end_time}
+                                      </Typography>
+                                      {timeFormat === '12' && (
+                                        <Typography variant="caption" color="text.secondary">
+                                          24h: {shift?.start_time} - {shift?.end_time}
+                                        </Typography>
+                                      )}
+                                    </Stack>
+                                  </Paper>
+                                );
+                              })}
+
+                              {group.assignments.length > 2 && (
+                                <Button
                                   size="small"
-                                  color="error"
-                                  onClick={() => handleRemoveEmployeeShift(assignment.id)}
+                                  variant="text"
+                                  endIcon={isExpanded ? <ExpandLess /> : <ExpandMore />}
+                                  onClick={() => toggleEmployeeRow(group.key)}
                                 >
-                                  <DeleteIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            </TableCell>
-                          </TableRow>
+                                  {isExpanded ? 'Show Less Shifts' : `Show All Shifts (${group.assignments.length})`}
+                                </Button>
+                              )}
+                            </Stack>
+                          </Paper>
                         );
                       })}
-                    </TableBody>
-                  </Table>
+                    </Stack>
+                  ) : (
+                    <TableContainer component={Paper} variant="outlined">
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell><strong>Employee</strong></TableCell>
+                            <TableCell><strong>Email</strong></TableCell>
+                            <TableCell><strong>Employee Code</strong></TableCell>
+                            <TableCell><strong>Assigned Shifts</strong></TableCell>
+                            <TableCell align="right"><strong>Actions</strong></TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {visibleGroupedEmployeeAssignments.map((group) => {
+                            const employee = group.employee || {};
+                            const isExpanded = !!expandedEmployeeRows[group.key];
+                            const visibleAssignments = isExpanded ? group.assignments : group.assignments.slice(0, 2);
+
+                            return (
+                              <TableRow key={group.key} hover>
+                                <TableCell>
+                                  {employee.full_name || 'Unknown'}
+                                </TableCell>
+                                <TableCell>{employee.user?.email || '-'}</TableCell>
+                                <TableCell>{employee.employee_code || '-'}</TableCell>
+                                <TableCell>
+                                  <Stack spacing={1}>
+                                    {visibleAssignments.map((assignment) => {
+                                      const shift = assignment.shift;
+                                      const duration = getDurationLabel(shift?.start_time_date, shift?.end_time_date);
+                                      return (
+                                        <Paper key={assignment.id} variant="outlined" sx={{ p: 1, borderRadius: 1.5 }}>
+                                          <Stack spacing={0.5}>
+                                            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                              <Chip
+                                                label={assignment.shift?.name || 'Unknown'}
+                                                size="small"
+                                                variant="outlined"
+                                                color="primary"
+                                              />
+                                              {duration && (
+                                                <Chip
+                                                  label={duration}
+                                                  size="small"
+                                                  color="secondary"
+                                                  variant="outlined"
+                                                />
+                                              )}
+                                            </Stack>
+                                            <Typography variant="body2">
+                                              {shift?.start_time_display || shift?.start_time} - {shift?.end_time_display || shift?.end_time}
+                                            </Typography>
+                                          </Stack>
+                                        </Paper>
+                                      );
+                                    })}
+                                    {group.assignments.length > 2 && (
+                                      <Button
+                                        size="small"
+                                        variant="text"
+                                        endIcon={isExpanded ? <ExpandLess /> : <ExpandMore />}
+                                        onClick={() => toggleEmployeeRow(group.key)}
+                                        sx={{ alignSelf: 'flex-start' }}
+                                      >
+                                        {isExpanded ? 'Show Less Shifts' : `Show All Shifts (${group.assignments.length})`}
+                                      </Button>
+                                    )}
+                                  </Stack>
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Stack spacing={0.75} alignItems="flex-end">
+                                    {visibleAssignments.map((assignment) => (
+                                      <Tooltip key={assignment.id} title={`Remove ${assignment.shift?.name || 'Shift'}`}>
+                                        <IconButton
+                                          size="small"
+                                          color="error"
+                                          onClick={() => handleRemoveEmployeeShift(assignment.id)}
+                                        >
+                                          <DeleteIcon fontSize="small" />
+                                        </IconButton>
+                                      </Tooltip>
+                                    ))}
+                                  </Stack>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
                 </>
               )}
             </CardContent>
@@ -1486,12 +1903,33 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
           onClose={() => {
             setEmployeeShiftDialogOpen(false);
             setEmployeeShiftForm({ employee: '', shift: '' });
+            setEmployeeSearch('');
           }}
           fullWidth
           maxWidth="sm"
+          fullScreen={isMobile}
+          scroll="paper"
+          PaperProps={{
+            sx: {
+              width: { xs: 'calc(100vw - 16px)', sm: '100%' },
+              maxHeight: { xs: 'calc(100dvh - 16px)', sm: 'calc(100dvh - 48px)' },
+              m: { xs: 1, sm: 3 },
+            },
+          }}
         >
           <DialogTitle>Assign Shift to Employee</DialogTitle>
-          <DialogContent dividers>
+          <DialogContent dividers sx={{ px: { xs: 2, sm: 3 }, py: 2 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Search Employee"
+              value={employeeSearch}
+              onChange={(e) => setEmployeeSearch(e.target.value)}
+              placeholder="Search by name, email or code"
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment>,
+              }}
+            />
             <FormControl fullWidth sx={{ mt: 2 }}>
               <InputLabel>Select Employee</InputLabel>
               <Select
@@ -1507,7 +1945,12 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
                 ) : (
                   filteredEmployees.map((emp) => (
                     <MenuItem key={emp.id} value={emp.id}>
-                      {emp.full_name || emp.employee_code || 'Unknown'}
+                      <Stack spacing={0.25}>
+                        <Typography variant="body2">{emp.full_name || emp.employee_code || 'Unknown'}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {emp.user?.email || emp.employee_code || 'No contact info'}
+                        </Typography>
+                      </Stack>
                     </MenuItem>
                   ))
                 )}
@@ -1522,18 +1965,32 @@ const Shifts = ({ role, onNotify: propsNotify }) => {
               >
                 {shifts.map((shift) => (
                   <MenuItem key={shift.id} value={shift.id}>
-                    {shift.name} ({shift.start_time} - {shift.end_time})
+                    <Stack spacing={0.25}>
+                      <Typography variant="body2">{shift.name}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {shift.start_time_display || shift.start_time} - {shift.end_time_display || shift.end_time}
+                      </Typography>
+                    </Stack>
                   </MenuItem>
                 ))}
               </Select>
             </FormControl>
           </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setEmployeeShiftDialogOpen(false)}>Cancel</Button>
+          <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2, flexDirection: { xs: 'column-reverse', sm: 'row' }, gap: 1 }}>
+            <Button
+              onClick={() => {
+                setEmployeeShiftDialogOpen(false);
+                setEmployeeSearch('');
+              }}
+              fullWidth={isMobile}
+            >
+              Cancel
+            </Button>
             <Button 
               onClick={handleAssignEmployeeShift} 
               variant="contained"
               disabled={!employeeShiftForm.employee || !employeeShiftForm.shift}
+              fullWidth={isMobile}
             >
               Assign Shift
             </Button>
