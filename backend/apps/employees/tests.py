@@ -131,9 +131,11 @@ class EmployeesAPITests(APITestCase):
         self.assertEqual(delete_res.status_code, status.HTTP_204_NO_CONTENT)
 
     def test_employee_cannot_list_departments(self):
-        token = self.login("HAC-2003", "EmployeePass123!")
-        res = self.client.get(reverse("department-list"), **self.auth(token))
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        res_login = self.client.post(
+            reverse("token_obtain_pair"),
+            {"employee_code": "HAC-2003", "password": "EmployeePass123!"},
+        )
+        self.assertEqual(res_login.status_code, status.HTTP_400_BAD_REQUEST)
 
     # Employee endpoints
     def test_admin_employee_list_returns_all(self):
@@ -153,9 +155,11 @@ class EmployeesAPITests(APITestCase):
         self.assertNotIn("HAC-2004", codes)
 
     def test_employee_cannot_list_employees(self):
-        token = self.login("HAC-2003", "EmployeePass123!")
-        res = self.client.get(reverse("employee-list"), **self.auth(token))
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        res_login = self.client.post(
+            reverse("token_obtain_pair"),
+            {"employee_code": "HAC-2003", "password": "EmployeePass123!"},
+        )
+        self.assertEqual(res_login.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_post_employee_endpoint_not_allowed(self):
         token = self.login("HAC-2001", self.admin_password)
@@ -202,9 +206,8 @@ class EmployeesAPITests(APITestCase):
         self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_employee_cannot_retrieve_employee_detail(self):
-        token = self.login("HAC-2003", "EmployeePass123!")
-        res = self.client.get(
-            reverse("employee-detail", args=[self.emp_main_profile.id]),
-            **self.auth(token),
+        res_login = self.client.post(
+            reverse("token_obtain_pair"),
+            {"employee_code": "HAC-2003", "password": "EmployeePass123!"},
         )
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(res_login.status_code, status.HTTP_400_BAD_REQUEST)

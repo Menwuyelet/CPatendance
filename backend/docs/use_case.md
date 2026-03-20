@@ -10,6 +10,7 @@ Only implemented behavior is documented.
 ## Common Preconditions
 
 - Authenticated endpoints require JWT Bearer token.
+- JWT tokens are only issued to ADMIN or MANAGER roles; EMPLOYEE cannot authenticate.
 - Role checks are done on `request.user` via:
   - `is_admin()`
   - `is_department_manager()`
@@ -23,7 +24,7 @@ Only implemented behavior is documented.
 ## 1. User Login
 
 ### Goal
-Authenticate with employee code and password, receive JWT tokens and minimal user data.
+Authenticate (ADMIN or MANAGER only) with employee code and password, receive JWT tokens and minimal user data. Employees cannot log in.
 
 ### Endpoint
 `POST /api/auth/login/`

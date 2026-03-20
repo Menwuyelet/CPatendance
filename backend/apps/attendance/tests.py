@@ -299,13 +299,12 @@ class AttendanceAPITests(APITestCase):
         self.assertIn(self.record_main.id, ids)
         self.assertNotIn(self.record_other.id, ids)
 
-    def test_employee_only_sees_own_records(self):
-        token = self.login("HAC-4003", "EmployeePass123!")
-        res = self.client.get(reverse("attendance-list"), **self.auth(token))
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        ids = [item["id"] for item in res.data.get("results", res.data)]
-        self.assertIn(self.record_main.id, ids)
-        self.assertNotIn(self.record_other.id, ids)
+    def test_employee_cannot_authenticate_for_records(self):
+        res_login = self.client.post(
+            reverse("token_obtain_pair"),
+            {"employee_code": "HAC-4003", "password": "EmployeePass123!"},
+        )
+        self.assertEqual(res_login.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_manager_update_record_rejected(self):
         token = self.login("HAC-4002", self.manager_password)
@@ -360,18 +359,11 @@ class AttendanceAPITests(APITestCase):
 
     # Listing scope
     def test_employee_session_list_is_empty(self):
-        token = self.login("HAC-4003", "EmployeePass123!")
-        AttendanceSession.objects.create(
-            shift=self.shift_main,
-            started_by=self.manager,
-            is_active=True,
+        res_login = self.client.post(
+            reverse("token_obtain_pair"),
+            {"employee_code": "HAC-4003", "password": "EmployeePass123!"},
         )
-        res = self.client.get(
-            reverse("attendance-manage-sessions-list"), **self.auth(token)
-        )
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        results = res.data.get("results", res.data)
-        self.assertEqual(len(results), 0)
+        self.assertEqual(res_login.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_manager_session_list_scoped_to_department(self):
         token = self.login("HAC-4002", self.manager_password)

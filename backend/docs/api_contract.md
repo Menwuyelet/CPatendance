@@ -7,9 +7,9 @@ This contract documents currently implemented endpoints under:
 - `/api/biometrics/*`
 
 Base behavior:
-- Authentication: JWT (`Authorization: Bearer <token>`)
-- Default permission: authenticated user
-- Endpoint-specific permission overrides are listed below
+- Authentication: JWT (`Authorization: Bearer <token>`) issued **only to ADMIN or MANAGER roles**. Employees cannot obtain tokens.
+- Default permission: authenticated user (therefore effectively ADMIN/MANAGER unless otherwise noted).
+- Endpoint-specific permission overrides are listed below.
 
 ## Auth Endpoints
 
@@ -48,7 +48,7 @@ Issue access/refresh tokens from `employee_code` + password.
 ```
 
 ### Permission
-Public (login endpoint).
+Restricted: Only users with role ADMIN or MANAGER may receive tokens. Other roles receive 400 with role error.
 
 ## POST /api/auth/refresh/
 
