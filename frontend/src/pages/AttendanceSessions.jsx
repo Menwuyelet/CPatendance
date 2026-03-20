@@ -27,9 +27,66 @@ import {
   TextField,
   InputAdornment,
   Chip,
+  TableContainer,
+  Paper,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
-import { Add as AddIcon, Delete as DeleteIcon, PlayArrow, Stop, Search, Clear } from '@mui/icons-material';
+import { Add as AddIcon, Delete as DeleteIcon, PlayArrow, Stop, Search, Clear, Refresh as RefreshIcon } from '@mui/icons-material';
 import { api } from '../services/api.service.js';
+
+const ATTENDANCE_SESSIONS_CACHE_KEY = 'attendance.sessions.pageCache.v1';
+
+const readPersistedAttendanceSessionsCache = () => {
+  if (typeof window === 'undefined') {
+    return {
+      sessions: null,
+      shifts: null,
+      employees: null,
+      employeeShifts: null,
+    };
+  }
+
+  try {
+    const raw = window.sessionStorage.getItem(ATTENDANCE_SESSIONS_CACHE_KEY);
+    if (!raw) {
+      return {
+        sessions: null,
+        shifts: null,
+        employees: null,
+        employeeShifts: null,
+      };
+    }
+
+    const parsed = JSON.parse(raw);
+    return {
+      sessions: Array.isArray(parsed?.sessions) ? parsed.sessions : null,
+      shifts: Array.isArray(parsed?.shifts) ? parsed.shifts : null,
+      employees: Array.isArray(parsed?.employees) ? parsed.employees : null,
+      employeeShifts: Array.isArray(parsed?.employeeShifts) ? parsed.employeeShifts : null,
+    };
+  } catch (error) {
+    // console.warn('Unable to read attendance sessions cache:', error);
+    return {
+      sessions: null,
+      shifts: null,
+      employees: null,
+      employeeShifts: null,
+    };
+  }
+};
+
+const persistAttendanceSessionsCache = (cache) => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.sessionStorage.setItem(ATTENDANCE_SESSIONS_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    // console.warn('Unable to persist attendance sessions cache:', error);
+  }
+};
+
+let attendanceSessionsPageCache = readPersistedAttendanceSessionsCache();
 
 // Helper function to check if current time is within shift time
 const isWithinShiftTime = (shift) => {
@@ -121,6 +178,9 @@ const enrichSessions = async (sessionsList) => {
 };
 
 const AttendanceSessions = ({ role, onNotify: propsNotify }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   const isManager = role === 'Manager';
   const isHR = role === 'HR';
   const isAdmin = role === 'Admin';
@@ -152,6 +212,8 @@ const AttendanceSessions = ({ role, onNotify: propsNotify }) => {
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
   const [selectedShiftForSession, setSelectedShiftForSession] = useState('');
   const [shifts, setShifts] = useState([]);
+  const [sessionStatusFilter, setSessionStatusFilter] = useState('ALL');
+  const [sessionShiftFilter, setSessionShiftFilter] = useState('ALL');
 
   // Employee Shifts state
   const [employeeShifts, setEmployeeShifts] = useState([]);
@@ -165,10 +227,17 @@ const AttendanceSessions = ({ role, onNotify: propsNotify }) => {
   // Load shifts for session creation
   useEffect(() => {
     if (!canManageSessions) return;
+
+    if (Array.isArray(attendanceSessionsPageCache.shifts)) {
+      setShifts(attendanceSessionsPageCache.shifts);
+      return;
+    }
+
     const loadShifts = async () => {
       try {
         const data = await api.get('/attendance/shifts/');
-        setShifts(Array.isArray(data) ? data : []);
+        const shiftsList = Array.isArray(data) ? data : [];
+        setShifts(shiftsList);
       } catch (err) {
         console.error('Failed to load shifts:', err);
       }
@@ -180,6 +249,12 @@ const AttendanceSessions = ({ role, onNotify: propsNotify }) => {
   useEffect(() => {
     if (!canManageSessions) {
       setSessions([]);
+      setSessionsLoading(false);
+      return;
+    }
+
+    if (Array.isArray(attendanceSessionsPageCache.sessions)) {
+      setSessions(attendanceSessionsPageCache.sessions);
       setSessionsLoading(false);
       return;
     }
@@ -212,6 +287,18 @@ const AttendanceSessions = ({ role, onNotify: propsNotify }) => {
   useEffect(() => {
     if (!canManageEmployeeShifts) {
       setEmployeeShifts([]);
+      setEmployeeShiftsLoading(false);
+      return;
+    }
+
+    if (
+      Array.isArray(attendanceSessionsPageCache.employees)
+      && Array.isArray(attendanceSessionsPageCache.employeeShifts)
+      && Array.isArray(attendanceSessionsPageCache.shifts)
+    ) {
+      setEmployees(attendanceSessionsPageCache.employees);
+      setEmployeeShifts(attendanceSessionsPageCache.employeeShifts);
+      setShifts(attendanceSessionsPageCache.shifts);
       setEmployeeShiftsLoading(false);
       return;
     }
@@ -264,6 +351,38 @@ const AttendanceSessions = ({ role, onNotify: propsNotify }) => {
 
     loadEmployeeShifts();
   }, [canManageEmployeeShifts]);
+
+  useEffect(() => {
+    attendanceSessionsPageCache = {
+      ...attendanceSessionsPageCache,
+      shifts: Array.isArray(shifts) ? shifts : null,
+    };
+    persistAttendanceSessionsCache(attendanceSessionsPageCache);
+  }, [shifts]);
+
+  useEffect(() => {
+    attendanceSessionsPageCache = {
+      ...attendanceSessionsPageCache,
+      sessions: Array.isArray(sessions) ? sessions : null,
+    };
+    persistAttendanceSessionsCache(attendanceSessionsPageCache);
+  }, [sessions]);
+
+  useEffect(() => {
+    attendanceSessionsPageCache = {
+      ...attendanceSessionsPageCache,
+      employees: Array.isArray(employees) ? employees : null,
+    };
+    persistAttendanceSessionsCache(attendanceSessionsPageCache);
+  }, [employees]);
+
+  useEffect(() => {
+    attendanceSessionsPageCache = {
+      ...attendanceSessionsPageCache,
+      employeeShifts: Array.isArray(employeeShifts) ? employeeShifts : null,
+    };
+    persistAttendanceSessionsCache(attendanceSessionsPageCache);
+  }, [employeeShifts]);
 
   // Filter employees based on search
   const filteredEmployees = useMemo(() => {
@@ -324,6 +443,29 @@ const AttendanceSessions = ({ role, onNotify: propsNotify }) => {
       return currentTime >= shift.start_time && currentTime <= shift.end_time;
     });
   }, [shifts]);
+
+  const getShiftType = (shiftName) => {
+    const value = String(shiftName || '').toLowerCase();
+    if (value.includes('weekend')) return 'WEEKEND';
+    if (value.includes('night')) return 'NIGHT';
+    if (value.includes('afternoon')) return 'AFTERNOON';
+    if (value.includes('morning')) return 'MORNING';
+    return 'OTHER';
+  };
+
+  const filteredSessions = useMemo(() => {
+    return sessions.filter((session) => {
+      const matchesStatus =
+        sessionStatusFilter === 'ALL'
+        || (sessionStatusFilter === 'ACTIVE' && session.is_active)
+        || (sessionStatusFilter === 'CLOSED' && !session.is_active);
+
+      const shiftType = getShiftType(session.shift?.name);
+      const matchesShiftType = sessionShiftFilter === 'ALL' || shiftType === sessionShiftFilter;
+
+      return matchesStatus && matchesShiftType;
+    });
+  }, [sessions, sessionStatusFilter, sessionShiftFilter]);
 
   // Sessions handlers
   const handleStartSession = async () => {
@@ -528,6 +670,65 @@ const AttendanceSessions = ({ role, onNotify: propsNotify }) => {
     }
   };
 
+  const handleRefreshAttendanceData = async () => {
+    if (!canManageSessions && !canManageEmployeeShifts) return;
+
+    try {
+      setSessionsLoading(canManageSessions);
+      setEmployeeShiftsLoading(canManageEmployeeShifts);
+      setSessionError('');
+      setEmployeeShiftsError('');
+
+      const tasks = [];
+
+      if (canManageSessions) {
+        tasks.push(
+          (async () => {
+            const sessionsData = await api.listAttendanceSessions().catch(() => []);
+            const sessionsList = Array.isArray(sessionsData) ? sessionsData : [];
+            const enrichedSessions = await enrichSessions(sessionsList);
+            setSessions(enrichedSessions);
+          })(),
+        );
+      }
+
+      if (canManageEmployeeShifts) {
+        tasks.push(
+          (async () => {
+            const [employeesData, employeeShiftsData, shiftsData] = await Promise.all([
+              api.get('/employees/employees/').catch(() => []),
+              api.listEmployeeShifts().catch(() => []),
+              api.get('/attendance/shifts/').catch(() => []),
+            ]);
+
+            const employeesList = Array.isArray(employeesData)
+              ? employeesData
+              : employeesData?.results || employeesData?.data || [];
+            const employeeShiftsList = Array.isArray(employeeShiftsData)
+              ? employeeShiftsData
+              : employeeShiftsData?.results || employeeShiftsData?.data || [];
+            const shiftsList = Array.isArray(shiftsData)
+              ? shiftsData
+              : shiftsData?.results || shiftsData?.data || [];
+
+            setEmployees(employeesList);
+            setEmployeeShifts(employeeShiftsList);
+            setShifts(shiftsList);
+          })(),
+        );
+      }
+
+      await Promise.all(tasks);
+      showNotification('Attendance session data refreshed successfully.', 'success');
+    } catch (err) {
+      console.error('Failed to refresh attendance session data:', err);
+      showNotification('Failed to refresh attendance session data.', 'error');
+    } finally {
+      setSessionsLoading(false);
+      setEmployeeShiftsLoading(false);
+    }
+  };
+
   if (!canManageSessions && !canManageEmployeeShifts) {
     return (
       <Box sx={{ p: 3 }}>
@@ -537,7 +738,7 @@ const AttendanceSessions = ({ role, onNotify: propsNotify }) => {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: { xs: 1.5, sm: 3 } }}>
       <Typography variant="h4" gutterBottom fontWeight="600">
         Attendance Sessions & Employee Shifts
       </Typography>
@@ -545,30 +746,90 @@ const AttendanceSessions = ({ role, onNotify: propsNotify }) => {
       {/* Attendance Sessions Section */}
       {canManageSessions && (
         <Box sx={{ mt: 3, mb: 4 }}>
-          <Typography variant="h5" gutterBottom>
-            Attendance Sessions
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Start and manage attendance sessions for shifts.
-          </Typography>
           <Card>
             <CardContent>
               <Stack
-                direction={{ xs: 'column', sm: 'row' }}
+                direction={{ xs: 'column', md: 'row' }}
                 spacing={2}
                 justifyContent="space-between"
-                alignItems={{ xs: 'flex-start', sm: 'center' }}
+                alignItems={{ xs: 'stretch', md: 'center' }}
                 sx={{ mb: 2 }}
               >
                 <Typography variant="h6">Active Sessions</Typography>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<RefreshIcon />}
+                    onClick={handleRefreshAttendanceData}
+                    size="small"
+                    fullWidth={isMobile}
+                    disabled={sessionsLoading || employeeShiftsLoading}
+                  >
+                    Refresh
+                  </Button>
+                  <Button
+                    variant="contained"
+                    startIcon={<PlayArrow />}
+                    onClick={() => setSessionDialogOpen(true)}
+                    size="small"
+                    fullWidth={isMobile}
+                  >
+                    Start Session
+                  </Button>
+                </Stack>
+              </Stack>
+
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={1.5}
+                alignItems={{ xs: 'stretch', sm: 'center' }}
+                sx={{ mb: 2 }}
+              >
+                <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 180 } }}>
+                  <InputLabel>Session Status</InputLabel>
+                  <Select
+                    value={sessionStatusFilter}
+                    label="Session Status"
+                    onChange={(e) => setSessionStatusFilter(e.target.value)}
+                  >
+                    <MenuItem value="ALL">All Sessions</MenuItem>
+                    <MenuItem value="ACTIVE">Active</MenuItem>
+                    <MenuItem value="CLOSED">Closed</MenuItem>
+                  </Select>
+                </FormControl>
+
+                <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 200 } }}>
+                  <InputLabel>Shift Type</InputLabel>
+                  <Select
+                    value={sessionShiftFilter}
+                    label="Shift Type"
+                    onChange={(e) => setSessionShiftFilter(e.target.value)}
+                  >
+                    <MenuItem value="ALL">All Shift Types</MenuItem>
+                    <MenuItem value="MORNING">Morning</MenuItem>
+                    <MenuItem value="AFTERNOON">Afternoon</MenuItem>
+                    <MenuItem value="WEEKEND">Weekend</MenuItem>
+                    <MenuItem value="NIGHT">Night</MenuItem>
+                  </Select>
+                </FormControl>
+
                 <Button
-                  variant="contained"
-                  startIcon={<PlayArrow />}
-                  onClick={() => setSessionDialogOpen(true)}
-                  size="small"
+                  variant="outlined"
+                  startIcon={<Clear />}
+                  onClick={() => {
+                    setSessionStatusFilter('ALL');
+                    setSessionShiftFilter('ALL');
+                  }}
+                  sx={{ alignSelf: { xs: 'stretch', sm: 'center' } }}
                 >
-                  Start Session
+                  Clear Filters
                 </Button>
+              </Stack>
+
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
+                <Chip label={`${filteredSessions.length} shown`} color="primary" variant="outlined" size="small" />
+                <Chip label={`${sessions.filter((s) => s.is_active).length} active`} color="success" size="small" />
+                <Chip label={`${sessions.filter((s) => !s.is_active).length} closed`} size="small" />
               </Stack>
 
               {sessionError && (
@@ -583,51 +844,94 @@ const AttendanceSessions = ({ role, onNotify: propsNotify }) => {
                 </Box>
               ) : sessions.length === 0 ? (
                 <Alert severity="info">No attendance sessions found.</Alert>
-              ) : (
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell><strong>Shift Name</strong></TableCell>
-                      <TableCell><strong>Started By</strong></TableCell>
-                      <TableCell><strong>Started At</strong></TableCell>
-                      <TableCell><strong>Status</strong></TableCell>
-                      <TableCell align="right"><strong>Actions</strong></TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {sessions.map((session) => (
-                      <TableRow key={session.id} hover>
-                        <TableCell><strong>{session.shift?.name || 'Unknown'}</strong></TableCell>
-                        <TableCell>
-                          {session.started_by?.full_name || session.started_by?.email || `User ID: ${session.started_by?.id || session.started_by || 'Unknown'}`}
-                        </TableCell>
-                        <TableCell>
-                          {session.started_at ? new Date(session.started_at).toLocaleString() : '-'}
-                        </TableCell>
-                        <TableCell>
+              ) : filteredSessions.length === 0 ? (
+                <Alert severity="info">No sessions match the selected filters.</Alert>
+              ) : isMobile ? (
+                <Stack spacing={1.5}>
+                  {filteredSessions.map((session) => (
+                    <Paper key={session.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                      <Stack spacing={1}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                          <Typography variant="subtitle2" fontWeight={700}>
+                            {session.shift?.name || 'Unknown'}
+                          </Typography>
                           <Chip
                             label={session.is_active ? 'Active' : 'Closed'}
                             size="small"
                             color={session.is_active ? 'success' : 'default'}
                           />
-                        </TableCell>
-                        <TableCell align="right">
-                          {session.is_active && (
-                            <Tooltip title="Close Session">
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={() => handleCloseSession(session.id)}
-                              >
-                                <Stop fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                        </TableCell>
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary">
+                          By: {session.started_by?.full_name || session.started_by?.email || `User ID: ${session.started_by?.id || session.started_by || 'Unknown'}`}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Started: {session.started_at ? new Date(session.started_at).toLocaleString() : '-'}
+                        </Typography>
+                        {session.is_active && (
+                          <Box>
+                            <Button
+                              size="small"
+                              color="error"
+                              variant="outlined"
+                              startIcon={<Stop fontSize="small" />}
+                              onClick={() => handleCloseSession(session.id)}
+                              fullWidth
+                            >
+                              Close Session
+                            </Button>
+                          </Box>
+                        )}
+                      </Stack>
+                    </Paper>
+                  ))}
+                </Stack>
+              ) : (
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell><strong>Shift Name</strong></TableCell>
+                        <TableCell><strong>Started By</strong></TableCell>
+                        <TableCell><strong>Started At</strong></TableCell>
+                        <TableCell><strong>Status</strong></TableCell>
+                        <TableCell align="right"><strong>Actions</strong></TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHead>
+                    <TableBody>
+                      {filteredSessions.map((session) => (
+                        <TableRow key={session.id} hover>
+                          <TableCell><strong>{session.shift?.name || 'Unknown'}</strong></TableCell>
+                          <TableCell>
+                            {session.started_by?.full_name || session.started_by?.email || `User ID: ${session.started_by?.id || session.started_by || 'Unknown'}`}
+                          </TableCell>
+                          <TableCell>
+                            {session.started_at ? new Date(session.started_at).toLocaleString() : '-'}
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={session.is_active ? 'Active' : 'Closed'}
+                              size="small"
+                              color={session.is_active ? 'success' : 'default'}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            {session.is_active && (
+                              <Tooltip title="Close Session">
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() => handleCloseSession(session.id)}
+                                >
+                                  <Stop fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               )}
             </CardContent>
           </Card>
@@ -661,281 +965,6 @@ const AttendanceSessions = ({ role, onNotify: propsNotify }) => {
               <Button onClick={handleStartSession} variant="contained">
                 Start Session
               </Button>
-            </DialogActions>
-          </Dialog>
-        </Box>
-      )}
-
-      {/* Employee Shift Assignments Section */}
-      {canManageEmployeeShifts && (
-        <Box sx={{ mt: 4 }}>
-          <Typography variant="h5" gutterBottom>
-            Employee Shift Assignments
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Assign shifts to employees. Search by email, name, or employee code.
-          </Typography>
-          <Card>
-            <CardContent>
-              <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                spacing={2}
-                justifyContent="space-between"
-                alignItems={{ xs: 'flex-start', sm: 'center' }}
-                sx={{ mb: 2 }}
-              >
-                <Typography variant="h6">Assignments</Typography>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => setEmployeeShiftDialogOpen(true)}
-                  size="small"
-                >
-                  Assign Shift
-                </Button>
-              </Stack>
-
-              {employeeShiftsError && (
-                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setEmployeeShiftsError('')}>
-                  {employeeShiftsError}
-                </Alert>
-              )}
-
-              {employeeShiftsLoading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                  <CircularProgress size={32} />
-                </Box>
-              ) : enrichedEmployeeShifts.length === 0 ? (
-                <Alert severity="info">No employee shift assignments found.</Alert>
-              ) : (
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell><strong>Employee</strong></TableCell>
-                      <TableCell><strong>Email</strong></TableCell>
-                      <TableCell><strong>Shift</strong></TableCell>
-                      <TableCell align="right"><strong>Actions</strong></TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {enrichedEmployeeShifts.map((assignment) => (
-                      <TableRow key={assignment.id} hover>
-                        <TableCell>
-                          {assignment.employee?.full_name || assignment.employee?.employee_code || 'Unknown'}
-                        </TableCell>
-                        <TableCell>{assignment.employee?.user?.email || '-'}</TableCell>
-                        <TableCell>{assignment.shift?.name || 'Unknown'}</TableCell>
-                        <TableCell align="right">
-                          <Tooltip title="Remove Assignment">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => handleRemoveEmployeeShift(assignment.id)}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-
-          <Dialog
-            open={employeeShiftDialogOpen}
-            onClose={() => {
-              setEmployeeShiftDialogOpen(false);
-              setEmployeeSearch('');
-              setEmployeeShiftForm({ employee: '', shift: '' });
-            }}
-            fullWidth
-            maxWidth="sm"
-          >
-            <DialogTitle>Assign Shift to Employee</DialogTitle>
-            <DialogContent dividers>
-              <TextField
-                fullWidth
-                sx={{ mt: 2 }}
-                label="Search Employee"
-                placeholder="Search by email, name, or employee code..."
-                value={employeeSearch}
-                onChange={(e) => setEmployeeSearch(e.target.value)}
-                name="attendance-employee-search"
-                id="attendance-employee-search"
-                InputProps={{
-                  startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
-                  endAdornment: employeeSearch && (
-                    <InputAdornment position="end">
-                      <IconButton size="small" onClick={() => setEmployeeSearch('')}>
-                        <Clear />
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
-              />
-              <FormControl fullWidth sx={{ mt: 2 }}>
-                <InputLabel>Select Employee</InputLabel>
-                <Select
-                  value={employeeShiftForm.employee}
-                  label="Select Employee"
-                  onChange={(e) => setEmployeeShiftForm((prev) => ({ ...prev, employee: e.target.value }))}
-                  disabled={employeeShiftsLoading || filteredEmployees.length === 0}
-                >
-                  {filteredEmployees.length === 0 ? (
-                    <MenuItem disabled value="">
-                      {employeeShiftsLoading ? 'Loading employees...' : 'No employees found'}
-                    </MenuItem>
-                  ) : (
-                    filteredEmployees.map((emp) => (
-                      <MenuItem key={emp.id} value={emp.id}>
-                        {emp.full_name || emp.employee_code || 'Unknown'} ({emp.user?.email || 'No email'})
-                      </MenuItem>
-                    ))
-                  )}
-                </Select>
-                {filteredEmployees.length === 0 && !employeeShiftsLoading && (
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, ml: 1.75 }}>
-                    No employees available. Make sure employees are created and assigned to your department.
-                  </Typography>
-                )}
-              </FormControl>
-              <FormControl fullWidth sx={{ mt: 2 }}>
-                <InputLabel>Select Shift</InputLabel>
-                <Select
-                  value={employeeShiftForm.shift}
-                  label="Select Shift"
-                  onChange={(e) => setEmployeeShiftForm((prev) => ({ ...prev, shift: e.target.value }))}
-                >
-                  {shifts.map((shift) => (
-                    <MenuItem key={shift.id} value={shift.id}>
-                      {shift.name} ({shift.start_time} - {shift.end_time})
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              {/* Warning message if employee has 2 shifts */}
-              {employeeShiftForm.employee && (() => {
-                const currentShiftCount = getEmployeeShiftCount(employeeShiftForm.employee);
-                const selectedShift = shifts.find(s => String(s.id) === String(employeeShiftForm.shift));
-                
-                if (currentShiftCount >= 2) {
-                  return (
-                    <Alert severity="error" sx={{ mt: 2 }}>
-                      This employee already has 2 shifts on some days. Maximum allowed is 2 shifts per employee per day.
-                    </Alert>
-                  );
-                }
-                
-                // Check if adding selected shift would exceed limit
-                if (selectedShift) {
-                  const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-                  const daysWithNewShift = days.filter(day => selectedShift[day]);
-                  
-                  for (const day of daysWithNewShift) {
-                    const existingShiftsOnDay = employeeShifts.filter(assignment => {
-                      const empId = typeof assignment.employee === 'object' && assignment.employee !== null
-                        ? assignment.employee.id
-                        : assignment.employee;
-                      return String(empId) === String(employeeShiftForm.employee) && 
-                             assignment.shift && assignment.shift[day];
-                    });
-                    
-                    if (existingShiftsOnDay.length >= 2) {
-                      return (
-                        <Alert severity="error" sx={{ mt: 2 }}>
-                          Cannot assign this shift. Employee already has 2 shifts on {day}. Maximum allowed is 2 shifts per day.
-                        </Alert>
-                      );
-                    }
-                    
-                    if (existingShiftsOnDay.length === 1) {
-                      return (
-                        <Alert severity="warning" sx={{ mt: 2 }}>
-                          Note: Employee already has 1 shift on {day}. This will be their second shift on that day.
-                        </Alert>
-                      );
-                    }
-                  }
-                }
-                
-                return null;
-              })()}
-            </DialogContent>
-            <DialogActions>
-              <Button
-                onClick={() => {
-                  setEmployeeShiftDialogOpen(false);
-                  setEmployeeSearch('');
-                  setEmployeeShiftForm({ employee: '', shift: '' });
-                }}
-              >
-                Cancel
-              </Button>
-              <Tooltip 
-                title={(() => {
-                  if (!employeeShiftForm.employee || !employeeShiftForm.shift) return 'Please select both employee and shift';
-                  const currentShiftCount = getEmployeeShiftCount(employeeShiftForm.employee);
-                  if (currentShiftCount >= 2) return 'Employee already has maximum of 2 shifts per day';
-                  const selectedShift = shifts.find(s => String(s.id) === String(employeeShiftForm.shift));
-                  if (selectedShift) {
-                    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-                    const daysWithNewShift = days.filter(day => selectedShift[day]);
-                    for (const day of daysWithNewShift) {
-                      const existingShiftsOnDay = employeeShifts.filter(assignment => {
-                        const empId = typeof assignment.employee === 'object' && assignment.employee !== null
-                          ? assignment.employee.id
-                          : assignment.employee;
-                        return String(empId) === String(employeeShiftForm.employee) && 
-                               assignment.shift && assignment.shift[day];
-                      });
-                      if (existingShiftsOnDay.length >= 2) return `Employee already has 2 shifts on ${day}`;
-                    }
-                  }
-                  return '';
-                })()}
-                arrow
-              >
-                <span>
-                  <Button 
-                    onClick={handleAssignEmployeeShift} 
-                    variant="contained"
-                    disabled={(() => {
-                      // Basic validation
-                      if (!employeeShiftForm.employee || !employeeShiftForm.shift) return true;
-                      
-                      // Check if employee has reached max shifts
-                      const currentShiftCount = getEmployeeShiftCount(employeeShiftForm.employee);
-                      if (currentShiftCount >= 2) return true;
-                      
-                      // Check if adding selected shift would exceed limit on any day
-                      const selectedShift = shifts.find(s => String(s.id) === String(employeeShiftForm.shift));
-                      if (selectedShift) {
-                        const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-                        const daysWithNewShift = days.filter(day => selectedShift[day]);
-                        
-                        for (const day of daysWithNewShift) {
-                          const existingShiftsOnDay = employeeShifts.filter(assignment => {
-                            const empId = typeof assignment.employee === 'object' && assignment.employee !== null
-                              ? assignment.employee.id
-                              : assignment.employee;
-                            return String(empId) === String(employeeShiftForm.employee) && 
-                                   assignment.shift && assignment.shift[day];
-                          });
-                          
-                          if (existingShiftsOnDay.length >= 2) return true;
-                        }
-                      }
-                      
-                      return false;
-                    })()}
-                  >
-                    Assign
-                  </Button>
-                </span>
-              </Tooltip>
             </DialogActions>
           </Dialog>
         </Box>
