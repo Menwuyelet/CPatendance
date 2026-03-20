@@ -59,7 +59,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     def destroy(self, *args, **kwargs):
         return super().destroy(*args, **kwargs)
 
-    queryset = Department.objects.select_related("manager").all()
+    queryset = Department.objects.select_related("manager").order_by("name")
     serializer_class = DepartmentSerializer
 
 
@@ -86,8 +86,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """Return the employee queryset appropriate for the requesting user."""
-
-        return get_employees_for_user(self.request.user)
+        return get_employees_for_user(self.request.user).order_by("created_at")
 
     def get_serializer_class(self):
         """Return the serializer class appropriate for the current action."""

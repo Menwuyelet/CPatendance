@@ -53,6 +53,7 @@ class AttendanceRecord(models.Model):
         """Model `Meta`: unique constraints and useful indexes for queries."""
 
         unique_together = ("employee_shift", "employee", "date")
+        ordering = ["-created_at", "-id"]
         indexes = [
             models.Index(fields=["employee", "date"]),
             models.Index(fields=["date"]),
