@@ -237,10 +237,10 @@ export const api = {
   postForm: (path, formData, options) => requestForm(path, formData, options),
 
   // ============ AUTH METHODS ============
-  login: async (email, password) => {
+  login: async (employeeCode, password) => {
     const data = await request('/auth/login/', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ employee_code: employeeCode, password }),
     });
 
     if (data?.access && data?.refresh) {
@@ -310,7 +310,7 @@ export const api = {
   },
 
   getUserRole: (userData) => {
-    if (!userData) return 'Employee';
+    if (!userData) return 'EMPLOYEE';
     
     const rawRoles = userData?.roles || userData?.user?.roles || [];
     const roleNames = rawRoles
@@ -320,16 +320,16 @@ export const api = {
       .filter(Boolean);
     
     if (roleNames.length > 0) {
-      if (roleNames.includes('ADMIN')) return 'Admin';
+      if (roleNames.includes('ADMIN')) return 'ADMIN';
       if (roleNames.includes('HR')) return 'HR';
-      if (roleNames.includes('MANAGER')) return 'Manager';
-      if (roleNames.includes('EMPLOYEE')) return 'Employee';
+      if (roleNames.includes('MANAGER')) return 'MANAGER';
+      if (roleNames.includes('EMPLOYEE')) return 'EMPLOYEE';
     }
     
-    const role = String(userData?.role || '').trim();
-    if (['Admin', 'HR', 'Manager', 'Employee'].includes(role)) return role;
+    const role = String(userData?.role || '').trim().toUpperCase();
+    if (['ADMIN', 'HR', 'MANAGER', 'EMPLOYEE'].includes(role)) return role;
     
-    return 'Employee';
+    return 'EMPLOYEE';
   },
 
   getUserDisplayName: (userData) => {
