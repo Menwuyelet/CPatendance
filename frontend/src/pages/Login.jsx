@@ -26,25 +26,24 @@ const colors = {
 // Inline styles for better performance
 const styles = {
   container: {
-    minHeight: '100vh',
+    minHeight: '100dvh',
     width: '100%',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.background,
     backgroundImage: 'linear-gradient(135deg, #000000 0%, #1a0000 50%, #cc0000 100%)',
-    padding: '20px',
+    padding: 'clamp(10px, 2vw, 20px)',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
     boxSizing: 'border-box',
   },
   formCard: {
     backgroundColor: colors.card,
     border: `1px solid ${colors.cardBorder}`,
-    padding: '40px 32px',
+    padding: 'clamp(20px, 4vw, 40px) clamp(18px, 4vw, 32px)',
     borderRadius: '16px',
     boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-    width: '100%',
-    maxWidth: '400px',
+    width: 'min(100%, 420px)',
     textAlign: 'center',
     position: 'relative',
   },
@@ -61,17 +60,17 @@ const styles = {
     background: 'linear-gradient(135deg, #000000 0%, #cc0000 100%)',
   },
   header: {
-    marginBottom: '32px',
+    marginBottom: 'clamp(18px, 3vw, 32px)',
   },
   title: {
-    fontSize: '28px',
+    fontSize: 'clamp(22px, 4vw, 28px)',
     fontWeight: '700',
     color: colors.text,
     margin: '0 0 8px',
     letterSpacing: '-0.5px',
   },
   subtitle: {
-    fontSize: '14px',
+    fontSize: 'clamp(13px, 2.5vw, 14px)',
     color: colors.textSecondary,
     margin: 0,
     lineHeight: '1.5',
@@ -81,7 +80,7 @@ const styles = {
     fontWeight: '600',
   },
   formGroup: {
-    marginBottom: '20px',
+    marginBottom: '16px',
   },
   label: {
     display: 'block',
@@ -107,6 +106,13 @@ const styles = {
     outline: 'none',
     color: colors.text,
     boxSizing: 'border-box',
+  },
+  helperText: {
+    marginTop: '8px',
+    fontSize: '12px',
+    color: '#8a8a8a',
+    textAlign: 'left',
+    lineHeight: '1.4',
   },
   inputIcon: {
     position: 'absolute',
@@ -169,8 +175,8 @@ const styles = {
     marginTop: '12px',
   },
   footer: {
-    marginTop: '24px',
-    paddingTop: '20px',
+    marginTop: '18px',
+    paddingTop: '16px',
     borderTop: `1px solid ${colors.cardBorder}`,
   },
   copyright: {
@@ -249,7 +255,7 @@ const Login = ({ onLogin, onNotify }) => {
   const location = useLocation();
   const formRef = useRef(null);
   
-  const [formData, setFormData] = useState({ email: '', password: '' });
+  const [formData, setFormData] = useState({ employeeCode: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -261,8 +267,8 @@ const Login = ({ onLogin, onNotify }) => {
 
   // Memoized form validation
   const formValid = useMemo(() => {
-    const { email, password } = formData;
-    return email.includes('@') && email.includes('.') && password.length >= 6;
+    const { employeeCode, password } = formData;
+    return employeeCode.trim().length > 0 && password.length >= 6;
   }, [formData]);
 
   // Memoized remaining time
@@ -274,16 +280,16 @@ const Login = ({ onLogin, onNotify }) => {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   }, [lockUntil]);
 
-  // Load lock and remembered email
+  // Load lock and remembered employee code
   useEffect(() => {
     const lockTime = localStorage.getItem('loginLockUntil');
     if (lockTime && Date.now() < parseInt(lockTime, 10)) {
       setLockUntil(parseInt(lockTime, 10));
     }
     
-    const rememberedEmail = localStorage.getItem('rememberedEmail');
-    if (rememberedEmail) {
-      setFormData(prev => ({ ...prev, email: rememberedEmail }));
+    const rememberedEmployeeCode = localStorage.getItem('rememberedEmployeeCode');
+    if (rememberedEmployeeCode) {
+      setFormData(prev => ({ ...prev, employeeCode: rememberedEmployeeCode }));
       setRememberMe(true);
     }
   }, []);
@@ -324,7 +330,7 @@ const Login = ({ onLogin, onNotify }) => {
   // Handle key press
   const handleKeyPress = useCallback((e) => {
     if (e.key === 'Enter') {
-      if (e.target.type === 'email') {
+      if (e.target.type === 'text') {
         document.querySelector('[type="password"]')?.focus();
       } else if (e.target.type === 'password') {
         document.querySelector('[type="submit"]')?.click();
@@ -361,14 +367,14 @@ const Login = ({ onLogin, onNotify }) => {
       return;
     }
 
-    if (!formData.email || !formData.password) {
+    if (!formData.employeeCode || !formData.password) {
       setError('Please fill in all fields');
       triggerErrorAnimation();
       return;
     }
 
-    if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      setError('Please enter a valid email address');
+    if (!formData.employeeCode.trim()) {
+      setError('Please enter your employee code');
       triggerErrorAnimation();
       return;
     }
@@ -377,20 +383,19 @@ const Login = ({ onLogin, onNotify }) => {
     setError('');
 
     try {
-      const response = await api.login(formData.email, formData.password);
+      const response = await api.login(formData.employeeCode, formData.password);
       
       localStorage.removeItem('failedAttempts');
       setAttempts(0);
       
       if (rememberMe) {
-        localStorage.setItem('rememberedEmail', formData.email);
+        localStorage.setItem('rememberedEmployeeCode', formData.employeeCode);
       } else {
-        localStorage.removeItem('rememberedEmail');
+        localStorage.removeItem('rememberedEmployeeCode');
       }
       
-      if (response.token) {
-        localStorage.setItem('authToken', response.token);
-        localStorage.setItem('userEmail', formData.email);
+      if (response?.access) {
+        localStorage.setItem('userEmployeeCode', formData.employeeCode);
         sessionStorage.setItem('sessionStart', Date.now().toString());
       }
       
@@ -398,13 +403,12 @@ const Login = ({ onLogin, onNotify }) => {
       onNotify?.('Login successful! Redirecting...', 'success');
       
       setTimeout(() => {
-        onLogin();
-        const from = location.state?.from || '/dashboard';
-        navigate(from, { replace: true });
+        const from = location.state?.from;
+        onLogin?.(from);
       }, 1000);
       
     } catch (err) {
-      console.error('Login error:', err);
+      // console.error('Login error:', err);
       
       const newAttempts = attempts + 1;
       setAttempts(newAttempts);
@@ -418,14 +422,14 @@ const Login = ({ onLogin, onNotify }) => {
       } else {
         let errorMsg = 'Login failed';
         if (err.response?.status === 401) {
-          errorMsg = 'Invalid email or password';
+          errorMsg = 'Invalid employee code or password';
         } else if (err.response?.status === 403) {
           errorMsg = 'Account is locked or disabled';
         } else if (err.response?.status === 429) {
           errorMsg = 'Too many requests. Please wait.';
         } else if (!navigator.onLine) {
           errorMsg = 'No internet connection';
-        } else if (err.message.includes('Network')) {
+        } else if (err?.message?.includes('Network')) {
           errorMsg = 'Cannot connect to server';
         }
         
@@ -509,15 +513,15 @@ const Login = ({ onLogin, onNotify }) => {
         )}
 
         <form onSubmit={handleSubmit}>
-          {/* Email field */}
+          {/* Employee code field */}
           <div style={styles.formGroup}>
-            <div style={getInputWrapperStyle('email')}>
+            <div style={getInputWrapperStyle('employeeCode')}>
               <input
-                type="email"
-                placeholder="Email address"
-                value={formData.email}
-                onChange={(e) => handleInputChange('email', e.target.value)}
-                onFocus={() => setFocusedField('email')}
+                type="text"
+                placeholder="Employee code"
+                value={formData.employeeCode}
+                onChange={(e) => handleInputChange('employeeCode', e.target.value)}
+                onFocus={() => setFocusedField('employeeCode')}
                 onBlur={() => setFocusedField(null)}
                 onKeyPress={handleKeyPress}
                 disabled={loading || lockUntil}
@@ -526,13 +530,14 @@ const Login = ({ onLogin, onNotify }) => {
               />
               <div style={{
                 ...styles.inputIcon,
-                color: focusedField === 'email' ? colors.primary : colors.textSecondary
+                color: focusedField === 'employeeCode' ? colors.primary : colors.textSecondary
               }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"/>
                 </svg>
               </div>
             </div>
+            <div style={styles.helperText}>Use your assigned employee code (example: EMP001).</div>
           </div>
 
           {/* Password field */}
@@ -635,6 +640,15 @@ const Login = ({ onLogin, onNotify }) => {
           -webkit-text-fill-color: #ffffff;
           -webkit-box-shadow: 0 0 0px 1000px #1a1a1a inset;
           transition: background-color 5000s ease-in-out 0s;
+        }
+        @media (max-width: 480px) {
+          .login-form {
+            border-radius: 12px !important;
+            box-shadow: 0 16px 32px -10px rgba(0, 0, 0, 0.5) !important;
+          }
+          .login-form input {
+            font-size: 16px;
+          }
         }
       `}</style>
     </div>
