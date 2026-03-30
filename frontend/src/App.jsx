@@ -21,6 +21,7 @@ const Shifts = lazy(() => import('./pages/Shifts.jsx'));
 const AttendanceSessions = lazy(() => import('./pages/AttendanceSessions.jsx'));
 const Departments = lazy(() => import('./pages/Departments.jsx'));
 const Settings = lazy(() => import('./pages/Settings.jsx'));
+const Profile = lazy(() => import('./pages/Profile.jsx'));
 const Reports = lazy(() => import('./pages/Reports.jsx'));
 const Config = lazy(() => import('./pages/Config.jsx'));
 
@@ -34,6 +35,28 @@ const PageLoader = () => (
     </div>
   </div>
 );
+
+const normalizeRole = (value) => String(value || '').trim().replace(/[\s_-]/g, '').toUpperCase();
+
+const resolveRole = (userData) => {
+  const rawRoles = userData?.roles || userData?.user?.roles || [];
+  const normalizedRoles = rawRoles
+    .map((roleItem) => (typeof roleItem === 'string' ? roleItem : roleItem?.name))
+    .map(normalizeRole)
+    .filter(Boolean);
+
+  if (normalizedRoles.includes('ADMIN')) return 'ADMIN';
+  if (normalizedRoles.includes('MANAGER')) return 'MANAGER';
+
+  const fallbackRole = normalizeRole(api.getUserRole(userData));
+  if (fallbackRole === 'ADMIN' || fallbackRole === 'MANAGER') return fallbackRole;
+
+  return null;
+};
+
+const getDashboardPathByRole = (role) => (role === 'MANAGER' ? '/manager/dashboard' : '/dashboard');
+
+const isSafeRedirectPath = (path) => typeof path === 'string' && path.startsWith('/');
 
 function App() {
   const navigate = useNavigate();
@@ -60,14 +83,14 @@ function App() {
       }
       try {
         const userData = await api.getCurrentUser();
-        const role = api.getUserRole(userData);
+        const role = resolveRole(userData);
         const name = api.getUserDisplayName(userData);
-        setUser({ role, name });
-        if (role === 'Manager') {
-          navigate('/manager/dashboard', { replace: true });
-        } else {
-          navigate('/dashboard', { replace: true });
+        if (!role) {
+          api.logout();
+          return;
         }
+        setUser({ role, name });
+        navigate(getDashboardPathByRole(role), { replace: true });
       } catch {
         api.logout();
       } finally {
@@ -78,13 +101,19 @@ function App() {
   }, []);
 
   // After login - memoized for stability
-  const handleLogin = useCallback(async () => {
+  const handleLogin = useCallback(async (fromPath) => {
     try {
       const userData = await api.getCurrentUser();
-      const role = api.getUserRole(userData);
+      const role = resolveRole(userData);
       const name = api.getUserDisplayName(userData);
+      if (!role) {
+        notify('This account role is not allowed to access dashboard', 'error');
+        api.logout();
+        return;
+      }
       setUser({ role, name });
-      navigate(role === 'Manager' ? '/manager/dashboard' : '/dashboard', { replace: true });
+      const target = isSafeRedirectPath(fromPath) ? fromPath : getDashboardPathByRole(role);
+      navigate(target, { replace: true });
     } catch {
       notify('Login successful but profile failed to load', 'error');
       api.logout();
@@ -145,51 +174,56 @@ return (
           }
         >
           {/* ADMIN */}
-          {user.role === 'Admin' && (
+          {user.role === 'ADMIN' && (
             <>
               <Route path="/dashboard" element={<AdminPanel onNotify={notify} />} />
-              <Route path="/biometrics" element={<Biometrics onNotify={notify} role="Admin" />} />
+              <Route path="/biometrics" element={<Biometrics onNotify={notify} role="ADMIN" />} />
               <Route path="/reports" element={<Reports onNotify={notify} />} />
               <Route path="/config" element={<Config onNotify={notify} />} />
               <Route path="/users" element={<UserManagement scope="admin" onNotify={notify} />} />
               <Route path="/companies" element={<Departments onNotify={notify} />} />
-              <Route path="/attendance" element={<AttendanceOverview role="Admin" onNotify={notify} />} />
-              <Route path="/attendance/shifts" element={<Shifts role="Admin" onNotify={notify} />} />
-              <Route path="/attendance/sessions" element={<AttendanceSessions role="Admin" onNotify={notify} />} />
+              <Route path="/attendance" element={<AttendanceOverview role="ADMIN" onNotify={notify} />} />
+              <Route path="/attendance/shifts" element={<Shifts role="ADMIN" onNotify={notify} />} />
+              <Route path="/attendance/sessions" element={<AttendanceSessions role="ADMIN" onNotify={notify} />} />
               <Route path="/settings" element={<Settings onNotify={notify} />} />
-            </>
-          )}
-
-          {/* HR */}
-          {user.role === 'HR' && (
-            <>
-              <Route path="/dashboard" element={<HRDashboard onNotify={notify} />} />
-              <Route path="/employees" element={<UserManagement scope="hr" onNotify={notify} />} />
-              <Route path="/companies" element={<Departments onNotify={notify} />} />
-              <Route path="/attendance" element={<AttendanceOverview role="HR" onNotify={notify} />} />
-              <Route path="/attendance/shifts" element={<Shifts role="HR" onNotify={notify} />} />
-              <Route path="/attendance/sessions" element={<AttendanceSessions role="HR" onNotify={notify} />} />
-              <Route path="/biometrics" element={<Biometrics onNotify={notify} role="HR" />} />
-              <Route path="/settings" element={<Settings onNotify={notify} />} />
-              <Route path="/reports" element={<Reports onNotify={notify} />} />
+              <Route path="/profile" element={<Profile onNotify={notify} />} />
             </>
           )}
 
           {/* MANAGER */}
-          {user.role === 'Manager' && (
+          {user.role === 'MANAGER' && (
             <>
-              <Route path="/manager" element={<Navigate to="/manager/dashboard" replace />} />
-              <Route path="/manager/*" element={<ManagerDashboard onNotify={notify} />} />
-              <Route path="/attendance" element={<AttendanceOverview role="Manager" onNotify={notify} />} />
-              <Route path="/attendance/shifts" element={<Shifts role="Manager" onNotify={notify} />} />
-              <Route path="/attendance/sessions" element={<AttendanceSessions role="Manager" onNotify={notify} />} />
-              <Route path="/biometrics" element={<Biometrics onNotify={notify} role="Manager" />} />
+              <Route path="/dashboard" element={<ManagerDashboard onNotify={notify} />} />
+              <Route path="/manager/dashboard" element={<ManagerDashboard onNotify={notify} />} />
+              <Route path="/employees" element={<UserManagement scope="manager" onNotify={notify} />} />
+              <Route path="/manager/employees" element={<UserManagement scope="manager" onNotify={notify} />} />
+              <Route path="/companies" element={<Departments onNotify={notify} />} />
+              <Route path="/manager/companies" element={<Departments onNotify={notify} />} />
+              <Route path="/attendance" element={<AttendanceOverview role="MANAGER" onNotify={notify} />} />
+              <Route path="/attendance/shifts" element={<Shifts role="MANAGER" onNotify={notify} />} />
+              <Route path="/attendance/sessions" element={<AttendanceSessions role="MANAGER" onNotify={notify} />} />
+              <Route path="/biometrics" element={<Biometrics onNotify={notify} role="MANAGER" />} />
               <Route path="/settings" element={<Settings onNotify={notify} />} />
+              <Route path="/profile" element={<Profile onNotify={notify} />} />
+              <Route path="/reports" element={<Reports onNotify={notify} />} />
+              <Route path="/manager" element={<Navigate to="/manager/dashboard" replace />} />
             </>
           )}
 
+          {/* MANAGER */}
+          {/* {user.role === 'MANAGER' && (
+            <>
+              <Route path="/manager" element={<Navigate to="/manager/dashboard" replace />} />
+              <Route path="/attendance" element={<AttendanceOverview role="MANAGER" onNotify={notify} />} />
+              <Route path="/attendance/shifts" element={<Shifts role="MANAGER" onNotify={notify} />} />
+              <Route path="/attendance/sessions" element={<AttendanceSessions role="MANAGER" onNotify={notify} />} />
+              <Route path="/biometrics" element={<Biometrics onNotify={notify} role="MANAGER" />} />
+              <Route path="/settings" element={<Settings onNotify={notify} />} />
+            </>
+          )} */}
+
           {/* EMPLOYEE */}
-          {user.role === 'Employee' && (
+          {/* {user.role === 'Employee' && (
             <>
               <Route path="/dashboard" element={<EmployeeDashboard onNotify={notify} />} />
               <Route path="/attendance" element={<AttendanceOverview role="Employee" onNotify={notify} />} />
@@ -197,7 +231,7 @@ return (
               <Route path="/biometrics" element={<Biometrics onNotify={notify} role="Employee" />} />
               <Route path="/reports" element={<Reports onNotify={notify} />} />
             </>
-          )}
+          )} */}
         </Route>
 
         {/* FALLBACK */}
