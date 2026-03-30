@@ -781,7 +781,7 @@ const ManagerDashboard = ({ onNotify }) => {
       <Route path="dashboard" element={<ManagerDashboardHome onNotify={onNotify} />} />
       <Route path="team" element={<TeamOverviewPage onNotify={onNotify} />} />
       <Route path="reports" element={<Reports onNotify={onNotify} />} />
-      <Route path="biometrics" element={<Biometrics onNotify={onNotify} role="Manager" />} />
+      <Route path="biometrics" element={<Biometrics onNotify={onNotify} role="MANAGER" />} />
       <Route path="settings" element={<Settings onNotify={onNotify} />} />
       <Route path="*" element={<ManagerDashboardHome onNotify={onNotify} />} />
     </Routes>
