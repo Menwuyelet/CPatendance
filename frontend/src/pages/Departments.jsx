@@ -20,20 +20,19 @@ import {
   Switch,
   CircularProgress,
   Alert,
-  Tooltip,
   Button,
   Divider,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
-  InputAdornment,
   Grid,
 } from '@mui/material';
-import { Edit, Save, Cancel, Refresh, Delete, Add, Search, Clear, People, Business, FilterList, Sort, SwapVert } from '@mui/icons-material';
+import { Edit, Refresh, Delete, Add, Search, Clear, People, Business } from '@mui/icons-material';
 import { api } from '../services/api.service.js';
 
 const Departments = ({ onNotify }) => {
+  const [currentRole, setCurrentRole] = useState('MANAGER');
   const [departments, setDepartments] = useState([]);
   const [managers, setManagers] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -42,8 +41,8 @@ const Departments = ({ onNotify }) => {
   const [editingId, setEditingId] = useState(null);
 
   // Forms
-  const [editForm, setEditForm] = useState({ name: '', code: '', is_active: true, managerId: '' });
-  const [createForm, setCreateForm] = useState({ name: '', code: '', is_active: true, managerId: '' });
+  const [editForm, setEditForm] = useState({ name: '', is_active: true, managerId: '' });
+  const [createForm, setCreateForm] = useState({ name: '', is_active: true, managerId: '' });
 
   // Filters
   const [search, setSearch] = useState('');
@@ -52,15 +51,33 @@ const Departments = ({ onNotify }) => {
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
 
+  const canCreate = currentRole === 'ADMIN' || currentRole === 'MANAGER';
+  const canEditDelete = currentRole === 'ADMIN';
+
+  const detectRole = (userData) => {
+    const rawRoles = userData?.roles || userData?.user?.roles || [];
+    const roleNames = rawRoles
+      .map((r) => (typeof r === 'string' ? r : r?.name))
+      .filter(Boolean)
+      .map((r) => String(r).toUpperCase());
+
+    if (roleNames.includes('ADMIN')) return 'ADMIN';
+    if (roleNames.includes('MANAGER')) return 'MANAGER';
+    return 'MANAGER';
+  };
+
   const loadDepartments = async () => {
     try {
       setLoading(true);
       setError('');
       
-      const [data, employeesRes] = await Promise.all([
+      const [data, employeesRes, me] = await Promise.all([
         api.getAllDepartments(),
         api.getAllEmployees(),
+        api.getCurrentUser().catch(() => null),
       ]);
+
+      setCurrentRole(detectRole(me));
       
       const departmentsList = Array.isArray(data) ? data : (data?.results || data?.data || []);
       const employeesList = Array.isArray(employeesRes) ? employeesRes : (employeesRes?.results || employeesRes?.data || []);
@@ -120,7 +137,7 @@ const Departments = ({ onNotify }) => {
           (filterStatus === 'Active' ? dept.is_active : !dept.is_active);
 
         const matchesManager = filterManager === 'ALL' || 
-          (filterManager === 'NO_MANAGER' ? !dept.manager : dept.manager?.id === filterManager);
+          (filterManager === 'NO_MANAGER' ? !dept.manager : String(dept.manager?.id || '') === String(filterManager));
 
         return matchesSearch && matchesStatus && matchesManager;
       })
@@ -128,7 +145,6 @@ const Departments = ({ onNotify }) => {
         let aVal, bVal;
         switch (sortBy) {
           case 'name': aVal = a.name?.toLowerCase() || ''; bVal = b.name?.toLowerCase() || ''; break;
-          case 'code': aVal = a.code?.toLowerCase() || ''; bVal = b.code?.toLowerCase() || ''; break;
           case 'employees': aVal = a.employeeCount || 0; bVal = b.employeeCount || 0; break;
           case 'manager': aVal = a.manager?.full_name?.toLowerCase() || 'zzz'; bVal = b.manager?.full_name?.toLowerCase() || 'zzz'; break;
           default: return 0;
@@ -146,10 +162,10 @@ const Departments = ({ onNotify }) => {
   }), [departments, employees]);
 
   const startEdit = (dept) => {
+    if (!canEditDelete) return;
     setEditingId(dept.id);
     setEditForm({
       name: dept.name || '',
-      code: dept.code || '',
       is_active: dept.is_active !== false,
       managerId: dept.manager?.id || '',
     });
@@ -157,19 +173,22 @@ const Departments = ({ onNotify }) => {
 
   const cancelEdit = () => {
     setEditingId(null);
-    setEditForm({ name: '', code: '', is_active: true, managerId: '' });
+    setEditForm({ name: '', is_active: true, managerId: '' });
   };
 
   const saveEdit = async () => {
     if (!editingId) return;
+    if (!canEditDelete) {
+      onNotify?.('Only admin can update departments.', 'warning');
+      return;
+    }
     try {
-      const updated = await api.updateDepartment(editingId, {
+      await api.updateDepartment(editingId, {
         ...editForm,
         name: editForm.name.trim(),
-        code: editForm.code.trim(),
         manager: editForm.managerId || null,
       });
-      setDepartments(prev => prev.map(d => d.id === editingId ? { ...d, ...updated } : d));
+      await loadDepartments();
       onNotify?.('Department updated successfully.', 'success');
       cancelEdit();
     } catch (err) {
@@ -179,19 +198,22 @@ const Departments = ({ onNotify }) => {
 
   const createDepartment = async (e) => {
     e?.preventDefault?.();
-    if (!createForm.name.trim() || !createForm.code.trim()) {
-      onNotify?.('Name and code are required.', 'warning');
+    if (!canCreate) {
+      onNotify?.('Only admin or manager can create departments.', 'warning');
+      return;
+    }
+    if (!createForm.name.trim()) {
+      onNotify?.('Department name is required.', 'warning');
       return;
     }
     try {
-      const created = await api.createDepartment({
+      await api.createDepartment({
         ...createForm,
         name: createForm.name.trim(),
-        code: createForm.code.trim(),
         manager: createForm.managerId || null,
       });
-      setDepartments(prev => [created, ...prev]);
-      setCreateForm({ name: '', code: '', is_active: true, managerId: '' });
+      await loadDepartments();
+      setCreateForm({ name: '', is_active: true, managerId: '' });
       onNotify?.('Department created successfully.', 'success');
     } catch (err) {
       onNotify?.('Failed to create department.', 'error');
@@ -199,6 +221,10 @@ const Departments = ({ onNotify }) => {
   };
 
   const deleteDepartment = async (id) => {
+    if (!canEditDelete) {
+      onNotify?.('Only admin can delete departments.', 'warning');
+      return;
+    }
     if (!window.confirm('Delete this department?')) return;
     try {
       await api.deleteDepartment(id);
@@ -253,13 +279,13 @@ const Departments = ({ onNotify }) => {
           </Grid>
 
           {/* Create Form */}
+          {canCreate && (
           <Box sx={{ mt: 3, p: 2, bgcolor: 'primary.light', borderRadius: 2, border: '2px dashed', borderColor: 'primary.main' }}>
             <Typography variant="subtitle1" fontWeight="bold" color="primary.dark" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
               <Add /> Create New Department
             </Typography>
             <Box component="form" onSubmit={createDepartment} sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2, alignItems: { xs: 'stretch', md: 'flex-end' } }}>
               <TextField label="Name" value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} size="small" fullWidth />
-              <TextField label="Code" value={createForm.code} onChange={(e) => setCreateForm({ ...createForm, code: e.target.value })} size="small" fullWidth />
               <FormControl size="small" fullWidth>
                 <InputLabel>Manager</InputLabel>
                 <Select label="Manager" value={createForm.managerId} onChange={(e) => setCreateForm({ ...createForm, managerId: e.target.value })}>
@@ -269,7 +295,11 @@ const Departments = ({ onNotify }) => {
               <FormControlLabel control={<Switch checked={createForm.is_active} onChange={(e) => setCreateForm({ ...createForm, is_active: e.target.checked })} />} label={createForm.is_active ? 'Active' : 'Inactive'} />
               <Button type="submit" variant="contained" startIcon={<Add />} sx={{ whiteSpace: 'nowrap', minHeight: 40 }}>Add</Button>
             </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              Department code is generated by backend and is read-only.
+            </Typography>
           </Box>
+          )}
         </CardContent>
       </Card>
 
@@ -311,8 +341,8 @@ const Departments = ({ onNotify }) => {
                 <InputLabel>Sort</InputLabel>
                 <Select value={sortBy} onChange={(e) => setSortBy(e.target.value)} label="Sort">
                   <MenuItem value="name">Name</MenuItem>
-                  <MenuItem value="code">Code</MenuItem>
                   <MenuItem value="employees">Employees</MenuItem>
+                  <MenuItem value="manager">Manager</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -347,7 +377,7 @@ const Departments = ({ onNotify }) => {
                     {editingId === dept.id ? <TextField value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} size="small" /> : dept.name}
                   </TableCell>
                   <TableCell>
-                    {editingId === dept.id ? <TextField value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} size="small" /> : dept.code}
+                    {dept.code || 'Auto-generated'}
                   </TableCell>
                   <TableCell>
                     {editingId === dept.id ? (
@@ -369,10 +399,14 @@ const Departments = ({ onNotify }) => {
                         <Button size="small" variant="contained" onClick={saveEdit}>Save</Button>
                       </Stack>
                     ) : (
-                      <Stack direction="row" spacing={1} justifyContent="flex-end">
-                        <IconButton size="small" onClick={() => startEdit(dept)}><Edit fontSize="small" /></IconButton>
-                        <IconButton size="small" color="error" onClick={() => deleteDepartment(dept.id)}><Delete fontSize="small" /></IconButton>
-                      </Stack>
+                      canEditDelete ? (
+                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                          <IconButton size="small" onClick={() => startEdit(dept)}><Edit fontSize="small" /></IconButton>
+                          <IconButton size="small" color="error" onClick={() => deleteDepartment(dept.id)}><Delete fontSize="small" /></IconButton>
+                        </Stack>
+                      ) : (
+                        <Chip size="small" label="Read Only" variant="outlined" />
+                      )
                     )}
                   </TableCell>
                 </TableRow>
