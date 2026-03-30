@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as faceapi from 'face-api.js';
 import {
   Dialog, DialogContent, Typography, Box, Stack,
-  LinearProgress, Alert, IconButton, Chip, Zoom, useTheme, Fade
+  LinearProgress, Alert, IconButton, Chip, Zoom, useTheme, Fade, useMediaQuery
 } from '@mui/material';
 import { 
   Close as CloseIcon, CheckCircle, Visibility, 
@@ -11,9 +11,11 @@ import {
 
 export default function FaceCaptureDialog({ open, onClose, onCaptured, mode = 'ATTENDANCE' }) {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const videoRef = useRef(null);
   const [status, setStatus] = useState('Initializing AI...');
   const [error, setError] = useState(null);
+  const [cameraActive, setCameraActive] = useState(false);
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [countdown, setCountdown] = useState(null);
   const [captureSuccess, setCaptureSuccess] = useState(false);
@@ -57,9 +59,15 @@ export default function FaceCaptureDialog({ open, onClose, onCaptured, mode = 'A
     isCapturing.current = false;
     setCountdown(null);
     setCaptureSuccess(false);
+    setCameraActive(false);
     baselineEyeHeight.current = null;
     initialNosePos.current = null;
   }, []);
+
+  const handleClose = useCallback(() => {
+    stopEverything();
+    onClose?.();
+  }, [onClose, stopEverything]);
 
   useEffect(() => {
     if (open && modelsLoaded) {
@@ -74,13 +82,21 @@ export default function FaceCaptureDialog({ open, onClose, onCaptured, mode = 'A
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: 640, height: 480 }
+        video: {
+          facingMode: 'user',
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30, max: 60 },
+        },
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        await videoRef.current.play();
+        setCameraActive(true);
+        setStatus('Camera active. Align your face to the circle.');
       }
     } catch (err) {
+      setCameraActive(false);
       setError('Camera access denied. Please check site permissions.');
     }
   };
@@ -185,7 +201,7 @@ export default function FaceCaptureDialog({ open, onClose, onCaptured, mode = 'A
       setCaptureSuccess(true);
       setStatus('Verification Complete ✅');
       onCaptured(new File([blob], 'face_capture.jpg', { type: 'image/jpeg' }));
-      setTimeout(() => { onClose(); stopEverything(); }, 1200);
+      setTimeout(() => { handleClose(); }, 1200);
     }, 'image/jpeg', 0.95);
   };
 
@@ -196,12 +212,35 @@ export default function FaceCaptureDialog({ open, onClose, onCaptured, mode = 'A
     return () => clearInterval(detectionInterval.current);
   }, [open, modelsLoaded, requirements, mode]);
 
+  useEffect(() => {
+    const handleVisibilityOrPageHide = () => {
+      if (document.hidden || !open) {
+        stopEverything();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityOrPageHide);
+    window.addEventListener('pagehide', handleVisibilityOrPageHide);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityOrPageHide);
+      window.removeEventListener('pagehide', handleVisibilityOrPageHide);
+    };
+  }, [open, stopEverything]);
+
   return (
     <Dialog 
       open={open} 
-      onClose={onClose} 
+      onClose={handleClose} 
       maxWidth="xs" 
       fullWidth 
+      fullScreen={isMobile}
+      sx={{ zIndex: 34000 }}
+      slotProps={{
+        backdrop: {
+          sx: { zIndex: 33999 },
+        },
+      }}
       PaperProps={{ 
         sx: { 
           borderRadius: 6,
@@ -212,7 +251,7 @@ export default function FaceCaptureDialog({ open, onClose, onCaptured, mode = 'A
       }}
     >
       <Box sx={{ position: 'absolute', right: 16, top: 16, zIndex: 10 }}>
-        <IconButton onClick={onClose} sx={{ bgcolor: 'action.hover' }}><CloseIcon /></IconButton>
+        <IconButton onClick={handleClose} sx={{ bgcolor: 'action.hover' }}><CloseIcon /></IconButton>
       </Box>
 
       <DialogContent sx={{ p: { xs: 3, sm: 4 }, textAlign: 'center' }}>
@@ -224,6 +263,12 @@ export default function FaceCaptureDialog({ open, onClose, onCaptured, mode = 'A
             <Typography variant="body2" color="text.secondary">
               {mode === 'ENROLL' ? 'Create your biometric profile' : 'Verification Mode'}
             </Typography>
+            <Chip
+              size="small"
+              color={cameraActive ? 'success' : 'warning'}
+              label={cameraActive ? 'Camera Live' : 'Starting Camera...'}
+              sx={{ mt: 1, fontWeight: 700 }}
+            />
           </Box>
 
           {error && <Alert severity="error" variant="filled" sx={{ width: '100%', borderRadius: 3 }}>{error}</Alert>}
@@ -251,7 +296,7 @@ export default function FaceCaptureDialog({ open, onClose, onCaptured, mode = 'A
             <Fade in={countdown !== null}>
               <Box sx={{ 
                 position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', 
-                justifyContent: 'center', bgcolor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', zIndex: 5 
+                justifyContent: 'center', bgcolor: 'rgba(0,0,0,0.25)', zIndex: 5 
               }}>
                 <Typography variant="h1" sx={{ color: 'white', fontWeight: 900, fontSize: '6rem' }}>
                   {countdown}
@@ -262,7 +307,7 @@ export default function FaceCaptureDialog({ open, onClose, onCaptured, mode = 'A
             <Fade in={captureSuccess}>
               <Box sx={{ 
                 position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', 
-                justifyContent: 'center', bgcolor: 'rgba(76, 175, 80, 0.7)', backdropFilter: 'blur(8px)', zIndex: 6 
+                justifyContent: 'center', bgcolor: 'rgba(76, 175, 80, 0.6)', zIndex: 6 
               }}>
                 <CheckCircle sx={{ color: 'white', fontSize: 100 }} />
               </Box>
