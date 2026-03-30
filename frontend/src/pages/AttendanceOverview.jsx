@@ -35,10 +35,10 @@ import { format, startOfMonth, endOfMonth, differenceInHours, parseISO } from 'd
 import { api } from '../services/api.service.js';
 
 const AttendanceOverview = ({ role, onNotify }) => {
-  const isEmployee = role === 'Employee';
-  const isManager = role === 'Manager';
+  const isEmployee = role === 'EMPLOYEE';
+  const isManager = role === 'MANAGER';
   const isHR = role === 'HR';
-  const isAdmin = role === 'Admin';
+  const isAdmin = role === 'ADMIN';
 
   const heading = isEmployee
     ? 'My Daily Attendance'
