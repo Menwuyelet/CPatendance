@@ -48,33 +48,34 @@ import {
   Refresh,
   Sort,
   SwapVert,
+  CameraAlt,
 } from '@mui/icons-material';
 import { api } from '../services/api.service.js';
 import { useNotifications } from '../context/NotificationContext.jsx';
+import FaceCaptureDialog from '../components/FaceCaptureDialog.jsx';
 
 // Base roles and their fixed ids (1-4)
 const BASE_ROLES = [
   { id: 1, name: 'ADMIN' },
-  { id: 2, name: 'HR' },
-  { id: 3, name: 'MANAGER' },
-  { id: 4, name: 'EMPLOYEE' },
+  { id: 2, name: 'MANAGER' },
+  { id: 3, name: 'EMPLOYEE' },
 ];
 
 const emptyForm = {
   id: null,
   name: '',
-  email: '',
+  phoneNumber: '',
   role: 'EMPLOYEE',
   roleId: '',
   department: '',
   departmentId: '',
   status: 'Active',
-  password: '',
   employeeCode: '',
   employeeId: '',
 };
 
-const EMPLOYEE_ROLE_NAMES = ['EMPLOYEE', 'HR', 'MANAGER'];
+const EMPLOYEE_ROLE_NAMES = ['EMPLOYEE', 'MANAGER'];
+const FACE_REQUIRED_ROLE_NAMES = ['EMPLOYEE', 'MANAGER'];
 
 // Keep User Management payload in module scope so route re-mounts don't re-fetch.
 let userManagementDataCache = null;
@@ -83,9 +84,9 @@ let userManagementInFlightPromise = null;
 const UserManagement = ({ scope = 'admin', onNotify }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const title = scope === 'hr' ? 'Employee Directory (Read-Only)' : 'User & Access Management';
+  const title = scope === 'employee' ? 'Employee Directory (Read-Only)' : 'User & Access Management';
   const description =
-    scope === 'hr'
+    scope === 'employee'
       ? 'View employee profiles, roles, and account status. Contact admin to make changes.'
       : 'Full control over user accounts, roles, and system access.';
 
@@ -104,7 +105,43 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
   const [sortOrder, setSortOrder] = useState('asc');
   const canDelete = scope === 'admin';
   const canEdit = scope === 'admin';
+  const canCreate = scope === 'admin' || scope === 'manager';
+  const isManagerScope = scope === 'manager';
   const isEmployeeRole = EMPLOYEE_ROLE_NAMES.includes(form.role);
+  const requiresFaceEnrollment = FACE_REQUIRED_ROLE_NAMES.includes(form.role);
+  const [faceCaptureOpen, setFaceCaptureOpen] = useState(false);
+  const [capturedFaceImage, setCapturedFaceImage] = useState(null);
+  const [generatedCredentials, setGeneratedCredentials] = useState({
+    open: false,
+    employeeCode: '',
+    password: '',
+    name: '',
+  });
+  const capturedFacePreviewUrl = useMemo(() => (capturedFaceImage ? URL.createObjectURL(capturedFaceImage) : ''), [capturedFaceImage]);
+
+  const createRoleOptions = useMemo(() => {
+    const allowed = isManagerScope ? ['EMPLOYEE'] : ['ADMIN', 'MANAGER', 'EMPLOYEE'];
+    return roleOptions.filter((r) => allowed.includes(String(r.name || '').toUpperCase()));
+  }, [roleOptions, isManagerScope]);
+
+  const dialogSelectMenuProps = useMemo(() => ({
+    disablePortal: true,
+    keepMounted: true,
+    PaperProps: {
+      sx: {
+        maxHeight: 280,
+        zIndex: 33000,
+      },
+    },
+  }), []);
+
+  useEffect(() => {
+    return () => {
+      if (capturedFacePreviewUrl) {
+        URL.revokeObjectURL(capturedFacePreviewUrl);
+      }
+    };
+  }, [capturedFacePreviewUrl]);
 
   // Use NotificationContext for global notifications
   const { addNotification } = useNotifications();
@@ -133,8 +170,18 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
     setSnack({ open: true, message, severity });
   };
 
+  const copyToClipboard = async (value, label) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(String(value));
+      showMessage(`${label} copied`, 'success');
+    } catch {
+      showMessage(`Unable to copy ${label.toLowerCase()}`, 'error');
+    }
+  };
+
   const mapApiDataToUserManagementState = (usersRes, employeesRes, departmentsRes) => {
-    const usersList = Array.isArray(usersRes) ? usersRes : usersRes?.results || usersRes?.data || [];
+    const usersList = Array.isArray(usersRes) ? usersRes : usersRes?.users || usersRes?.results || usersRes?.data || [];
     const employeesList = Array.isArray(employeesRes)
       ? employeesRes
       : employeesRes?.results || employeesRes?.data || [];
@@ -182,12 +229,12 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
       return {
         id: u.id,
         name: displayName,
-        email: u.email,
+        phoneNumber: u.phone_number || '',
         role: primaryRole,
         rolesList: roleNames,
         department: deptName,
-        departmentId: emp?.departmentId || '',
-        employeeCode: emp?.employeeCode || '',
+        departmentId: emp?.departmentId || u.department?.id || '',
+        employeeCode: emp?.employeeCode || u.employee_code || '',
         employeeId: emp?.id || '',
         status: u.is_active ? 'Active' : 'Inactive',
       };
@@ -278,7 +325,8 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
     const { name, value } = e.target;
 
     if (name === 'roleId') {
-      const selected = roleOptions.find((r) => String(r.id) === String(value));
+      const sourceRoles = isEditing ? roleOptions : createRoleOptions;
+      const selected = sourceRoles.find((r) => String(r.id) === String(value));
       const upperName = selected?.name || form.role;
       setForm((prev) => ({ ...prev, roleId: value, role: upperName }));
       return;
@@ -289,19 +337,15 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    let operationSucceeded = false;
 
-    if (!form.name.trim() || !form.email.trim()) {
-      showMessage('Please provide both name and email address', 'error');
+    if (!form.name.trim()) {
+      showMessage('Please provide full name', 'error');
       return;
     }
 
-    if (!isEditing && !form.password.trim()) {
-      showMessage('Password is required when creating a new user', 'error');
-      return;
-    }
-
-    if (!isEditing && isEmployeeRole && !form.employeeCode?.trim()) {
-      showMessage('Employee Code is required for Employee, HR, and Manager roles when creating new users', 'error');
+    if (!isEditing && requiresFaceEnrollment && !capturedFaceImage) {
+      showMessage('Face capture is required when creating EMPLOYEE or MANAGER users', 'error');
       return;
     }
 
@@ -321,8 +365,6 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
 
         if (isEmployeeRole && form.employeeId) {
           const empPayload = {
-            full_name: form.name.trim(),
-            employee_code: form.employeeCode || undefined,
             department: form.departmentId || undefined,
             is_active: form.status === 'Active',
           };
@@ -349,48 +391,47 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
         );
 
         showMessage(`User "${form.name}" has been updated successfully`, 'success');
+        operationSucceeded = true;
       } else {
         const roleOption =
-          roleOptions.find((r) => String(r.id) === String(form.roleId)) ||
-          roleOptions.find((r) => r.name === form.role.toUpperCase());
+          createRoleOptions.find((r) => String(r.id) === String(form.roleId)) ||
+          createRoleOptions.find((r) => r.name === form.role.toUpperCase());
 
         if (!roleOption) {
           showMessage('Selected role not available', 'error');
           return;
         }
 
-        const payload = {
-          email: form.email.trim().toLowerCase(),
-          password: form.password,
-          roles: [roleOption.id],
-        };
+        // Use multipart form to support face enrollment for EMPLOYEE/MANAGER creation.
+        const formPayload = new FormData();
+        formPayload.append('full_name', form.name.trim());
+        if (form.phoneNumber?.trim()) {
+          formPayload.append('phone_number', form.phoneNumber.trim());
+        }
+        formPayload.append('roles', String(roleOption.id));
 
-        if (isEmployeeRole) {
-          payload.full_name = form.name.trim();
-          payload.employee_code = form.employeeCode.trim();
-          if (form.departmentId) {
-            payload.department = form.departmentId;
-          }
+        if (form.departmentId) {
+          formPayload.append('department', String(form.departmentId));
         }
 
-        // console.log('Creating user with payload:', payload);
+        if (requiresFaceEnrollment && capturedFaceImage) {
+          formPayload.append('face_image', capturedFaceImage);
+        }
 
-        const created = await api.post('/accounts/users/', payload);
+        const created = await api.postForm('/accounts/users/', formPayload);
         // console.log('User created successfully:', created);
 
-        const newUser = {
-          id: created.id,
-          name: created.full_name || created.email.split('@')[0],
-          email: created.email,
-          role: roleOption.name || form.role,
-          rolesList: [roleOption.name],
-          department: created.department?.name || form.department || '',
-          status: 'Active',
-        };
+        await loadUserManagementData({ force: true, notifyOnSuccess: false });
+        setCapturedFaceImage(null);
+        setGeneratedCredentials({
+          open: true,
+          employeeCode: created.employee_code || '',
+          password: isManagerScope ? '' : (created.password || ''),
+          name: created.full_name || form.name,
+        });
 
-        setUsers((prev) => [newUser, ...prev]);
-
-        showMessage(`✓ User Created Successfully! "${form.name}" (${form.email}) has been added to the system.`, 'success');
+        showMessage(`User created successfully. Employee code: ${created.employee_code || 'generated on server'}`, 'success');
+        operationSucceeded = true;
       }
     } catch (err) {
       // console.error('User operation failed:', err);
@@ -401,10 +442,8 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
       if (err?.response?.status === 400) {
         const data = err?.response?.data || {};
 
-        if (data.email && (data.email.includes('already exists') || data.email.includes('unique'))) {
-          errorMsg = `⚠ User Already Exists! A user with email "${form.email}" is already registered in the system.`;
-        } else if (data.employee_code && (data.employee_code.includes('already exists') || data.employee_code.includes('unique'))) {
-          errorMsg = `⚠ Employee Code Already Exists! The code "${form.employeeCode}" is already in use.`;
+        if (data.phone_number && (String(data.phone_number).includes('already exists') || String(data.phone_number).includes('unique'))) {
+          errorMsg = 'Phone number is already in use.';
         } else if (data.detail) {
           errorMsg = data.detail;
         } else if (typeof data === 'object') {
@@ -420,9 +459,11 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
       showMessage(errorMsg, 'error');
     }
 
-    setForm(emptyForm);
-    setIsEditing(false);
-    setUserModalOpen(false);
+    if (operationSucceeded) {
+      setForm(emptyForm);
+      setIsEditing(false);
+      setUserModalOpen(false);
+    }
   };
 
   const handleEdit = (user) => {
@@ -431,7 +472,6 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
       ...user,
       role: user.role,
       roleId: roleOptions.find((r) => r.name === user.role)?.id ?? '',
-      password: '',
     });
     setIsEditing(true);
     setUserModalOpen(true);
@@ -459,13 +499,35 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
     setForm(emptyForm);
     setIsEditing(false);
     setUserModalOpen(false);
+    setCapturedFaceImage(null);
+    setFaceCaptureOpen(false);
   };
 
   const handleOpenAddModal = () => {
-    setForm(emptyForm);
+    const defaultRole = 'EMPLOYEE';
+    const defaultRoleOption = createRoleOptions.find((r) => r.name === defaultRole) || null;
+    setGeneratedCredentials((prev) => ({ ...prev, open: false }));
+    setForm({
+      ...emptyForm,
+      role: defaultRole,
+      roleId: defaultRoleOption?.id ? String(defaultRoleOption.id) : '',
+    });
     setIsEditing(false);
     setUserModalOpen(true);
+    setCapturedFaceImage(null);
   };
+
+  useEffect(() => {
+    if (!requiresFaceEnrollment) {
+      setCapturedFaceImage(null);
+    }
+  }, [requiresFaceEnrollment]);
+
+  useEffect(() => {
+    if (userModalOpen) {
+      setGeneratedCredentials((prev) => ({ ...prev, open: false }));
+    }
+  }, [userModalOpen]);
 
   const filteredUsers = useMemo(() => {
     let filtered = users.filter((u) => {
@@ -473,7 +535,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
       const matchesSearch =
         !q ||
         u.name?.toLowerCase().includes(q) ||
-        u.email?.toLowerCase().includes(q) ||
+        u.phoneNumber?.toLowerCase().includes(q) ||
         (u.department || '').toLowerCase().includes(q) ||
         (u.employeeCode || '').toLowerCase().includes(q);
 
@@ -494,9 +556,13 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           aVal = a.name?.toLowerCase() || '';
           bVal = b.name?.toLowerCase() || '';
           break;
-        case 'email':
-          aVal = a.email?.toLowerCase() || '';
-          bVal = b.email?.toLowerCase() || '';
+        case 'employeeCode':
+          aVal = a.employeeCode?.toLowerCase() || '';
+          bVal = b.employeeCode?.toLowerCase() || '';
+          break;
+        case 'phone':
+          aVal = a.phoneNumber?.toLowerCase() || '';
+          bVal = b.phoneNumber?.toLowerCase() || '';
           break;
         case 'role':
           aVal = a.role?.toLowerCase() || '';
@@ -551,8 +617,8 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Box sx={{ mb: 5 }}>
+    <Box sx={{ p: { xs: 1.5, sm: 2 } }}>
+      <Box sx={{ mb: 3 }}>
         <Typography variant="h3" fontWeight="bold" gutterBottom>
           {title}
         </Typography>
@@ -560,11 +626,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
           {description}
         </Typography>
       </Box>
-
-      <Grid container spacing={4}>
-        {/* Table */}
-        <Grid size={{ xs: 12, lg: 12 }}>
-          {scope === 'admin' && (
+                {canCreate && (
             <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end', gap: 1.5, flexWrap: 'wrap' }}>
               <Button
                 variant="outlined"
@@ -587,7 +649,11 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
               </Button>
             </Box>
           )}
-          {scope !== 'admin' && (
+      
+      <Grid container spacing={4}>
+        {/* Table */}
+        <Grid size={{ xs: 12, lg: 12 }}>
+          {!canCreate && (
             <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
               <Button
                 variant="outlined"
@@ -619,7 +685,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                   <TextField
                     fullWidth
                     size="small"
-                    placeholder="Search by name, email, department, code..."
+                    placeholder="Search by name, employee code, phone, department..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     InputProps={{
@@ -676,7 +742,8 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                     <InputLabel>Sort By</InputLabel>
                     <Select value={sortBy} onChange={(e) => setSortBy(e.target.value)} label="Sort By">
                       <MenuItem value="name">Name</MenuItem>
-                      <MenuItem value="email">Email</MenuItem>
+                      <MenuItem value="employeeCode">Employee Code</MenuItem>
+                      <MenuItem value="phone">Phone</MenuItem>
                       <MenuItem value="role">Role</MenuItem>
                       <MenuItem value="department">Department</MenuItem>
                       <MenuItem value="status">Status</MenuItem>
@@ -745,7 +812,8 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                 <TableHead>
                   <TableRow sx={{ bgcolor: 'grey.50' }}>
                     <TableCell>User</TableCell>
-                    <TableCell>Email</TableCell>
+                    <TableCell>Employee Code</TableCell>
+                    <TableCell>Phone</TableCell>
                     <TableCell>Role</TableCell>
                     <TableCell>Department</TableCell>
                     <TableCell>Status</TableCell>
@@ -755,7 +823,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                 <TableBody>
                   {filteredUsers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                      <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
                         <Typography color="text.secondary">
                           {search || filterRole !== 'ALL' || filterStatus !== 'ALL'
                             ? 'No users match your filters'
@@ -765,7 +833,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                     </TableRow>
                   ) : (
                     filteredUsers.map((user, index) => (
-                      <TableRow key={user.id || user.email || `user-${index}`} hover>
+                      <TableRow key={user.id || user.employeeCode || `user-${index}`} hover>
                         <TableCell>
                           <Stack direction="row" spacing={2} alignItems="center">
                             <Avatar sx={{ bgcolor: 'primary.main' }}>
@@ -776,7 +844,8 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
                             </Typography>
                           </Stack>
                         </TableCell>
-                        <TableCell>{user.email}</TableCell>
+                        <TableCell>{user.employeeCode || 'Generated by server'}</TableCell>
+                        <TableCell>{user.phoneNumber || '—'}</TableCell>
                         <TableCell>
                           <Chip label={getRoleLabel(user.role)} size="small" color={getRoleColor(user.role)} />
                         </TableCell>
@@ -819,14 +888,32 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
         </Grid>
       </Grid>
 
-      {scope === 'admin' && (
+      {canCreate && (
         <Dialog
-          open={userModalOpen}
+          open={userModalOpen && !faceCaptureOpen}
           onClose={handleReset}
           fullWidth
           maxWidth="sm"
           fullScreen={isMobile}
+          scroll="paper"
+          keepMounted
+          hideBackdrop={faceCaptureOpen}
+          disableAutoFocus={faceCaptureOpen}
+          disableEnforceFocus={faceCaptureOpen}
+          disableRestoreFocus={faceCaptureOpen}
           aria-labelledby="user-modal-title"
+          sx={{ zIndex: 32000 }}
+          PaperProps={{
+            sx: {
+              m: { xs: 1, sm: 2 },
+              maxHeight: { xs: 'calc(100dvh - 16px)', sm: 'calc(100dvh - 32px)' },
+              overflow: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              zIndex: 32001,
+              pointerEvents: 'auto',
+            },
+          }}
         >
           <DialogTitle id="user-modal-title" sx={{ pb: 1 }}>
             <Stack direction="row" alignItems="center" spacing={1}>
@@ -837,27 +924,55 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
             </Stack>
           </DialogTitle>
 
-          <Box component="form" onSubmit={handleSubmit}>
-            <DialogContent dividers sx={{ pt: 2 }}>
+          <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <DialogContent dividers sx={{ pt: 2, overflowY: 'auto' }}>
               <Stack spacing={2.25}>
+                <Alert severity="info" sx={{ borderRadius: 2 }}>
+                  Endpoint: POST /api/accounts/users/. Required: full_name and roles. Face image required for EMPLOYEE/MANAGER.
+                </Alert>
                 <TextField label="Full Name" name="name" value={form.name} onChange={handleChange} fullWidth required />
-                <TextField label="Email Address" name="email" type="email" value={form.email} onChange={handleChange} fullWidth required />
+                <TextField label="Phone Number" name="phoneNumber" value={form.phoneNumber} onChange={handleChange} fullWidth />
+                <TextField
+                  label="Employee Code"
+                  value={isEditing ? (form.employeeCode || 'Not available') : 'Auto-generated by server after create'}
+                  fullWidth
+                  InputProps={{ readOnly: true }}
+                  helperText={isEditing ? 'Read-only employee code' : 'Read-only: generated automatically'}
+                />
 
                 <FormControl fullWidth>
                   <InputLabel>Role</InputLabel>
-                  <Select name="roleId" value={form.roleId} onChange={handleChange} label="Role">
-                    {roleOptions.map((r) => (
+                  <Select
+                    name="roleId"
+                    value={form.roleId}
+                    onChange={handleChange}
+                    label="Role"
+                    disabled={!isEditing && isManagerScope}
+                    MenuProps={dialogSelectMenuProps}
+                  >
+                    {createRoleOptions.map((r) => (
                       <MenuItem key={r.id} value={r.id}>
                         {`${r.id} - ${r.name}`}
                       </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
+                {!isEditing && isManagerScope && (
+                  <Alert severity="info" sx={{ borderRadius: 2 }}>
+                    Manager can only create users with EMPLOYEE role.
+                  </Alert>
+                )}
 
                 {isEmployeeRole && (
                   <FormControl fullWidth>
                     <InputLabel>Department</InputLabel>
-                    <Select name="departmentId" value={form.departmentId} onChange={handleChange} label="Department">
+                    <Select
+                      name="departmentId"
+                      value={form.departmentId}
+                      onChange={handleChange}
+                      label="Department"
+                      MenuProps={dialogSelectMenuProps}
+                    >
                       <MenuItem value="">No department</MenuItem>
                       {departments.map((d) => (
                         <MenuItem key={d.id} value={String(d.id)}>
@@ -870,39 +985,62 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
 
                 {!isEditing && (
                   <>
-                    <TextField
-                      label="Password"
-                      name="password"
-                      type="password"
-                      value={form.password}
-                      onChange={handleChange}
-                      fullWidth
-                      required
-                    />
-
-                    {isEmployeeRole && (
-                      <>
-                        <Typography variant="subtitle2" color="text.secondary">
-                          Employee Details
-                        </Typography>
-                        <TextField
-                          label="Employee Code"
-                          name="employeeCode"
-                          value={form.employeeCode}
-                          onChange={handleChange}
-                          fullWidth
-                          required
-                          placeholder="e.g., EMP001"
-                          helperText="Required for Employee, HR, and Manager roles"
-                        />
-                      </>
+                    {requiresFaceEnrollment && (
+                      <Box
+                        sx={{
+                          border: '1px dashed',
+                          borderColor: capturedFaceImage ? 'success.main' : 'divider',
+                          borderRadius: 2,
+                          p: 2,
+                          display: 'flex',
+                          flexDirection: { xs: 'column', sm: 'row' },
+                          gap: 1.5,
+                          alignItems: { xs: 'flex-start', sm: 'center' },
+                          justifyContent: 'space-between',
+                        }}
+                      >
+                        <Stack spacing={0.5}>
+                          <Typography variant="subtitle2">Face Enrollment</Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Capture and preview before creating. Server enrolls face with generated employee code.
+                          </Typography>
+                          {capturedFaceImage ? (
+                            <Chip size="small" color="success" label="Face captured successfully" />
+                          ) : (
+                            <Chip size="small" variant="outlined" label="No face captured" />
+                          )}
+                        </Stack>
+                        {capturedFacePreviewUrl && (
+                          <Box
+                            component="img"
+                            src={capturedFacePreviewUrl}
+                            alt="Captured face preview"
+                            sx={{ width: 84, height: 84, borderRadius: 2, objectFit: 'cover', border: '1px solid', borderColor: 'divider' }}
+                          />
+                        )}
+                        <Button
+                          type="button"
+                          variant={capturedFaceImage ? 'outlined' : 'contained'}
+                          startIcon={<CameraAlt />}
+                          onClick={() => setFaceCaptureOpen(true)}
+                          fullWidth={isMobile}
+                        >
+                          {capturedFaceImage ? 'Retake Face' : 'Capture Face'}
+                        </Button>
+                      </Box>
                     )}
                   </>
                 )}
 
                 <FormControl fullWidth>
                   <InputLabel>Status</InputLabel>
-                  <Select name="status" value={form.status} onChange={handleChange} label="Status">
+                  <Select
+                    name="status"
+                    value={form.status}
+                    onChange={handleChange}
+                    label="Status"
+                    MenuProps={dialogSelectMenuProps}
+                  >
                     <MenuItem value="Active">Active</MenuItem>
                     <MenuItem value="Inactive">Inactive</MenuItem>
                   </Select>
@@ -910,7 +1048,7 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
               </Stack>
             </DialogContent>
 
-            <DialogActions sx={{ p: 2, gap: 1, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+            <DialogActions sx={{ p: 2, gap: 1, justifyContent: 'space-between', flexWrap: 'wrap', borderTop: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', position: 'sticky', bottom: 0 }}>
               <Button variant="outlined" startIcon={<Clear />} onClick={handleReset}>
                 Cancel
               </Button>
@@ -928,6 +1066,89 @@ const UserManagement = ({ scope = 'admin', onNotify }) => {
       )}
 
       {/* Visible Snackbar for messages */}
+      <FaceCaptureDialog
+        open={faceCaptureOpen}
+        onClose={() => setFaceCaptureOpen(false)}
+        onCaptured={(file) => {
+          setCapturedFaceImage(file);
+          setFaceCaptureOpen(false);
+          showMessage('Face captured and ready for enrollment', 'success');
+        }}
+        mode="ENROLL"
+      />
+
+      {!userModalOpen && (
+        <Dialog
+          open={generatedCredentials.open}
+          onClose={() => setGeneratedCredentials((prev) => ({ ...prev, open: false }))}
+          fullWidth
+          maxWidth="xs"
+          sx={{ zIndex: 30000 }}
+          PaperProps={{
+            sx: {
+              zIndex: 30001,
+              pointerEvents: 'auto',
+            },
+          }}
+        >
+          <DialogTitle sx={{ fontWeight: 700 }}>Generated Login Credentials</DialogTitle>
+          <DialogContent dividers>
+            <Stack spacing={2}>
+              <Alert severity="success">
+                User {generatedCredentials.name || 'created'} successfully. Save these credentials for first login.
+              </Alert>
+              <TextField
+                label="Employee Code"
+                value={generatedCredentials.employeeCode || 'N/A'}
+                fullWidth
+                InputProps={{ readOnly: true }}
+              />
+              <Button
+                variant="outlined"
+                onClick={() => copyToClipboard(generatedCredentials.employeeCode, 'Employee code')}
+              >
+                Copy Employee Code
+              </Button>
+              {!isManagerScope && (
+                <>
+                  <TextField
+                    label="Generated Password"
+                    value={generatedCredentials.password || 'Not returned by API'}
+                    fullWidth
+                    InputProps={{ readOnly: true }}
+                  />
+                  <Button
+                    variant="contained"
+                    onClick={() => copyToClipboard(generatedCredentials.password, 'Password')}
+                    disabled={!generatedCredentials.password}
+                  >
+                    Copy Password
+                  </Button>
+                </>
+              )}
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={() => {
+                const bundle = isManagerScope
+                  ? `Employee Code: ${generatedCredentials.employeeCode || ''}`
+                  : `Employee Code: ${generatedCredentials.employeeCode || ''}\nPassword: ${generatedCredentials.password || ''}`;
+                copyToClipboard(bundle, 'Credentials');
+              }}
+            >
+              Copy All
+            </Button>
+            <Button
+              variant="contained"
+              onClick={() => setGeneratedCredentials((prev) => ({ ...prev, open: false }))}
+            >
+              Done
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
+
       <Snackbar
         open={snack.open}
         autoHideDuration={6000}
