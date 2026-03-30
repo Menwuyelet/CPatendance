@@ -34,7 +34,7 @@ const LAYOUT = {
 };
 
 const MENU_CONFIG = {
-  Admin: [
+  ADMIN: [
     { text: 'Dashboard', icon: 'dashboard', path: '/dashboard' },
     { text: 'User Management', icon: 'people', path: '/users' },
     { text: 'Departments', icon: 'domain', path: '/companies' },
@@ -44,29 +44,18 @@ const MENU_CONFIG = {
     { text: 'Biometrics', icon: 'fingerprint', path: '/biometrics' },
     { text: 'Settings', icon: 'settings', path: '/settings' },
   ],
-  HR: [
-    { text: 'Dashboard', icon: 'dashboard', path: '/dashboard' },
-    { text: 'Employees', icon: 'people', path: '/employees' },
-    { text: 'Attendance', icon: 'calendar', path: '/attendance' },
-    { text: 'Shifts', icon: 'schedule', path: '/attendance/shifts' },
-    { text: 'Sessions', icon: 'event', path: '/attendance/sessions' },
-    { text: 'Biometrics', icon: 'fingerprint', path: '/biometrics' },
-    { text: 'Settings', icon: 'settings', path: '/settings' },
-  ],
-  Manager: [
+
+  MANAGER: [
     { text: 'Dashboard', icon: 'dashboard', path: '/manager/dashboard' },
-    { text: 'Team', icon: 'groups', path: '/manager/team' },
+    { text: 'Employees', icon: 'groups', path: '/manager/employees' },
+    { text: 'Departments', icon: 'domain', path: '/manager/companies' },
     { text: 'Attendance', icon: 'calendar', path: '/attendance' },
     { text: 'Shifts', icon: 'schedule', path: '/attendance/shifts' },
     { text: 'Sessions', icon: 'event', path: '/attendance/sessions' },
     { text: 'Biometrics', icon: 'fingerprint', path: '/biometrics' },
     { text: 'Settings', icon: 'settings', path: '/settings' },
-  ],
-  Employee: [
-    { text: 'My Dashboard', icon: 'dashboard', path: '/dashboard' },
-    { text: 'My Attendance', icon: 'event', path: '/attendance' },
-    { text: 'Biometrics', icon: 'fingerprint', path: '/biometrics' },
-    { text: 'Settings', icon: 'settings', path: '/settings' },
+    { text: 'Reports', icon: 'event', path: '/reports' },
+
   ],
 };
 
@@ -80,6 +69,13 @@ const ICONS = {
   event: <EventNoteIcon />,
   schedule: <ScheduleIcon />,
   fingerprint: <FingerprintIcon />,
+};
+
+const getMenuRoleKey = (role) => {
+  const normalizedRole = String(role || '').trim().replace(/[\s_-]/g, '').toUpperCase();
+  if (normalizedRole === 'ADMIN') return 'ADMIN';
+  if (normalizedRole === 'MANAGER') return 'MANAGER';
+  return null;
 };
 
 const Sidebar = memo(({ 
@@ -110,7 +106,10 @@ const Sidebar = memo(({
   const isCollapsed = controlledCollapsed !== undefined ? controlledCollapsed : internalCollapsed;
   const handleToggleCollapse = onToggleCollapse || (() => setInternalCollapsed(prev => !prev));
 
-  const currentMenu = useMemo(() => MENU_CONFIG[role] || MENU_CONFIG.Employee, [role]);
+  const currentMenu = useMemo(() => {
+    const menuKey = getMenuRoleKey(role);
+    return MENU_CONFIG[menuKey] || [];
+  }, [role]);
 
   // Close mobile drawer on route change
   useEffect(() => {
