@@ -1,5 +1,6 @@
 // src/components/Header.jsx
 import React, { useState, useEffect, useCallback, useMemo, memo, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Toolbar,
   Typography,
@@ -16,12 +17,14 @@ import {
   Divider,
   useTheme,
   useMediaQuery,
+  Tooltip,
 } from '@mui/material';
 import { Notifications, Logout, CheckCircle, DarkMode, LightMode } from '@mui/icons-material';
 import { useNotifications } from '../context/NotificationContext';
 import { ThemeContext } from '../index.jsx';
 
 const Header = memo(({ user, onLogout }) => {
+  const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isTablet = useMediaQuery(theme.breakpoints.down('md'));
@@ -53,6 +56,10 @@ const Header = memo(({ user, onLogout }) => {
   const toggleDarkMode = useCallback(() => {
     toggleTheme();
   }, [toggleTheme]);
+
+  const goToProfile = useCallback(() => {
+    navigate('/profile');
+  }, [navigate]);
 
   // Update clock every minute
   useEffect(() => {
@@ -259,13 +266,19 @@ const Header = memo(({ user, onLogout }) => {
       </Popover>
 
       {/* User Avatar */}
-      <IconButton sx={{ mx: { xs: 0, sm: 0.5 }, p: { xs: 0.3, sm: 0.6 } }}>
-        <Avatar sx={{ bgcolor: 'primary.main', width: { xs: 28, sm: 30 }, height: { xs: 28, sm: 30 } }}>
-          <Typography variant="subtitle1" fontWeight="bold">
-            {userInitial}
-          </Typography>
-        </Avatar>
-      </IconButton>
+      <Tooltip title="Profile">
+        <IconButton
+          onClick={goToProfile}
+          sx={{ mx: { xs: 0, sm: 0.5 }, p: { xs: 0.3, sm: 0.6 } }}
+          aria-label="Open profile page"
+        >
+          <Avatar sx={{ bgcolor: 'primary.main', width: { xs: 28, sm: 30 }, height: { xs: 28, sm: 30 } }}>
+            <Typography variant="subtitle1" fontWeight="bold">
+              {userInitial}
+            </Typography>
+          </Avatar>
+        </IconButton>
+      </Tooltip>
     </Box>
   );
 });
